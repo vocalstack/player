@@ -86,6 +86,7 @@ export interface VocalStackPlayerProps {
   endCard?: EndCardOptions | false;
   appUrl?: string;
   poster?: string | null;
+  voice?: string | null;
   settingsExtra?: ReactNode;
   shareUrl?: (t: number | null) => string;
   onSource?: (s: LoadedSource) => void;
@@ -267,7 +268,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const srcPlayer = videoLed ? yt.player : audioPlayer;
   const langs = useLanguages();
   const langBusyRef = useRef<string | null>(null);
-  const voice = useTxVoice({ recordingId, model, rows, lenS, ended: !!recordingId && !running, cred: api.cred, langs, srcLang: langCode, canTranslate: !!shared?.allowTranslate, pickedLang: txLang, setPickedLang: setTxLang, side: desk && !full ? PUB_SIDE : undefined, hearOriginal, timed: !!ytId, stockVoices: locked && !cloneOn, stickyPicker: locked, pickerBusy: langBusyRef.current });
+  const voice = useTxVoice({ forcedVoice: props.voice ?? null, recordingId, model, rows, lenS, ended: !!recordingId && !running, cred: api.cred, langs, srcLang: langCode, canTranslate: !!shared?.allowTranslate, pickedLang: txLang, setPickedLang: setTxLang, side: desk && !full ? PUB_SIDE : undefined, hearOriginal, timed: !!ytId, stockVoices: locked && !cloneOn, stickyPicker: locked, pickerBusy: langBusyRef.current });
   const langSent = useRef<string | null>(null);
   useEffect(() => { if (!recordingId || langSent.current === askLang) return; langSent.current = askLang; setLanguage(askLang); }, [askLang, recordingId]); // eslint-disable-line react-hooks/exhaustive-deps
   const player = videoLed ? yt.player : voice.on ? voice.player : srcPlayer;

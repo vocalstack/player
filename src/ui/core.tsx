@@ -875,8 +875,9 @@ export interface VoiceSheetHooks {
   castWarn?: (sp: CastMember, ctx: VoiceSheetCtx) => string | null;
 }
 
-export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs, srcLang, canTranslate, pickedLang, setPickedLang, side, hearOriginal = false, timed = false, stockVoices = false, stickyPicker = false, pickerBusy = null, voiceSheet }: {
+export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs, srcLang, canTranslate, pickedLang, setPickedLang, side, hearOriginal = false, timed = false, stockVoices = false, stickyPicker = false, pickerBusy = null, voiceSheet , forcedVoice = null }: {
   voiceSheet?: VoiceSheetHooks;
+  forcedVoice?: string | null;
   hearOriginal?: boolean;
   stockVoices?: boolean;
   stickyPicker?: boolean;
@@ -943,7 +944,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     () => rows.filter((r) => !r.suppressed && !r.unclear).map((r) => r.sentenceId).filter((id): id is number => id != null),
     [rows],
   );
-  const arch = useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice: castKeyStr ?? picked, sentenceIds: ended && speakHere ? sentenceIds : undefined });
+  const arch = useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice: forcedVoice || (castKeyStr ?? picked), sentenceIds: ended && speakHere ? sentenceIds : undefined });
   const gvPicked = gvList.find((v) => v.id === picked) ?? gvList.find((v) => v.id === arch.track?.voice) ?? gvList.find((v) => v.default) ?? gvList[0] ?? null;
   const gvId = gvPicked?.id ?? null;
 
@@ -953,7 +954,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     return () => clearInterval(id);
   }, [arch.rendering, arch.reload]);
 
-  const clipKey = `${recordingId ?? ''}|${lang ?? ''}|${castKeyStr ?? picked ?? arch.track?.voiceKey ?? 'default'}`;
+  const clipKey = `${recordingId ?? ''}|${lang ?? ''}|${forcedVoice || (castKeyStr ?? picked ?? arch.track?.voiceKey ?? 'default')}`;
   const vp = useTxVoicePlayer(arch.clips, rows, lenS, clipKey, spkMute, arch.track?.wordTimes, timed, arch.coming);
   useEffect(() => { const id = rows[vp.idx]?.sentenceId; if (id != null) arch.setNear(id); }, [vp.idx]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -1136,7 +1137,8 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     on: speaks, player, chip, voiceBtn, sheets, sidePanel, voicesMine, toggleVoices, cloningOn: cloneOn, playTitle, noVoice, noVoiceNote, relang, sampling: preview.sampleId != null, error: preview.error, clearError: () => preview.clearError(), openVoices, openPicker, original, reloadVoices: () => setCatVer((n) => n + 1), voicesVer: catVer, people, gvList, autoOf, savedFor, closeVoices, setSheet,
     selectedSpeaker: selSp, armVoice: preview.arm, resetPreview: preview.reset, armedId: preview.armId, resetCast: () => setCastByLang((m) => ({ ...m, [vLang ?? '']: {} })),
     readLang: typeof pickedLang === 'string' && pickedLang !== srcLang ? pickedLang : null,
-    readVoiceKey: castKeyStr ?? picked ?? arch.track?.voiceKey ?? '',
+    readVoiceKey: forcedVoice || (castKeyStr ?? picked ?? arch.track?.voiceKey ?? ''),
+    pickedVoiceKey: castKeyStr ?? picked ?? null,
     readVoiceName: gvPicked?.name ?? null,
     canSpeak,
     requestTrack: () => arch.requestRender(castKeyStr ?? picked, castKeyStr ? sentCast : null),
