@@ -242,7 +242,7 @@ export function FullVideo({ compact = false, noFull = false, page = true, pictur
   }, []);
   const small = compact && !isFull;
   const big = !small && desk && !sideways && (boxW == null || boxW >= 880);
-  const mini = !big && !isFull && boxW != null && boxW < 480;
+  const mini = !big;
   useEffect(() => {
     setCalm(false);
     if (!transport.playing || sheetOpen) return;
