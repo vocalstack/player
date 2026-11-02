@@ -316,13 +316,13 @@ export function FullVideo({ compact = false, noFull = false, page = true, pictur
     </div>
   );
   return (
-    <div ref={rootRef} className={`gfull${big ? ' gfull--desk' : ''}${mini ? ' gfull--mini' : ''}${swipeFull ? ' gfull--swipe' : ''}${ad ? ' gfull--ad' : ''}${calm ? ' gfull--calm' : ''}`} data-theme="dark" role="dialog" aria-label={title} onPointerMove={onMove} onPointerDownCapture={(e) => { if (calm) swallow.current = true; setTouchN((n) => n + 1); if (!(e.target as Element).closest?.('[aria-label="Exit full screen"], [aria-label="Full screen"], [aria-label="Close player"]')) onTouch(); }}
+    <div ref={rootRef} className={`gfull${big ? ' gfull--desk' : ''}${mini ? ' gfull--mini' : ''}${small ? ' gfull--small' : ''}${swipeFull ? ' gfull--swipe' : ''}${ad ? ' gfull--ad' : ''}${calm ? ' gfull--calm' : ''}`} data-theme="dark" role="dialog" aria-label={title} onPointerMove={onMove} onPointerDownCapture={(e) => { if (calm) swallow.current = true; setTouchN((n) => n + 1); if (!(e.target as Element).closest?.('[aria-label="Exit full screen"], [aria-label="Full screen"], [aria-label="Close player"]')) onTouch(); }}
       onClickCapture={(e) => { if (swallow.current) { swallow.current = false; e.stopPropagation(); e.preventDefault(); } }}>
       {swipeFull && barsUp && <div className="gfull__swipe" aria-live="polite"><Icon d="m4.5 15.75 7.5-7.5 7.5 7.5" size={14} sw={2} />Swipe up for full screen</div>}
       <div className={`gfull__frame${land ? ' gfull__frame--land' : ''}`}>
         {picture}
         <div className="gfull__shade" aria-hidden="true" />
-        {paused && !ad && !small && (
+        {paused && !ad && (
           <div className={`gfull__pausedinfo${!transport.playing ? ' gfull__pausedinfo--on' : ''}`} aria-hidden={transport.playing}>
             <div className="gfull__pausedtext">
               <div className="gfull__pausedtitle">{paused.title}</div>
