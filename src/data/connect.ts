@@ -11,12 +11,13 @@ function nonce(): string {
   return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-export function openPopup(appUrl: string | undefined, ask: { url?: string; transcription?: string }, onStatus?: (s: PopupStatus) => void): Promise<Started | null> {
+export function openPopup(appUrl: string | undefined, ask: { url?: string; transcription?: string; ask?: boolean }, onStatus?: (s: PopupStatus) => void): Promise<Started | null> {
   const app = new URL(appUrl ?? DEFAULT_APP);
   const n = nonce();
   const u = new URL(PATH, app);
   if (ask.url) u.searchParams.set('url', ask.url);
   if (ask.transcription) u.searchParams.set('transcription', ask.transcription);
+  if (ask.ask) u.searchParams.set('ask', '1');
   u.searchParams.set('origin', window.location.origin);
   u.searchParams.set('nonce', n);
   const w = 480, h = 640;
@@ -33,7 +34,7 @@ export function openPopup(appUrl: string | undefined, ask: { url?: string; trans
       if (!d || d.source !== 'vocalstack' || d.nonce !== n) return;
       if (d.type === 'vocalstack:hello') { pop.postMessage({ source: 'vocalstack', type: 'vocalstack:hello-ack', nonce: n }, app.origin); return; }
       if (d.type === 'vocalstack:status') { onStatus?.(d.status); return; }
-      if (d.type === 'vocalstack:started' || d.type === 'vocalstack:token') {
+      if (d.type === 'vocalstack:started' || d.type === 'vocalstack:token' || d.type === 'vocalstack:found') {
         finish(() => resolve({ transcriptionId: String(d.transcriptionId), recordingId: String(d.recordingId), token: String(d.token), expiresAt: d.expiresAt ?? null }));
         return;
       }

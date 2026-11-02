@@ -14,7 +14,7 @@ import { rows as toRows, showLabels, speakerLabel, speakerLook } from '../core/t
 import { downloadVoiceTrack, exportTranscript, jobLengthS, progressOf, rowStatusOf, saveUrl, saveWhenReady, segsLabel, TX_FORMATS, type TxProgress } from '../data/tx';
 import { ytIdOf } from '../core/youtube';
 import { subtitleShown } from '../core/readalong';
-import { PlayerApiProvider, useApi, useMediaToken, useSource, withMedia, type Listen, type PlayerApi, type PlayerSource, type TokenSource } from '../data/context';
+import { PlayerApiProvider, useApi, useMediaToken, useSource, withMedia, type Listen, type PlayerApi, type PlayerSource as LoadedSource, type TokenSource } from '../data/context';
 import { SideFrame, SidePanels, useSideTabs } from './SideColumn';
 import { ExportPanel, LiveVideo, ReplayScrub, SummaryPanel, shareLink, summaryOf, TabBar, Toast, useSummaryIn, useViewportTranslation, type TabSpec } from './shared';
 import { MuteButton, NO_SEEK, PAUSE_D, PLAY_D, PUB_SIDE, TxFind, TxLines, YtFollow, lineEnd, lineWords, pictureT, spokenWordOf, useDuck, useFindPull, useFlash, useTxPlayer, useTxVoice, useYtLead } from './core';
@@ -23,57 +23,83 @@ import { PlayerWait, playerWaitOf, useHeld } from './wait';
 import { EndCard, type EndCardOptions } from './EndCard';
 import type { Started } from '../data/connect';
 import { useDesk } from './useDesk';
+import { SourceGate } from './SourceGate';
+import { useLookup } from '../data/lookup';
 
 export interface PlayerSettings {
   lang?: string | null;
-  labels?: 'on' | 'off' | null;
-  words?: 'on' | 'off' | null;
-  cc?: boolean;
+  subtitles?: boolean;
+  speakerLabels?: boolean;
+  wordHighlight?: boolean;
   translateAudio?: boolean;
-  clonedVoices?: boolean;
+  voices?: 'cloned' | 'synthetic';
   removeBackground?: boolean;
-  startAt?: number | null;
 }
 
+export interface PlayerControls {
+  language?: boolean;
+  subtitles?: boolean;
+  audio?: boolean;
+  export?: boolean;
+  share?: boolean;
+  fullscreen?: boolean;
+  settings?: boolean;
+}
+
+export type PlayerSource = { id: string; src?: never } | { src: string; id?: never };
+
 export interface VocalStackPlayerProps {
-  id: string;
+  id?: string;
+  src?: string;
   token?: TokenSource | null;
   baseUrl?: string | null;
   mode?: 'video' | 'transcript';
   layout?: 'embed' | 'page';
   dark?: boolean;
   desk?: boolean;
+  settings?: PlayerSettings;
   initial?: PlayerSettings;
+  onSettingsChange?: (s: Required<PlayerSettings>) => void;
+  controls?: PlayerControls;
+  autoplay?: boolean;
+  startAt?: number | null;
   syncUrl?: boolean;
   endCard?: EndCardOptions | false;
+  appUrl?: string;
   settingsExtra?: ReactNode;
-  shareUrl?: (t: number | null) => string;
-  onSource?: (s: PlayerSource) => void;
+  onSource?: (s: LoadedSource) => void;
   onProgress?: (pct: number | null) => void;
   onError?: (e: ErrorLike) => void;
   className?: string;
 }
 
-function initialOf(p: VocalStackPlayerProps): Required<Omit<PlayerSettings, 'startAt'>> & { startAt: number | null } {
+interface Init { lang: string | null; labels: 'on' | 'off' | null; words: 'on' | 'off' | null; cc: boolean; translateAudio: boolean; clonedVoices: boolean; removeBackground: boolean; startAt: number | null }
+
+const onOffOf = (v: boolean | undefined) => (v == null ? null : v ? 'on' : 'off');
+
+function initialOf(p: VocalStackPlayerProps): Init {
   const q = p.syncUrl && typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const i = p.initial ?? {};
+  const i = { ...(p.initial ?? {}), ...(p.settings ?? {}) };
   const onOff = (v: string | null | undefined) => (v === 'on' || v === 'off' ? v : null);
   const t = Number(q?.get('t'));
   return {
     lang: q?.get('lang') || i.lang || null,
-    labels: onOff(q?.get('labels')) ?? i.labels ?? null,
-    words: onOff(q?.get('words')) ?? i.words ?? null,
-    cc: q?.get('cc') ? q.get('cc') !== 'off' : i.cc ?? true,
+    labels: onOff(q?.get('labels')) ?? onOffOf(i.speakerLabels),
+    words: onOff(q?.get('words')) ?? onOffOf(i.wordHighlight),
+    cc: q?.get('cc') ? q.get('cc') !== 'off' : i.subtitles ?? true,
     translateAudio: q?.get('audio') ? q.get('audio') !== 'original' : i.translateAudio ?? true,
-    clonedVoices: q?.get('voices') ? q.get('voices') !== 'stock' : i.clonedVoices ?? true,
-    removeBackground: q && (q.get('bg') ? removeBgFromQuery(q) : false) || (i.removeBackground ?? false),
-    startAt: Number.isFinite(t) && t > 0 ? t : i.startAt ?? null,
+    clonedVoices: q?.get('voices') ? q.get('voices') !== 'stock' : (i.voices ?? 'cloned') === 'cloned',
+    removeBackground: q && q.get('bg') ? removeBgFromQuery(q) : i.removeBackground ?? false,
+    startAt: Number.isFinite(t) && t > 0 ? t : p.startAt ?? null,
   };
 }
 
 export function VocalStackPlayer(props: VocalStackPlayerProps) {
-  const [cur, setCur] = useState<{ id: string; token: TokenSource | null | undefined; listen?: Listen | null }>({ id: props.id, token: props.token });
-  useEffect(() => { setCur({ id: props.id, token: props.token }); }, [props.id, props.token]);
+  const [cur, setCur] = useState<{ id: string; token: TokenSource | null | undefined; listen?: Listen | null }>({ id: props.id ?? '', token: props.token });
+  useEffect(() => { setCur({ id: props.id ?? '', token: props.token }); }, [props.id, props.token, props.src]);
+  const found = useLookup(props.src ?? null, props.token ?? null, props.baseUrl ?? null);
+  useEffect(() => { if (found?.id) setCur({ id: found.id, token: props.token }); }, [found?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const gate = !cur.id && !!props.src && found !== undefined;
   const base = useApi({ id: cur.id, token: cur.token, baseUrl: props.baseUrl, listen: cur.listen });
   const { source, gone, error, reload } = useSource(base, cur.id);
   const media = useMediaToken(base, source?.recording.id ?? null);
@@ -82,6 +108,7 @@ export function VocalStackPlayer(props: VocalStackPlayerProps) {
   useEffect(() => { if (error) props.onError?.(error); }, [error]); // eslint-disable-line react-hooks/exhaustive-deps
   const desk = useDesk(props.desk);
   const embed = (props.layout ?? 'embed') === 'embed';
+  const appUrl = props.appUrl ?? (props.endCard ? props.endCard.appUrl : undefined);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
     setFullTarget(embed ? root.current : null);
@@ -90,7 +117,7 @@ export function VocalStackPlayer(props: VocalStackPlayerProps) {
   return (
     <PlayerApiProvider value={api}>
       <div ref={root} className={`vsp${embed ? ' vsp--embed' : ''}${props.className ? ` ${props.className}` : ''}`} data-theme={props.mode === 'video' || props.dark ? 'dark' : 'light'} data-mode={props.mode === 'video' ? 'video' : 'transcript'}>
-        <PlayerBody key={cur.id} {...props} id={cur.id} api={api} shared={source} gone={gone} loadError={error} reread={reload} desk={desk} dark={props.mode === 'video' || !!props.dark} onStarted={(st) => setCur({ id: st.transcriptionId, token: null, listen: { transcriptionId: st.transcriptionId, recordingId: st.recordingId, token: st.token } })} />
+        {gate ? <SourceGate src={props.src!} appUrl={appUrl} onReady={(st) => setCur({ id: st.transcriptionId, token: null, listen: { transcriptionId: st.transcriptionId, recordingId: st.recordingId, token: st.token } })} /> : !cur.id ? <div className="vsp-gate" data-theme="dark"><span className="gfull__spin gfull__holdspin" aria-label="Loading" /></div> : <PlayerBody key={cur.id} {...props} id={cur.id} api={api} shared={source} gone={gone} loadError={error} reread={reload} desk={desk} dark={props.mode === 'video' || !!props.dark} onStarted={(st) => setCur({ id: st.transcriptionId, token: null, listen: { transcriptionId: st.transcriptionId, recordingId: st.recordingId, token: st.token } })} />}
       </div>
     </PlayerApiProvider>
   );
@@ -99,9 +126,9 @@ export function VocalStackPlayer(props: VocalStackPlayerProps) {
 
 type PubTab = 'summary' | 'export';
 
-function PlayerBody(props: VocalStackPlayerProps & { api: PlayerApi; shared: PlayerSource | null; gone: boolean; loadError: ErrorLike | null; reread: () => void; desk: boolean; dark: boolean; onStarted: (s: Started) => void }) {
+function PlayerBody(props: VocalStackPlayerProps & { api: PlayerApi; shared: LoadedSource | null; gone: boolean; loadError: ErrorLike | null; reread: () => void; desk: boolean; dark: boolean; onStarted: (s: Started) => void }) {
   const { api, shared, gone, desk, dark } = props;
-  const code = props.id;
+  const code = props.id ?? "";
   const init = useMemo(() => initialOf(props), []); // eslint-disable-line react-hooks/exhaustive-deps
   const wantVideo = props.mode === 'video';
   const earlyYt = shared?.job?.source?.kind === 'url' ? ytIdOf(shared.job.source.url) : null;
@@ -136,6 +163,15 @@ function PlayerBody(props: VocalStackPlayerProps & { api: PlayerApi; shared: Pla
   const [speakOn, setSpeakOn] = useState(init.translateAudio);
   const [cloneOn, setCloneOn] = useState(init.clonedVoices);
   const [removeBg, setRemoveBg] = useState(init.removeBackground);
+  const fixed = props.settings;
+  useEffect(() => { if (fixed?.lang !== undefined) setTxLang(fixed.lang); }, [fixed?.lang]);
+  useEffect(() => { if (fixed?.speakerLabels !== undefined) setLabelsPref(fixed.speakerLabels ? 'on' : 'off'); }, [fixed?.speakerLabels]);
+  useEffect(() => { if (fixed?.wordHighlight !== undefined) setWordsPref(fixed.wordHighlight ? 'on' : 'off'); }, [fixed?.wordHighlight]);
+  useEffect(() => { if (fixed?.subtitles !== undefined) setCcOn(fixed.subtitles); }, [fixed?.subtitles]);
+  useEffect(() => { if (fixed?.translateAudio !== undefined) setSpeakOn(fixed.translateAudio); }, [fixed?.translateAudio]);
+  useEffect(() => { if (fixed?.voices !== undefined) setCloneOn(fixed.voices === 'cloned'); }, [fixed?.voices]);
+  useEffect(() => { if (fixed?.removeBackground !== undefined) setRemoveBg(fixed.removeBackground); }, [fixed?.removeBackground]);
+  const ctl = { language: true, subtitles: true, audio: true, export: true, share: true, fullscreen: true, settings: true, ...(props.controls ?? {}) };
   const hearOriginal = locked && !speakOn;
   useEffect(() => {
     if (!props.syncUrl) return;
@@ -205,7 +241,7 @@ function PlayerBody(props: VocalStackPlayerProps & { api: PlayerApi; shared: Pla
   useEffect(() => { if (running && !player.playing && feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight; }, [running, rows.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const findHits = useFindPull(feedRef, rows, find, findQ, setFind);
   const findField = <TxFind open={find} q={findQ} onQ={setFindQ} onClose={() => setFind(false)} hits={findHits} desk={desk} inline={desk} />;
-  const name = shared?.name ?? code;
+  const name = shared?.name || props.src || code;
   const canDownload = !!shared?.allowDownload;
   const canExport = !!shared?.allowExport;
   const dlLang = voice.readLang;
@@ -262,7 +298,7 @@ function PlayerBody(props: VocalStackPlayerProps & { api: PlayerApi; shared: Pla
   const [soundTip, setSoundTip] = useState(false);
   const [adOn, setAdOn] = useState(false);
   useEffect(() => {
-    if (!locked || autoplayed.current || !playable || !full || holding) return;
+    if (!locked || autoplayed.current || !playable || !full || holding || props.autoplay === false) return;
     autoplayed.current = true;
     const tryPlay = (n: number) => { if (playerRef.current.playing || autoplayDone.current) return; playerRef.current.toggle(); if (n > 0) setTimeout(() => tryPlay(n - 1), 1500); };
     const muted = () => { if (!playerRef.current.muted) playerRef.current.toggleMute(); setSoundTip(true); tryPlay(3); };
@@ -333,7 +369,7 @@ function PlayerBody(props: VocalStackPlayerProps & { api: PlayerApi; shared: Pla
   const transport: PlayerTransport = { prevOn: player.idx > 0, nextOn: player.idx < rows.length - 1, onPrev: player.prev, onNext: player.next, playing: player.playing, playable, playTitle: voice.playTitle ?? (player.playing ? 'Pause' : 'Play'), onPlay: () => { autoplayDone.current = true; player.toggle(); }, busy: (voice.relang && !ytId) || voiceHolds };
   useMediaKeys(playable ? { playing: player.playing, toggle: () => { autoplayDone.current = true; player.toggle(); }, next: player.next, prev: player.prev } : null, pageTitle);
   const glassChip: React.CSSProperties = { background: 'transparent', color: '#eef0f8', width: 74, justifyContent: 'center', boxSizing: 'border-box' };
-  const chipFor = (style: React.CSSProperties, size?: 'sm') => !meta.can ? null : locked
+  const chipFor = (style: React.CSSProperties, size?: 'sm') => !meta.can || !ctl.language ? null : locked
     ? <button type="button" className="gfull__btn" title={langBusy ? `${meta.label ?? meta.code}: still being prepared` : meta.label ?? meta.code} aria-label={`Language: ${meta.label ?? meta.code}`} aria-busy={langBusy || undefined} onClick={() => { setSettings(false); meta.onClick(); }} style={{ position: 'relative' }}><span style={{ fontSize: size === 'sm' ? 17 : 21, lineHeight: 1 }}>{meta.flag}</span>{langBusy && <span style={{ position: 'absolute', right: 2, bottom: 2, display: 'flex', borderRadius: 999, background: 'rgba(5,6,21,.7)', padding: 1 }}><Spinner size={11} color="#eef0f8" track="rgba(255,255,255,.25)" /></span>}</button>
     : <LanguageChip flag={meta.flag} code={meta.code} label={meta.label} bordered={false} size={size} onClick={meta.onClick} style={style} />;
   const voicesBtn = { on: false, title: 'Voices', onClick: () => {} };
@@ -356,6 +392,11 @@ function PlayerBody(props: VocalStackPlayerProps & { api: PlayerApi; shared: Pla
   const subAt = wordsOn ? spokenWordOf(player, player.idx, subLine) : null;
   const subWords = subLine.map((w, j) => ({ t: w.text, sp: j < subLine.length - 1 ? ' ' : '', dim: subAt != null && j > subAt }));
   const labelsOn = labelsPref ? labelsPref === 'on' : locked ? false : showLabels(model, rows, rec?.settings);
+  const settingsOut = { lang: askLang, subtitles: ccOn, speakerLabels: labelsOn, wordHighlight: wordsOn, translateAudio: speakOn, voices: cloneOn ? 'cloned' as const : 'synthetic' as const, removeBackground: removeBg };
+  const settingsKey = JSON.stringify(settingsOut);
+  const onSettings = useRef(props.onSettingsChange);
+  onSettings.current = props.onSettingsChange;
+  useEffect(() => { onSettings.current?.(settingsOut); }, [settingsKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const subLook = subRow && subRow.speaker >= 0 && labelsOn ? speakerLook(model, subRow.speaker) : null;
   const [linkCopied, setLinkCopied] = useState(false);
   const [expBusy, setExpBusy] = useState<'srt' | 'pdf' | null>(null);
@@ -365,7 +406,7 @@ function PlayerBody(props: VocalStackPlayerProps & { api: PlayerApi; shared: Pla
   const copiedT = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(copiedT.current), []);
   const shareAtUrl = (t: number | null) => { const u = new URL(window.location.href); if (t != null && t > 0) u.searchParams.set('t', String(t)); else u.searchParams.delete('t'); return u.href; };
-  const startAt = useRef<number | null>((() => { const v = Number(new URLSearchParams(window.location.search).get('t')); return Number.isFinite(v) && v > 0 ? v : null; })());
+  const startAt = useRef<number | null>(init.startAt);
   const startSeek = (t0: number) => {
     if (player.seekFrac && player.dur > 0) { player.seekFrac(Math.min(1, t0 / player.dur)); return; }
     let i = 0;
@@ -460,34 +501,33 @@ function PlayerBody(props: VocalStackPlayerProps & { api: PlayerApi; shared: Pla
         </div>
       ) : (
         <div style={pageBody}>
-          {meta.can && (
-            <>
-              <div className="srow srow--tap" role="button" onClick={() => setPage('lang')}>
+          {[
+            meta.can && ctl.language && (
+              <div key="lang" className="srow srow--tap" role="button" onClick={() => setPage('lang')}>
                 <div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">Language</div><div className="srow__s">{askLang ? `Translated to ${meta.label ?? askLang.toUpperCase()}` : 'Original language'}</div></div>
                 <span style={{ fontSize: 18, lineHeight: 1 }}>{meta.flag}</span>
                 {chev}
               </div>
-              <div className="sdiv" />
-            </>
-          )}
-          <div className="srow srow--tap" role="button" onClick={() => setPage('subs')}>
-            <div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">Subtitles</div><div className="srow__s">{ccOn ? 'On · speaker labels and word highlighting' : 'Off'}</div></div>
-            {chev}
-          </div>
-          <div className="sdiv" />
-          <div className="srow srow--tap" role="button" onClick={() => setPage('audio')}>
-            <div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">Audio</div><div className="srow__s">{audioSummary}</div></div>
-            {chev}
-          </div>
-          {canExport && !!recordingId && (
-            <>
-              <div className="sdiv" />
-              <div className="srow srow--tap" role="button" onClick={() => setPage('export')}>
+            ),
+            ctl.subtitles && (
+              <div key="subs" className="srow srow--tap" role="button" onClick={() => setPage('subs')}>
+                <div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">Subtitles</div><div className="srow__s">{ccOn ? 'On · speaker labels and word highlighting' : 'Off'}</div></div>
+                {chev}
+              </div>
+            ),
+            ctl.audio && (
+              <div key="audio" className="srow srow--tap" role="button" onClick={() => setPage('audio')}>
+                <div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">Audio</div><div className="srow__s">{audioSummary}</div></div>
+                {chev}
+              </div>
+            ),
+            ctl.export && canExport && !!recordingId && (
+              <div key="export" className="srow srow--tap" role="button" onClick={() => setPage('export')}>
                 <div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">Export{dlLangName ? ` in ${dlLangName}` : ''}</div><div className="srow__s">Subtitles (SRT / VTT) or a PDF of the transcript</div></div>
                 {chev}
               </div>
-            </>
-          )}
+            ),
+          ].filter(Boolean).flatMap((el, i) => (i ? [<div key={`d${i}`} className="sdiv" />, el] : [el]))}
         </div>
       )}
       </GrowBox>
@@ -510,10 +550,10 @@ function PlayerBody(props: VocalStackPlayerProps & { api: PlayerApi; shared: Pla
   );
 
   const fullEl = full && watching && ytId && (
-    <FullVideo page={(props.layout ?? 'embed') === 'page'} picture={picture} title={name} desk={desk} pos={pos} mute={{ muted: player.muted, onToggle: toggleSound }} cc={{ on: ccOn, onToggle: () => setCcOn((v) => !v) }} ad={adOn} wait={waitState && !softWait ? <PlayerWait state={waitState} line={voiceHolds ? subWords.map((w) => w.t + w.sp).join('') : null} onRetry={waitRetry} onOriginal={waitOriginal} /> : player.edgeWait ? `Transcribing ${Math.round(pct)}% — it plays on as more is written` : null} pct={running ? Math.round(pct) : null}
+    <FullVideo page={(props.layout ?? 'embed') === 'page'} picture={picture} title={name} desk={desk} pos={pos} mute={{ muted: player.muted, onToggle: toggleSound }} cc={ctl.subtitles ? { on: ccOn, onToggle: () => setCcOn((v) => !v) } : undefined} noFull={!ctl.fullscreen} ad={adOn} wait={waitState && !softWait ? <PlayerWait state={waitState} line={voiceHolds ? subWords.map((w) => w.t + w.sp).join('') : null} onRetry={waitRetry} onOriginal={waitOriginal} /> : player.edgeWait ? `Transcribing ${Math.round(pct)}% — it plays on as more is written` : null} pct={running ? Math.round(pct) : null}
       sub={ccOn && subRow ? { who: subLook ? speakerLabel(model, subRow.speaker) : null, color: subLook ? subLook.fg ?? `var(--lane-${subLook.lane})` : '#fff', words: subWords, cursor: spokenWordOf(player, player.idx, subLine) } : null}
       chip={chipFor(desk ? glassChip : { ...glassChip, width: 64, padding: '0 6px' }, desk ? undefined : 'sm')} transport={transport}
-      picker={voice.sheets} sheet={locked ? settingsSheet : null} voices={null} voicesBtn={locked ? null : voicesBtn} sheetOpen={voice.sheetsOpen || settings} onShare={locked ? shareHere : undefined} onSettings={locked ? () => { voice.closePicker(); setSettings((v) => !v); } : undefined} paused={{ title: name, summary: sharedSummary.state === 'ready' ? sharedSummary.summary ?? null : null, share: { url: shareAtUrl, at: player.t } }}
+      picker={voice.sheets} sheet={locked ? settingsSheet : null} voices={null} voicesBtn={locked ? null : voicesBtn} sheetOpen={voice.sheetsOpen || settings} onShare={locked && ctl.share ? shareHere : undefined} onSettings={locked && ctl.settings ? () => { voice.closePicker(); setSettings((v) => !v); } : undefined} paused={{ title: name, summary: sharedSummary.state === 'ready' ? sharedSummary.summary ?? null : null, share: { url: shareAtUrl, at: player.t } }}
       copied={linkCopied ? <div className="gfull__toast" aria-live="polite"><Icon d={D.check} size={13} sw={2} />Link copied</div> : soundTip ? <div className="gfull__toast gfull__soundtip" aria-live="polite"><Icon d={D.volumeOff} size={14} sw={1.8} />Tap for sound</div> : softNote ? <div className="gfull__toast" role="status" aria-live="polite"><Spinner size={13} color="#eef0f8" track="rgba(255,255,255,.25)" />{softNote}</div> : voice.on && (videoLed ? follow.missing != null : player.silent) ? <div className="gfull__toast" role="status" aria-live="polite"><Spinner size={13} color="#eef0f8" track="rgba(255,255,255,.25)" />{`${waitLangName || 'Translated'} voice is still being prepared · playing with subtitles`}</div> : null} onTouch={() => { browserFull(true); soundOn(); }} onClose={locked ? undefined : () => { browserFull(false); setFull(false); }} />
   );
   useEffect(() => { if (!locked && full && !watching) { browserFull(false); setFull(false); } }, [locked, full, watching]);
@@ -575,7 +615,7 @@ function PlayerBody(props: VocalStackPlayerProps & { api: PlayerApi; shared: Pla
   const atEnd = !!fullEl && !holding && (videoLed ? !!player.ended : !player.playing && player.dur > 0 && player.t >= player.dur - 0.5);
   useEffect(() => { if (!atEnd) setEndDismissed(false); }, [atEnd]);
   const endCard = props.endCard !== false && atEnd && !endDismissed && (
-    <EndCard options={props.endCard || {}} onStarted={props.onStarted} onReplay={() => { setEndDismissed(true); autoplayDone.current = true; if (player.seekFrac) player.seekFrac(0); else player.seekRow(0); if (!player.playing) player.toggle(); }} />
+    <EndCard options={{ appUrl: props.appUrl, ...(props.endCard || {}) }} onStarted={props.onStarted} onReplay={() => { setEndDismissed(true); autoplayDone.current = true; if (player.seekFrac) player.seekFrac(0); else player.seekRow(0); if (!player.playing) player.toggle(); }} />
   );
   if (locked) return <>{gone ? <div className="gfull" data-theme="dark">{gonePanel}</div> : hold || fullEl || <div className="gfull" data-theme="dark" />}{endCard}{toast}</>;
   if (desk) {

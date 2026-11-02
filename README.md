@@ -21,14 +21,45 @@ export function Video() {
 
 | Prop | Default | |
 |---|---|---|
-| `id` | required | A share code. Or, with `token`, a transcription id. |
-| `token` | none | A browser token (or a function returning one) for a private transcription. Never pass an API key to a browser. |
+| `id` | | A share code. Or, with `token`, a transcription id. |
+| `src` | | A video or audio link (YouTube, Vimeo, an mp3 or any media URL) instead of `id`. If the visitor has already transcribed it with VocalStack, it plays. If not, they are asked whether to start transcribing it. With `token`, the link is looked up in that account instead. |
+| `token` | | A browser token (or a function returning one) for a private transcription. Never pass an API key to a browser. |
 | `mode` | `'video'` | `'video'` for the full player, `'transcript'` for the reading view with a player. |
-| `layout` | `'embed'` | `'embed'` sizes to its container (16:9 for video); `'page'` fills the page. |
-| `initial` | none | `{ lang, cc, translateAudio, clonedVoices, removeBackground, labels, words, startAt }` |
+| `layout` | `'embed'` | `'embed'` sizes to its container (16:9 for video). `'page'` fills the page. |
+| `settings` | | Settings you control. Changing a value updates the player. See below. |
+| `initial` | | The same settings, applied once at the start. The viewer can change them afterwards. |
+| `onSettingsChange` | | Called with all the settings whenever the viewer changes one. |
+| `controls` | all on | `{ language, subtitles, audio, export, share, fullscreen, settings }`. Pass `false` to hide one. |
+| `autoplay` | `true` | Starts muted where the browser requires it. |
+| `startAt` | | Start time in seconds. |
 | `endCard` | on | At the end of a video, offers to transcribe another link in the visitor's own VocalStack account. Pass `false` to turn it off. |
 | `baseUrl` | `https://api.vocalstack.com` | |
-| `onSource`, `onProgress`, `onError` | none | Callbacks for the loaded transcription, the transcription progress (0-100, `null` when done), and errors. |
+| `onSource`, `onProgress`, `onError` | | Called with the loaded transcription, the transcription progress (0-100, `null` when done), and errors. |
+
+### Settings
+
+```ts
+{
+  lang?: string | null;          // translate into this language code; null = as spoken
+  subtitles?: boolean;           // captions over the video
+  speakerLabels?: boolean;       // who is speaking, before each line
+  wordHighlight?: boolean;       // follow each word as it is spoken
+  translateAudio?: boolean;      // hear the translation read aloud
+  voices?: 'cloned' | 'synthetic';
+  removeBackground?: boolean;    // play only the speech
+}
+```
+
+```tsx
+<VocalStackPlayer
+  id="r4m4srrrhi24"
+  settings={{ lang: 'es', speakerLabels: true, voices: 'cloned' }}
+  controls={{ export: false, share: false }}
+  onSettingsChange={(s) => console.log(s)}
+/>
+
+<VocalStackPlayer src="https://www.youtube.com/watch?v=QWCLiPOgeuw" />
+```
 
 Theme it by overriding the CSS variables on `.vsp`, for example `--vsp-radius`, `--brand` and `--vs-font-sans`.
 

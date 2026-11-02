@@ -1170,3 +1170,8 @@
 .vsp .bg-lane-f{background:var(--lane-f-soft);color:var(--lane-f)}
 .vsp .bg-lane-g{background:var(--lane-g-soft);color:var(--lane-g)}
 .vsp .bg-lane-h{background:var(--lane-h-soft);color:var(--lane-h)}
+.vsp .vsp-gate{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:#050507;color:#eef0f8;font-family:var(--vs-font-sans);overflow:hidden}
+.vsp:not(.vsp--embed) .vsp-gate{position:fixed}
+.vsp .vsp-gate__bg{position:absolute;inset:-20px;background-size:cover;background-position:center;filter:blur(14px) brightness(.45);transform:scale(1.05)}
+.vsp .vsp-gate__card{position:relative}
+.vsp .vsp-gate__go{width:100%;gap:8px;margin-top:4px}
