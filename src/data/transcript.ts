@@ -72,7 +72,7 @@ export function useTranscript(recordingId: string | null, opts: { lang?: string 
         let sub: Subscription | null = null;
         try {
           const asked = langRef.current;
-          sub = await client.recordings.subscribe(recordingId, { lang: asked ?? undefined, shareCode: api.shareCode ?? undefined, asOwner: api.owner, voice: opts.voice ?? undefined });
+          sub = await client.recordings.subscribe(recordingId, { lang: asked ?? undefined, ...api.readAs, asOwner: api.owner, voice: opts.voice ?? undefined });
           if (!alive) { sub.close(); return; }
           attempt = 0;
           subRef.current = sub;

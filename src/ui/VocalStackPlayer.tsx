@@ -14,7 +14,7 @@ import { rows as toRows, showLabels, speakerLabel, speakerLook } from '../core/t
 import { downloadVoiceTrack, exportTranscript, jobLengthS, progressOf, rowStatusOf, saveUrl, saveWhenReady, segsLabel, TX_FORMATS, type TxProgress } from '../data/tx';
 import { ytIdOf } from '../core/youtube';
 import { subtitleShown } from '../core/readalong';
-import { PlayerApiProvider, useApi, useMediaToken, useSource, withMedia, type PlayerApi, type PlayerSource, type TokenSource } from '../data/context';
+import { PlayerApiProvider, useApi, useMediaToken, useSource, withMedia, type Listen, type PlayerApi, type PlayerSource, type TokenSource } from '../data/context';
 import { SideFrame, SidePanels, useSideTabs } from './SideColumn';
 import { ExportPanel, LiveVideo, ReplayScrub, SummaryPanel, shareLink, summaryOf, TabBar, Toast, useSummaryIn, useViewportTranslation, type TabSpec } from './shared';
 import { MuteButton, NO_SEEK, PAUSE_D, PLAY_D, PUB_SIDE, TxFind, TxLines, YtFollow, lineEnd, lineWords, pictureT, spokenWordOf, useDuck, useFindPull, useFlash, useTxPlayer, useTxVoice, useYtLead } from './core';
@@ -72,9 +72,9 @@ function initialOf(p: VocalStackPlayerProps): Required<Omit<PlayerSettings, 'sta
 }
 
 export function VocalStackPlayer(props: VocalStackPlayerProps) {
-  const [cur, setCur] = useState<{ id: string; token: TokenSource | null | undefined }>({ id: props.id, token: props.token });
+  const [cur, setCur] = useState<{ id: string; token: TokenSource | null | undefined; listen?: Listen | null }>({ id: props.id, token: props.token });
   useEffect(() => { setCur({ id: props.id, token: props.token }); }, [props.id, props.token]);
-  const base = useApi({ id: cur.id, token: cur.token, baseUrl: props.baseUrl });
+  const base = useApi({ id: cur.id, token: cur.token, baseUrl: props.baseUrl, listen: cur.listen });
   const { source, gone, error, reload } = useSource(base, cur.id);
   const media = useMediaToken(base, source?.recording.id ?? null);
   const api = useMemo(() => withMedia(base, media), [base, media]);
@@ -90,7 +90,7 @@ export function VocalStackPlayer(props: VocalStackPlayerProps) {
   return (
     <PlayerApiProvider value={api}>
       <div ref={root} className={`vsp${embed ? ' vsp--embed' : ''}${props.className ? ` ${props.className}` : ''}`} data-theme={props.mode === 'video' || props.dark ? 'dark' : 'light'} data-mode={props.mode === 'video' ? 'video' : 'transcript'}>
-        <PlayerBody key={cur.id} {...props} id={cur.id} api={api} shared={source} gone={gone} loadError={error} reread={reload} desk={desk} dark={props.mode === 'video' || !!props.dark} onStarted={(st) => setCur({ id: st.id, token: st.token })} />
+        <PlayerBody key={cur.id} {...props} id={cur.id} api={api} shared={source} gone={gone} loadError={error} reread={reload} desk={desk} dark={props.mode === 'video' || !!props.dark} onStarted={(st) => setCur({ id: st.transcriptionId, token: null, listen: { transcriptionId: st.transcriptionId, recordingId: st.recordingId, token: st.token } })} />
       </div>
     </PlayerApiProvider>
   );

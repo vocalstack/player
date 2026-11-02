@@ -10,6 +10,7 @@ export interface PlayerApi {
   origin: string;
   owner: boolean;
   shareCode: string | null;
+  listen: Listen | null;
   bearer: () => Promise<string | undefined>;
   cred: MediaCred;
   readAs: ReadAs;
@@ -48,10 +49,13 @@ export function isTranscriptionId(id: string): boolean {
 
 export type TokenSource = string | (() => string | undefined | null | Promise<string | undefined | null>);
 
-export interface ApiOptions { id: string; token?: TokenSource | null; baseUrl?: string | null }
+export interface Listen { transcriptionId: string; recordingId: string; token: string }
+
+export interface ApiOptions { id: string; token?: TokenSource | null; baseUrl?: string | null; listen?: Listen | null }
 
 export function useApi(o: ApiOptions): PlayerApi {
-  const owner = isTranscriptionId(o.id) && !!o.token;
+  const listen = o.listen ?? null;
+  const owner = !listen && isTranscriptionId(o.id) && !!o.token;
   const origin = (o.baseUrl ?? DEFAULT_API).replace(/\/$/, '');
   const tokRef = useRef(o.token);
   tokRef.current = o.token;
@@ -61,12 +65,13 @@ export function useApi(o: ApiOptions): PlayerApi {
     const v = typeof t === 'function' ? await t() : t;
     return v || undefined;
   }, []);
-  const client = useMemo(() => new VocalStack({ baseUrl: origin, token: hasToken ? bearer : undefined }), [origin, hasToken, bearer]);
+  const client = useMemo(() => new VocalStack({ baseUrl: origin, token: hasToken && !listen ? bearer : undefined }), [origin, hasToken, bearer, listen]);
   return useMemo(() => {
+    if (listen) return { client, origin, owner: false, shareCode: null, listen, bearer, cred: { listenerToken: listen.token }, readAs: { listenerToken: listen.token } };
     const shareCode = owner ? null : o.id;
     const readAs: ReadAs = shareCode ? { shareCode } : {};
-    return { client, origin, owner, shareCode, bearer, cred: { shareCode }, readAs };
-  }, [client, origin, owner, o.id, bearer]);
+    return { client, origin, owner, shareCode, listen: null, bearer, cred: { shareCode }, readAs };
+  }, [client, origin, owner, o.id, bearer, listen]);
 }
 
 export function withMedia(api: PlayerApi, media: string | null): PlayerApi {
@@ -74,6 +79,11 @@ export function withMedia(api: PlayerApi, media: string | null): PlayerApi {
 }
 
 export async function loadSource(api: PlayerApi, id: string): Promise<PlayerSource> {
+  if (api.listen) {
+    const recording = await api.client.recordings.get(api.listen.recordingId, api.readAs);
+    const r: any = recording;
+    return { key: id, code: null, transcriptionId: api.listen.transcriptionId, name: r.name ?? r.title ?? '', recording, job: r.job ?? null, allowDownload: true, allowExport: true, allowTranslate: true, sharedBy: null };
+  }
   if (api.owner) {
     const tx = await api.client.transcriptions.get(id);
     const job = (tx as any).job ?? null;
@@ -126,6 +136,7 @@ export async function apiFetch(api: PlayerApi, path: string, init: { method?: st
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(init.query ?? {})) if (v != null) q.set(k, v);
   if (api.shareCode) q.set('shareCode', api.shareCode);
+  if (api.listen) q.set('listenerToken', api.listen.token);
   const headers: Record<string, string> = {};
   if (init.body !== undefined) headers['content-type'] = 'application/json';
   if (api.owner) { const t = await api.bearer(); if (t) headers.authorization = `Bearer ${t}`; }

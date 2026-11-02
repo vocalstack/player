@@ -13,7 +13,7 @@ createRoot(document.getElementById('root')!).render(
     <article style={{ maxWidth: 760, margin: '40px auto', padding: '0 16px', fontFamily: 'Georgia, serif', color: '#eee' }}>
       <h1>A blog post with a VocalStack player</h1>
       <p>Some text above the video, the way a host site would embed it.</p>
-      <VocalStackPlayer id={id} baseUrl={api} mode={mode} />
+      <VocalStackPlayer id={id} baseUrl={api} mode={mode} endCard={{ appUrl: q.get('app') || 'http://localhost:5176' }} />
       <p>Some text below the video.</p>
     </article>
   ) : (

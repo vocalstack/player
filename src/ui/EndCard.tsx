@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { D, Icon, Logo, Spinner } from '../ds/Icons';
-import { startFromEmbed, type Started } from '../data/connect';
+import { startFromEmbed, type PopupStatus, type Started } from '../data/connect';
 
 export interface EndCardOptions {
   appUrl?: string;
@@ -8,12 +8,20 @@ export interface EndCardOptions {
   note?: string;
 }
 
+const STATUS: Record<PopupStatus, string> = {
+  'signing-in': 'Sign in to VocalStack in the window that opened…',
+  consent: 'Confirm in the VocalStack window…',
+  checking: 'Checking the link…',
+  starting: 'Starting the transcription…',
+};
+
 const LINK = /^(https?:\/\/)?([\w-]+\.)+[a-z]{2,}(\/\S*)?$/i;
 
 export function EndCard({ options, onStarted, onReplay }: { options: EndCardOptions; onStarted: (s: Started) => void; onReplay: () => void }) {
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [status, setStatus] = useState<PopupStatus | null>(null);
   const clean = url.trim();
   const ok = LINK.test(clean);
   const go = async () => {
@@ -21,12 +29,13 @@ export function EndCard({ options, onStarted, onReplay }: { options: EndCardOpti
     setBusy(true);
     setErr(null);
     try {
-      const s = await startFromEmbed(options.appUrl, /^https?:\/\//i.test(clean) ? clean : `https://${clean}`);
+      const s = await startFromEmbed(options.appUrl, /^https?:\/\//i.test(clean) ? clean : `https://${clean}`, setStatus);
       if (s) onStarted(s);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
     } finally {
       setBusy(false);
+      setStatus(null);
     }
   };
   return (
@@ -39,6 +48,7 @@ export function EndCard({ options, onStarted, onReplay }: { options: EndCardOpti
           <input className="vsp-end__input" type="url" inputMode="url" autoComplete="off" spellCheck={false} placeholder="https://youtube.com/watch?v=…" value={url} onChange={(e) => { setUrl(e.target.value); setErr(null); }} aria-label="Video link" />
           <button type="submit" className="vsp-end__go" disabled={!ok || busy}>{busy ? <Spinner size={15} color="#050507" track="rgba(5,5,7,.2)" /> : 'Transcribe'}</button>
         </form>
+        {busy && <div className="vsp-end__note" role="status">{STATUS[status ?? 'checking']}</div>}
         {err && <div className="vsp-end__err" role="alert">{err}</div>}
         <div className="vsp-end__foot">
           <span>Uses your VocalStack account. You'll be asked to sign in if you're not.</span>
