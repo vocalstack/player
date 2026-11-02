@@ -37,6 +37,7 @@ export function rowStatusOf(state: TranscriptionJob['state'] | undefined | null)
 
 export function progressOf(job: TranscriptionJob | null): TxProgress | null {
   if (!job) return null;
+  if (!job.progress) return job.state ? { state: job.state, processedS: 0, totalS: null, segmentsDone: 0, segmentsTotal: null, pct: 0, error: job.error ?? null } : null;
   return { state: job.state, processedS: job.progress.processedS, totalS: job.progress.totalS ?? null, segmentsDone: job.progress.segmentsDone, segmentsTotal: job.progress.segmentsTotal ?? null, pct: job.progress.pct, error: job.error ?? null };
 }
 
