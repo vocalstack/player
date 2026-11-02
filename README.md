@@ -21,7 +21,7 @@ export function Video() {
 
 | Prop | Default | |
 |---|---|---|
-| `id` | | A share code. Or, with `token`, a transcription id. |
+| `id` | | A share code. Or, with `token`, a transcription id. With neither `id` nor `src`, the player opens on a box where the visitor pastes any video link and transcribes it in their own VocalStack account. |
 | `src` | | A video or audio link (YouTube, Vimeo, an mp3 or any media URL) instead of `id`. If the visitor has already transcribed it with VocalStack, it plays. If not, they are asked whether to start transcribing it. With `token`, the link is looked up in that account instead. |
 | `token` | | A browser token (or a function returning one) for a private transcription. Never pass an API key to a browser. |
 | `mode` | `'video'` | `'video'` for the full player, `'transcript'` for the reading view with a player. |

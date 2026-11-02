@@ -3,7 +3,7 @@ import { VocalStackPlayer } from '../src';
 
 const q = new URLSearchParams(location.search);
 const src = q.get('src') || undefined;
-const id = src ? undefined : q.get('id') || 'r4m4srrrhi24';
+const id = src || q.has('empty') ? undefined : q.get('id') || 'r4m4srrrhi24';
 const settings = q.get('settings') ? JSON.parse(q.get('settings')!) : undefined;
 const controls = q.get('controls') ? JSON.parse(q.get('controls')!) : undefined;
 const api = q.get('api') || location.origin;

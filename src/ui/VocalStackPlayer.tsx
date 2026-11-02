@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Card, GrowBox, LanguageChip, Sheet, Switch, Toggle } from '../ds/Controls';
 import { D, Icon, Logo, Spinner } from '../ds/Icons';
 import { mediaKind } from '../core/voiceplayer';
@@ -23,7 +23,7 @@ import { PlayerWait, playerWaitOf, useHeld } from './wait';
 import { EndCard, type EndCardOptions } from './EndCard';
 import type { Started } from '../data/connect';
 import { useDesk } from './useDesk';
-import { SourceGate } from './SourceGate';
+import { SourceGate, StartCard, useConnect } from './SourceGate';
 import { useLookup } from '../data/lookup';
 
 export interface PlayerSettings {
@@ -98,7 +98,11 @@ export function VocalStackPlayer(props: VocalStackPlayerProps) {
   useEffect(() => { setCur({ id: props.id ?? '', token: props.token }); }, [props.id, props.token, props.src]);
   const found = useLookup(props.src ?? null, props.token ?? null, props.baseUrl ?? null);
   useEffect(() => { if (found?.id) setCur({ id: found.id, token: props.token }); }, [found?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  const gate = !cur.id && !!props.src && found !== undefined;
+  const [typed, setTyped] = useState<string | null>(null);
+  useEffect(() => { setTyped(null); }, [props.id, props.src]);
+  const gateSrc = props.src ?? typed;
+  const gate = !cur.id && !!gateSrc && (typed != null || found !== undefined);
+  const empty = !cur.id && !props.src && !typed;
   const base = useApi({ id: cur.id, token: cur.token, baseUrl: props.baseUrl, listen: cur.listen });
   const { source, gone, error, reload } = useSource(base, cur.id);
   const media = useMediaToken(base, source?.recording.id ?? null);
@@ -108,6 +112,8 @@ export function VocalStackPlayer(props: VocalStackPlayerProps) {
   const desk = useDesk(props.desk);
   const embed = (props.layout ?? 'embed') === 'embed';
   const appUrl = props.appUrl ?? (props.endCard ? props.endCard.appUrl : undefined);
+  const onReady = useCallback((st: Started) => setCur({ id: st.transcriptionId, token: null, listen: { transcriptionId: st.transcriptionId, recordingId: st.recordingId, token: st.token } }), []);
+  const connect = useConnect(appUrl, onReady);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
     setFullTarget(embed ? root.current : null);
@@ -116,7 +122,7 @@ export function VocalStackPlayer(props: VocalStackPlayerProps) {
   return (
     <PlayerApiProvider value={api}>
       <div ref={root} className={`vsp${embed ? ' vsp--embed' : ''}${props.className ? ` ${props.className}` : ''}`} data-theme={props.mode === 'video' || props.dark ? 'dark' : 'light'} data-mode={props.mode === 'video' ? 'video' : 'transcript'}>
-        {gate ? <SourceGate src={props.src!} appUrl={appUrl} onReady={(st) => setCur({ id: st.transcriptionId, token: null, listen: { transcriptionId: st.transcriptionId, recordingId: st.recordingId, token: st.token } })} /> : !cur.id ? <div className="vsp-gate" data-theme="dark"><span className="gfull__spin gfull__holdspin" aria-label="Loading" /></div> : <PlayerBody key={cur.id} {...props} id={cur.id} api={api} shared={source} gone={gone} loadError={error} reread={reload} desk={desk} dark={props.mode === 'video' || !!props.dark} onStarted={(st) => setCur({ id: st.transcriptionId, token: null, listen: { transcriptionId: st.transcriptionId, recordingId: st.recordingId, token: st.token } })} />}
+        {empty ? <StartCard connect={connect} onPick={setTyped} /> : gate ? <SourceGate src={gateSrc!} ask={!typed} connect={connect} onClear={typed ? () => setTyped(null) : undefined} /> : !cur.id ? <div className="vsp-gate" data-theme="dark"><span className="gfull__spin gfull__holdspin" aria-label="Loading" /></div> : <PlayerBody key={cur.id} {...props} id={cur.id} api={api} shared={source} gone={gone} loadError={error} reread={reload} desk={desk} dark={props.mode === 'video' || !!props.dark} onStarted={(st) => setCur({ id: st.transcriptionId, token: null, listen: { transcriptionId: st.transcriptionId, recordingId: st.recordingId, token: st.token } })} />}
       </div>
     </PlayerApiProvider>
   );
