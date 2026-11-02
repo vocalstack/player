@@ -94,7 +94,7 @@ function SeekRow({ pos, interactive, axis = 'x' }: { pos: PlayerPos; interactive
   );
 }
 
-function PanelSeek({ pos }: { pos: PlayerPos }) {
+export function PanelSeek({ pos }: { pos: PlayerPos }) {
   const [drag, setDrag] = useState<number | null>(null);
   const fracOf = (e: React.PointerEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect();

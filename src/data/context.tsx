@@ -33,12 +33,20 @@ const Ctx = createContext<PlayerApi | null>(null);
 
 export function usePlayerApi(): PlayerApi {
   const v = useContext(Ctx);
-  if (!v) throw new Error('VocalStack player hooks must be used inside <VocalStackPlayer>');
+  if (!v) throw new Error('VocalStack player hooks must be used inside <VocalStackPlayer> or <PlayerApiProvider>');
   return v;
 }
 
-export function PlayerApiProvider({ value, children }: { value: PlayerApi; children: ReactNode }) {
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+export type PlayerApiProviderProps = { children: ReactNode } & ({ value: PlayerApi } | (Partial<ApiOptions> & { value?: undefined }));
+
+export function PlayerApiProvider(props: PlayerApiProviderProps) {
+  if (props.value) return <Ctx.Provider value={props.value}>{props.children}</Ctx.Provider>;
+  return <OwnApi {...props} />;
+}
+
+function OwnApi({ children, ...o }: Partial<ApiOptions> & { children: ReactNode }) {
+  const api = useApi(o);
+  return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -51,11 +59,12 @@ export type TokenSource = string | (() => string | undefined | null | Promise<st
 
 export interface Listen { transcriptionId: string; recordingId: string; token: string }
 
-export interface ApiOptions { id: string; token?: TokenSource | null; baseUrl?: string | null; listen?: Listen | null }
+export interface ApiOptions { id?: string | null; token?: TokenSource | null; baseUrl?: string | null; listen?: Listen | null; listenerToken?: string | null; client?: VocalStack | null }
 
 export function useApi(o: ApiOptions): PlayerApi {
   const listen = o.listen ?? null;
-  const owner = !listen && isTranscriptionId(o.id) && !!o.token;
+  const listenerToken = listen ? null : o.listenerToken ?? null;
+  const owner = !listen && !listenerToken && !!o.token && (!o.id || isTranscriptionId(o.id));
   const origin = (o.baseUrl ?? DEFAULT_API).replace(/\/$/, '');
   const tokRef = useRef(o.token);
   tokRef.current = o.token;
@@ -65,13 +74,15 @@ export function useApi(o: ApiOptions): PlayerApi {
     const v = typeof t === 'function' ? await t() : t;
     return v || undefined;
   }, []);
-  const client = useMemo(() => new VocalStack({ baseUrl: origin, token: hasToken && !listen ? bearer : undefined }), [origin, hasToken, bearer, listen]);
+  const given = o.client ?? null;
+  const client = useMemo(() => given ?? new VocalStack({ baseUrl: origin, token: hasToken && !listen ? bearer : undefined }), [given, origin, hasToken, bearer, listen]);
   return useMemo(() => {
     if (listen) return { client, origin, owner: false, shareCode: null, listen, bearer, cred: { listenerToken: listen.token }, readAs: { listenerToken: listen.token } };
-    const shareCode = owner ? null : o.id;
+    if (listenerToken) return { client, origin, owner: false, shareCode: null, listen: null, bearer, cred: { listenerToken }, readAs: { listenerToken } };
+    const shareCode = owner ? null : o.id || null;
     const readAs: ReadAs = shareCode ? { shareCode } : {};
     return { client, origin, owner, shareCode, listen: null, bearer, cred: { shareCode }, readAs };
-  }, [client, origin, owner, o.id, bearer, listen]);
+  }, [client, origin, owner, o.id, bearer, listen, listenerToken]);
 }
 
 export function withMedia(api: PlayerApi, media: string | null): PlayerApi {

@@ -840,12 +840,27 @@ const TX_SIDE = { title: 'TRANSCRIPT LANGUAGE', note: 'The transcript and its vo
 export const PUB_SIDE = { title: 'READ IN', note: 'The transcript and its voice switch to this language.' };
 
 
+export interface VoiceSheetCtx {
+  people: CastMember[];
+  gvList: AvailableVoice[];
+  autoOf: (key: number) => AvailableVoice | null;
+  savedFor: (sp: CastMember) => AvailableVoice | null;
+}
+
+export interface NoCloneNote { busy?: boolean; title: string; sub: string; tip?: string; action?: () => void }
+
 export interface VoiceSheetHooks {
   cloneOn?: boolean;
+  pendingClones?: boolean;
   titleNode?: React.ReactNode;
+  badge?: (ctx: VoiceSheetCtx) => number;
   onAddVoice?: (v: AvailableVoice) => void;
   onPickVoice?: (v: AvailableVoice) => boolean | void;
-  noCloneFor?: (sp: CastMember, auto: AvailableVoice | null) => { busy?: boolean; title: string; sub: string; tip?: string; action?: () => void } | null;
+  onSelectSpeaker?: (key: number) => void;
+  noCloneFor?: (sp: CastMember, auto: AvailableVoice | null, ctx: VoiceSheetCtx) => NoCloneNote | null;
+  castNoClone?: (sp: CastMember, ctx: VoiceSheetCtx) => boolean;
+  castShort?: (sp: CastMember, ctx: VoiceSheetCtx) => boolean;
+  castBuilding?: (sp: CastMember, ctx: VoiceSheetCtx) => boolean;
 }
 
 export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs, srcLang, canTranslate, pickedLang, setPickedLang, side, hearOriginal = false, timed = false, stockVoices = false, stickyPicker = false, pickerBusy = null, voiceSheet }: {
@@ -868,7 +883,9 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   setPickedLang: (l: string | null | undefined) => void;
   side?: { title: string; note: string };
 }) {
-  const { onAddVoice, onPickVoice, noCloneFor, titleNode: voiceTitleNode } = voiceSheet ?? {};
+  const { onAddVoice, onPickVoice, onSelectSpeaker, noCloneFor, castNoClone, castShort, castBuilding, badge, titleNode: voiceTitleNode } = voiceSheet ?? {};
+  const hooked = !!voiceSheet;
+  const pendingClones = !!voiceSheet?.pendingClones;
   const [recent, pushRecent] = useRecentLangs();
   const [picked, setPicked] = useState<string | null>(null);
   const [picker, setPicker] = useState(false);
@@ -886,7 +903,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const cloneSeen = useRef(cloneOn);
   useEffect(() => { if (cloneSeen.current !== cloneOn) { cloneSeen.current = cloneOn; setCatVer((n) => n + 1); } }, [cloneOn]);
   const catalogue = useVoiceCatalogue(vLang, on || ended || sheet, namedCount(model) * 1000 + catVer, { id: recordingId ?? null, shareCode: cred.shareCode ?? null });
-  const gvList = useMemo(() => (catalogue?.voices ?? []).filter((v) => !!voiceSheet || !v.cloned || v.speaker != null), [catalogue, voiceSheet]);
+  const gvList = useMemo(() => (catalogue?.voices ?? []).filter((v) => hooked || !v.cloned || v.speaker != null), [catalogue, hooked]);
   const gVoicePick = gvList.length > 1;
   const meta = langMeta(langs, lang);
   const t = strings();
@@ -1025,11 +1042,11 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     for (const sp of people) {
       if (savedFor(sp)) continue;
       const auto = gvList.find((v) => v.cloned && v.auto && v.speaker === sp.key);
-      if (!auto || auto.ready === false || auto.consent === 'pending') continue;
+      if (!auto || auto.ready === false || (auto.consent === 'pending' && !pendingClones)) continue;
       own.push({ id: auto.id, name: sp.name, cloned: true, default: false, live: true, auto: true, gender: sp.sex ?? auto.gender ?? null, speaker: sp.key, consent: auto.consent ?? null });
     }
     return [...stock, ...savedClones, ...own];
-  }, [gvList, savedClones, spkCastOn, people]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [gvList, savedClones, spkCastOn, people, pendingClones]); // eslint-disable-line react-hooks/exhaustive-deps
   const selSp = spkCastOn ? people.find((p2) => p2.key === spkSelected) ?? null : null;
   const genderOf = (id: string | undefined) => (id ? gvList.find((v) => v.id === id)?.gender ?? null : null);
   const selSex = selSp ? selSp.sex ?? genderOf(cast.get(selSp.key)) : null;
@@ -1039,11 +1056,14 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     return sheetList.filter((v) => (v.cloned ? (v.live ? v.speaker === selSp.key : !others.has(v.id)) : true));
   }, [sheetList, selSp, selSex, people]); // eslint-disable-line react-hooks/exhaustive-deps
   const autoOf = (key: number) => gvList.find((v) => v.cloned && v.auto && v.speaker === key) ?? null;
+  const ctx: VoiceSheetCtx = { people, gvList, autoOf, savedFor };
+  const toClone = badge?.(ctx) ?? 0;
   const voiceBtn = (
     <button type="button" className="txvoice" aria-label="Voice" aria-pressed={side ? voicesMine : undefined} title={busy || failed ? voiceTitle : undefined} style={{ cursor: 'pointer', background: active || busy || (side && voicesMine) ? 'var(--brand-tint)' : 'var(--fill-06)', boxShadow: side && voicesMine ? 'inset 0 0 0 1.5px var(--brand)' : undefined }} onClick={side ? toggleVoices : openVoices}>
       {busy
         ? <span style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid var(--fill-10)', borderTopColor: 'var(--brand)', animation: 'vs-spin .7s linear infinite' }} />
         : <Icon d={glyph} size={17} sw={1.6} style={{ color: glyphFg }} />}
+      {!!toClone && <span className="txvoice__n" title={`${toClone} speaker${toClone === 1 ? '' : 's'} can get a cloned voice`}>{toClone}</span>}
     </button>
   );
   const voiceSheetEl = (
@@ -1055,16 +1075,16 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
             t={t}
             roster={spkRoster}
             selected={spkSelected}
-            onSelect={(k) => { preview.reset(); setSpkSel(k); }}
-            noClone={() => false}
-            short={() => false}
-            building={(p2) => !savedFor(p2) && gvList.some((v) => v.cloned && v.speaker === p2.key && v.ready === false)}
+            onSelect={(k) => { preview.reset(); setSpkSel(k); onSelectSpeaker?.(k); }}
+            noClone={(p2) => !!castNoClone?.(p2, ctx)}
+            short={(p2) => !!castShort?.(p2, ctx)}
+            building={(p2) => !savedFor(p2) && (gvList.some((v) => v.cloned && v.speaker === p2.key && v.ready === false) || !!castBuilding?.(p2, ctx))}
             sexOf={(p2) => p2.sex ?? genderOf(cast.get(p2.key))}
           />
         )}
         voices={shownList}
         onAdd={(v) => { preview.reset(); onAddVoice?.(v); }}
-        noClone={selSp && !shownList.some((v) => v.cloned) ? noCloneFor?.(selSp, autoOf(selSp.key)) ?? null : null}
+        noClone={selSp && !shownList.some((v) => v.cloned) ? noCloneFor?.(selSp, autoOf(selSp.key), ctx) ?? null : null}
         usedBy={spkCastOn && spkSelected != null
           ? (v) => {
               const also = spkRoster.filter((p) => p.key !== spkSelected && cast.get(p.key) === v.id);
@@ -1098,7 +1118,8 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   return {
     barChip: { flag: chipMeta.flag, code: chipMeta.code, label: chipMeta.label, onClick: side || stickyPicker ? toggleChip : openPicker, active: !!((side || stickyPicker) && pickerMine), can: canTranslate },
     sheetsOpen: picker || sheet,
-    on: speaks, player, chip, voiceBtn, sheets, sidePanel, voicesMine, toggleVoices, cloningOn: cloneOn, playTitle, noVoice, noVoiceNote, relang, sampling: preview.sampleId != null, error: preview.error, clearError: () => preview.clearError(), openVoices, openPicker, original, reloadVoices: () => setCatVer((n) => n + 1), people, gvList, autoOf, savedFor, closeVoices, setSheet,
+    on: speaks, player, chip, voiceBtn, sheets, sidePanel, voicesMine, toggleVoices, cloningOn: cloneOn, playTitle, noVoice, noVoiceNote, relang, sampling: preview.sampleId != null, error: preview.error, clearError: () => preview.clearError(), openVoices, openPicker, original, reloadVoices: () => setCatVer((n) => n + 1), voicesVer: catVer, people, gvList, autoOf, savedFor, closeVoices, setSheet,
+    selectedSpeaker: selSp, armVoice: preview.arm, resetPreview: preview.reset, armedId: preview.armId, resetCast: () => setCastByLang((m) => ({ ...m, [vLang ?? '']: {} })),
     readLang: typeof pickedLang === 'string' && pickedLang !== srcLang ? pickedLang : null,
     readVoiceKey: castKeyStr ?? picked ?? arch.track?.voiceKey ?? '',
     readVoiceName: gvPicked?.name ?? null,
