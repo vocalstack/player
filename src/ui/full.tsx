@@ -229,7 +229,18 @@ export function FullVideo({ noFull = false, page = true, picture, title, desk, p
     return () => { window.removeEventListener('keydown', key, true); window.removeEventListener('keyup', keyUp, true); };
   }, []);
   const sideways = useMedia('(orientation: landscape) and (max-height: 540px)');
-  const big = desk && !sideways;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [boxW, setBoxW] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    setBoxW(el.getBoundingClientRect().width);
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([e]) => setBoxW(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const big = desk && !sideways && (boxW == null || boxW >= 880);
   useEffect(() => {
     setCalm(false);
     if (!transport.playing || sheetOpen) return;
@@ -303,7 +314,7 @@ export function FullVideo({ noFull = false, page = true, picture, title, desk, p
     </div>
   );
   return (
-    <div className={`gfull${big ? ' gfull--desk' : ''}${swipeFull ? ' gfull--swipe' : ''}${ad ? ' gfull--ad' : ''}${calm ? ' gfull--calm' : ''}`} data-theme="dark" role="dialog" aria-label={title} onPointerMove={onMove} onPointerDownCapture={(e) => { if (calm) swallow.current = true; setTouchN((n) => n + 1); if (!(e.target as Element).closest?.('[aria-label="Exit full screen"], [aria-label="Full screen"], [aria-label="Close player"]')) onTouch(); }}
+    <div ref={rootRef} className={`gfull${big ? ' gfull--desk' : ''}${swipeFull ? ' gfull--swipe' : ''}${ad ? ' gfull--ad' : ''}${calm ? ' gfull--calm' : ''}`} data-theme="dark" role="dialog" aria-label={title} onPointerMove={onMove} onPointerDownCapture={(e) => { if (calm) swallow.current = true; setTouchN((n) => n + 1); if (!(e.target as Element).closest?.('[aria-label="Exit full screen"], [aria-label="Full screen"], [aria-label="Close player"]')) onTouch(); }}
       onClickCapture={(e) => { if (swallow.current) { swallow.current = false; e.stopPropagation(); e.preventDefault(); } }}>
       {swipeFull && barsUp && <div className="gfull__swipe" aria-live="polite"><Icon d="m4.5 15.75 7.5-7.5 7.5 7.5" size={14} sw={2} />Swipe up for full screen</div>}
       <div className={`gfull__frame${land ? ' gfull__frame--land' : ''}`}>

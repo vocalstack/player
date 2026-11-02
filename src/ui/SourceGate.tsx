@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { D, Icon, Spinner } from '../ds/Icons';
 import { ytIdOf } from '../core/youtube';
 import { openPopup, rememberConnected, wasConnected, type PopupStatus, type Started } from '../data/connect';
@@ -76,12 +76,24 @@ const NOW: PlayerPos = { live: false, atEdge: false, edgeFrac: null, pct: 0, atL
 
 function IdlePlayer({ poster, src, title, page, onAct, children }: { poster: string | null; src: string | null; title: string; page: boolean; onAct: () => void; children: ReactNode }) {
   const desk = useDesk();
+  const box = useRef<HTMLDivElement>(null);
+  const [small, setSmall] = useState(false);
+  useLayoutEffect(() => {
+    const el = box.current?.parentElement;
+    if (!el) return;
+    const measure = () => setSmall(el.getBoundingClientRect().width < 560);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const transport: PlayerTransport = { prevOn: false, nextOn: false, onPrev: () => {}, onNext: () => {}, playing: false, playable: true, playTitle: 'Connect to play', onPlay: onAct };
   return (
-    <>
+    <div ref={box} className={`vsp-idleroot${small ? ' vsp-idleroot--small' : ''}`}>
       <FullVideo page={page} picture={<Backdrop poster={poster} src={src} />} title={title} desk={desk} pos={NOW} sub={null} mute={{ muted: true, onToggle: onAct }} cc={{ on: true, onToggle: onAct }} chip={LANG_CHIP(onAct)} transport={transport} picker={null} sheet={null} voices={null} voicesBtn={null} sheetOpen={false} onSettings={onAct} onShare={onAct} copied={null} onTouch={() => {}} />
       <div className="vsp-idle" data-theme="dark"><div className="vsp-idle__box">{children}</div></div>
-    </>
+    </div>
   );
 }
 
@@ -111,6 +123,7 @@ export function SourceGate({ src, ask, connect, page, poster = null, onClear }: 
 
 export function StartCard({ connect, page, poster = null, onPick }: { connect: Connect; page: boolean; poster?: string | null; onPick: (url: string) => void }) {
   const [url, setUrl] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
   const clean = url.trim();
   const ok = LINK.test(clean);
   const submit = () => {
@@ -127,13 +140,17 @@ export function StartCard({ connect, page, poster = null, onPick }: { connect: C
       </IdlePlayer>
     );
   }
+  const go = () => { if (ok) submit(); else inputRef.current?.focus(); };
   return (
-    <IdlePlayer poster={poster} src={null} title="VocalStack" page={page} onAct={() => {}}>
+    <IdlePlayer poster={poster} src={null} title="VocalStack" page={page} onAct={go}>
       <form className="vsp-idle__form" onSubmit={(e) => { e.preventDefault(); submit(); }}>
-        <input className="vsp-end__input" type="url" inputMode="url" autoComplete="off" spellCheck={false} placeholder="Paste a video link: YouTube, Vimeo, an mp3…" value={url} onChange={(e) => setUrl(e.target.value)} aria-label="Video link" autoFocus />
-        <button type="submit" className="vsp-end__go" disabled={!ok || connect.busy}>{connect.busy ? <Spinner size={15} color="#050507" track="rgba(5,5,7,.2)" /> : 'Play'}</button>
+        <span className="vsp-idle__field">
+          <Icon d={D.link} size={16} sw={1.8} />
+          <input ref={inputRef} className="vsp-idle__input" type="url" inputMode="url" enterKeyHint="go" autoComplete="off" spellCheck={false} placeholder="Paste a video link" value={url} onChange={(e) => setUrl(e.target.value)} aria-label="Video link" autoFocus />
+          {connect.busy && <Spinner size={15} color="#eef0f8" track="rgba(255,255,255,.2)" />}
+        </span>
       </form>
-      {connect.busy ? <div className="vsp-idle__note" role="status">{STATUS[connect.status ?? 'checking']}</div> : <div className="vsp-idle__note">It plays here with subtitles and spoken translations.</div>}
+      {connect.busy ? <div className="vsp-idle__note" role="status">{STATUS[connect.status ?? 'checking']}</div> : <div className="vsp-idle__note">YouTube, Vimeo, an mp3 or any video link. Press Enter or ▶ to play it here with subtitles and spoken translations.</div>}
       {connect.err && <div className="vsp-end__err" role="alert">{connect.err}</div>}
     </IdlePlayer>
   );

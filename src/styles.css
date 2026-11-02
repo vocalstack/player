@@ -1196,9 +1196,18 @@
 .vsp .vsp-idle__connect:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 14px 34px rgba(0,0,0,.5);background:#fff}
 .vsp .vsp-idle__connect:active:not(:disabled){transform:translateY(0) scale(.98)}
 .vsp .vsp-idle__connect:focus-visible{outline:3px solid rgba(85,171,229,.7);outline-offset:3px}
-@container (max-height:240px){.vsp .vsp-idle__note{display:none}}
-@container (max-width:420px){.vsp .vsp-idle__form{flex-direction:column}.vsp .vsp-idle__form .vsp-end__go{width:100%}}
+@container (max-height:110px){.vsp .vsp-idle__note{display:none}}
+
 @container (max-height:170px){.vsp .vsp-idle__connect{height:34px;padding:0 14px}}
 .vsp .vsp-idle{padding-top:clamp(44px,13cqh,64px);padding-bottom:clamp(64px,22cqh,96px)}
-@container (max-width:560px){.vsp .vsp-idle{padding-top:54px;padding-bottom:64px}}
-.vsp:has(> .vsp-idle) .gfull__prog--two>.gfull__row:first-child{display:none}
+
+.vsp .vsp-idle__field{display:flex;align-items:center;gap:10px;width:100%;height:clamp(40px,10cqh,50px);padding:0 16px;border-radius:999px;background:rgba(5,6,21,.55);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:rgba(238,240,248,.7)}
+.vsp .vsp-idle__field:focus-within{box-shadow:inset 0 0 0 1.5px #55abe5,0 0 0 4px rgba(85,171,229,.22)}
+.vsp .vsp-idle__input{flex:1;min-width:0;height:100%;border:0;background:none;outline:none;color:#eef0f8;font:inherit;font-size:clamp(13px,2.3cqw,15px)}
+.vsp .vsp-idle__input::placeholder{color:rgba(238,240,248,.55)}
+.vsp .vsp-poster{position:absolute;inset:0;z-index:1;background:#050507 center/cover no-repeat;pointer-events:none;transition:opacity .35s ease}
+.vsp .vsp-idleroot{position:absolute;inset:0}
+.vsp:not(.vsp--embed) .vsp-idleroot{position:fixed}
+.vsp .vsp-idleroot .vsp-idle{padding-top:clamp(52px,14cqh,72px);padding-bottom:clamp(96px,30cqh,128px)}
+.vsp .vsp-idleroot--small .gfull__prog--two>.gfull__row:first-child{display:none}
+.vsp .vsp-idleroot--small .vsp-idle{padding-top:54px;padding-bottom:64px}
