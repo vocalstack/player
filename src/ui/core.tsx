@@ -345,8 +345,19 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
     base.current = { t: s, at: performance.now() };
     setT(s); setSeekN((n) => n + 1);
   };
-  const play = () => { if (!readyRef.current) { pending.current = true; return; } send('playVideo'); };
-  const pause = () => { pending.current = false; setWait(false); send('pauseVideo'); };
+  const wantPlay = useRef(false);
+  const playRetry = useRef<number | undefined>(undefined);
+  const nudgePlay = (n: number) => {
+    window.clearTimeout(playRetry.current);
+    playRetry.current = window.setTimeout(() => {
+      if (!wantPlay.current || n <= 0 || stateRef.current === 1 || stateRef.current === 3) return;
+      send('playVideo');
+      nudgePlay(n - 1);
+    }, 1200);
+  };
+  useEffect(() => () => window.clearTimeout(playRetry.current), []);
+  const play = () => { wantPlay.current = true; if (!readyRef.current) { pending.current = true; return; } send('playVideo'); nudgePlay(3); };
+  const pause = () => { wantPlay.current = false; window.clearTimeout(playRetry.current); pending.current = false; setWait(false); send('pauseVideo'); };
   const toggle = () => {
     if (!readyRef.current) { pending.current = true; return; }
     if (playing) { pause(); return; }

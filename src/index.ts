@@ -1,6 +1,6 @@
 import './styles.css';
 
-export { VocalStackPlayer, type VocalStackPlayerProps, type PlayerSettings, type PlayerControls } from './ui/VocalStackPlayer';
+export { VocalStackPlayer, type VocalStackPlayerProps, type PlayerSettings, type PlayerControls, type PlayerHandle, type PlaybackState } from './ui/VocalStackPlayer';
 export type { EndCardOptions } from './ui/EndCard';
 export { PlayerApiProvider, usePlayerApi, useApi, type PlayerApi, type PlayerApiProviderProps, type ApiOptions, type PlayerSource, type TokenSource, type Listen } from './data/context';
 export type { ErrorLike } from './data/errors';

@@ -54,16 +54,33 @@ export function useConnect(appUrl: string | undefined, onReady: (s: Started) => 
   return { busy, status, err, connected, connect, start };
 }
 
+function isMedia(src: string): boolean {
+  return /\.(mp4|webm|mov|m4v|ogv|mkv)(\?|#|$)/i.test(src);
+}
+
+function Backdrop({ poster, src }: { poster: string | null; src: string | null }) {
+  const yt = src ? ytIdOf(src) : null;
+  const img = poster ?? (yt ? `https://i.ytimg.com/vi/${yt}/hqdefault.jpg` : null);
+  if (img) return <div className="vsp-idle__pic" style={{ backgroundImage: `url(${img})` }} />;
+  if (src && isMedia(src)) return <video className="vsp-idle__pic vsp-idle__frame" src={`${src}#t=1`} muted playsInline preload="metadata" aria-hidden="true" />;
+  return <div className="vsp-idle__pic vsp-idle__pic--brand" />;
+}
+
+const LANG_CHIP = (onAct: () => void) => (
+  <button type="button" className="gfull__btn" aria-label="Language" title="Language" onClick={(e) => { e.stopPropagation(); onAct(); }}>
+    <Icon d={D.langAuto} size={19} sw={1.7} />
+  </button>
+);
+
 const NOW: PlayerPos = { live: false, atEdge: false, edgeFrac: null, pct: 0, atLabel: '0:00', labelAt: () => '0:00', endLabel: '0:00', onSeek: () => {} };
 
-function IdlePlayer({ poster, title, page, onAct, children }: { poster: string | null; title: string; page: boolean; onAct: () => void; children: ReactNode }) {
+function IdlePlayer({ poster, src, title, page, onAct, children }: { poster: string | null; src: string | null; title: string; page: boolean; onAct: () => void; children: ReactNode }) {
   const desk = useDesk();
   const transport: PlayerTransport = { prevOn: false, nextOn: false, onPrev: () => {}, onNext: () => {}, playing: false, playable: true, playTitle: 'Connect to play', onPlay: onAct };
-  const picture = <div className="vsp-idle__pic" style={poster ? { backgroundImage: `url(${poster})` } : undefined} />;
   return (
     <>
-      <FullVideo page={page} noFull picture={picture} title={title} desk={desk} pos={NOW} sub={null} mute={{ muted: true, onToggle: onAct }} cc={{ on: true, onToggle: onAct }} chip={null} transport={transport} picker={null} sheet={null} voices={null} voicesBtn={null} sheetOpen={false} onSettings={onAct} copied={null} onTouch={() => {}} />
-      <div className="vsp-idle" data-theme="dark">{children}</div>
+      <FullVideo page={page} picture={<Backdrop poster={poster} src={src} />} title={title} desk={desk} pos={NOW} sub={null} mute={{ muted: true, onToggle: onAct }} cc={{ on: true, onToggle: onAct }} chip={LANG_CHIP(onAct)} transport={transport} picker={null} sheet={null} voices={null} voicesBtn={null} sheetOpen={false} onSettings={onAct} onShare={onAct} copied={null} onTouch={() => {}} />
+      <div className="vsp-idle" data-theme="dark"><div className="vsp-idle__box">{children}</div></div>
     </>
   );
 }
@@ -81,11 +98,10 @@ function ConnectButton({ connect, onClick, label }: { connect: Connect; onClick:
   );
 }
 
-export function SourceGate({ src, ask, connect, page, onClear }: { src: string; ask: boolean; connect: Connect; page: boolean; onClear?: () => void }) {
-  const yt = ytIdOf(src);
+export function SourceGate({ src, ask, connect, page, poster = null, onClear }: { src: string; ask: boolean; connect: Connect; page: boolean; poster?: string | null; onClear?: () => void }) {
   const go = () => connect.start(src, ask);
   return (
-    <IdlePlayer poster={yt ? `https://i.ytimg.com/vi/${yt}/hqdefault.jpg` : null} title={hostOf(src)} page={page} onAct={go}>
+    <IdlePlayer poster={poster} src={src} title={hostOf(src)} page={page} onAct={go}>
       <ConnectButton connect={connect} onClick={go} label={connect.connected ? 'Play with VocalStack' : 'Connect to VocalStack'} />
       {!connect.busy && <div className="vsp-idle__note">{connect.connected ? `Plays ${hostOf(src)} with subtitles and spoken translations.` : `Connect to play ${hostOf(src)} with subtitles and spoken translations.`}</div>}
       {onClear && !connect.busy && <button type="button" className="vsp-idle__other" onClick={onClear}>Choose another video</button>}
@@ -93,7 +109,7 @@ export function SourceGate({ src, ask, connect, page, onClear }: { src: string; 
   );
 }
 
-export function StartCard({ connect, page, onPick }: { connect: Connect; page: boolean; onPick: (url: string) => void }) {
+export function StartCard({ connect, page, poster = null, onPick }: { connect: Connect; page: boolean; poster?: string | null; onPick: (url: string) => void }) {
   const [url, setUrl] = useState('');
   const clean = url.trim();
   const ok = LINK.test(clean);
@@ -105,14 +121,14 @@ export function StartCard({ connect, page, onPick }: { connect: Connect; page: b
   };
   if (!connect.connected) {
     return (
-      <IdlePlayer poster={null} title="VocalStack" page={page} onAct={connect.connect}>
+      <IdlePlayer poster={poster} src={null} title="VocalStack" page={page} onAct={connect.connect}>
         <ConnectButton connect={connect} onClick={connect.connect} label="Connect to VocalStack" />
         {!connect.busy && <div className="vsp-idle__note">Connect your VocalStack account to watch any video with subtitles and spoken translations.</div>}
       </IdlePlayer>
     );
   }
   return (
-    <IdlePlayer poster={null} title="VocalStack" page={page} onAct={() => {}}>
+    <IdlePlayer poster={poster} src={null} title="VocalStack" page={page} onAct={() => {}}>
       <form className="vsp-idle__form" onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <input className="vsp-end__input" type="url" inputMode="url" autoComplete="off" spellCheck={false} placeholder="Paste a video link: YouTube, Vimeo, an mp3…" value={url} onChange={(e) => setUrl(e.target.value)} aria-label="Video link" autoFocus />
         <button type="submit" className="vsp-end__go" disabled={!ok || connect.busy}>{connect.busy ? <Spinner size={15} color="#050507" track="rgba(5,5,7,.2)" /> : 'Play'}</button>
