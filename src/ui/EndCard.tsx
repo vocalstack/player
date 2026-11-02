@@ -11,6 +11,8 @@ export interface EndCardOptions {
 const STATUS: Record<PopupStatus, string> = {
   'signing-in': 'Sign in to VocalStack in the window that opened…',
   consent: 'Confirm in the VocalStack window…',
+  looking: 'Looking for your transcription of this video…',
+  confirm: 'Confirm in the VocalStack window…',
   checking: 'Checking the link…',
   starting: 'Starting the transcription…',
 };

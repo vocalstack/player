@@ -3,7 +3,7 @@ const PATH = '/connect/transcribe';
 
 export interface Started { transcriptionId: string; recordingId: string; token: string; expiresAt: string | null }
 
-export type PopupStatus = 'signing-in' | 'consent' | 'checking' | 'starting';
+export type PopupStatus = 'signing-in' | 'consent' | 'looking' | 'confirm' | 'checking' | 'starting';
 
 function nonce(): string {
   const b = new Uint8Array(24);
@@ -11,13 +11,14 @@ function nonce(): string {
   return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-export function openPopup(appUrl: string | undefined, ask: { url?: string; transcription?: string; ask?: boolean }, onStatus?: (s: PopupStatus) => void): Promise<Started | null> {
+export function openPopup(appUrl: string | undefined, ask: { url?: string; transcription?: string; ask?: boolean; connect?: boolean }, onStatus?: (s: PopupStatus) => void): Promise<Started | 'connected' | null> {
   const app = new URL(appUrl ?? DEFAULT_APP);
   const n = nonce();
   const u = new URL(PATH, app);
   if (ask.url) u.searchParams.set('url', ask.url);
   if (ask.transcription) u.searchParams.set('transcription', ask.transcription);
   if (ask.ask) u.searchParams.set('ask', '1');
+  if (ask.connect) u.searchParams.set('connect', '1');
   u.searchParams.set('origin', window.location.origin);
   u.searchParams.set('nonce', n);
   const w = 480, h = 640;
@@ -38,6 +39,7 @@ export function openPopup(appUrl: string | undefined, ask: { url?: string; trans
         finish(() => resolve({ transcriptionId: String(d.transcriptionId), recordingId: String(d.recordingId), token: String(d.token), expiresAt: d.expiresAt ?? null }));
         return;
       }
+      if (d.type === 'vocalstack:connected') { finish(() => resolve('connected')); return; }
       if (d.type === 'vocalstack:declined') { finish(() => resolve(null)); return; }
       if (d.type === 'vocalstack:error') finish(() => reject(new Error(typeof d.message === 'string' && d.message ? d.message : 'VocalStack could not start this transcription.')));
     };
@@ -46,10 +48,17 @@ export function openPopup(appUrl: string | undefined, ask: { url?: string; trans
   });
 }
 
-export function startFromEmbed(appUrl: string | undefined, url: string, onStatus?: (s: PopupStatus) => void): Promise<Started | null> {
-  return openPopup(appUrl, { url }, onStatus);
+export async function startFromEmbed(appUrl: string | undefined, url: string, onStatus?: (s: PopupStatus) => void): Promise<Started | null> {
+  const r = await openPopup(appUrl, { url }, onStatus);
+  return r === 'connected' ? null : r;
 }
 
-export function refreshToken(appUrl: string | undefined, transcriptionId: string): Promise<Started | null> {
-  return openPopup(appUrl, { transcription: transcriptionId });
+const CONNECTED = 'vsp.connected';
+
+export function wasConnected(appUrl: string | undefined): boolean {
+  try { return localStorage.getItem(CONNECTED) === new URL(appUrl ?? DEFAULT_APP).origin; } catch { return false; }
+}
+
+export function rememberConnected(appUrl: string | undefined): void {
+  try { localStorage.setItem(CONNECTED, new URL(appUrl ?? DEFAULT_APP).origin); } catch { }
 }
