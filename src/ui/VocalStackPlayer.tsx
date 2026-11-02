@@ -121,8 +121,8 @@ export function VocalStackPlayer(props: VocalStackPlayerProps) {
   }, [embed]);
   return (
     <PlayerApiProvider value={api}>
-      <div ref={root} className={`vsp${embed ? ' vsp--embed' : ''}${props.className ? ` ${props.className}` : ''}`} data-theme={props.mode === 'video' || props.dark ? 'dark' : 'light'} data-mode={props.mode === 'video' ? 'video' : 'transcript'}>
-        {empty ? <StartCard connect={connect} onPick={setTyped} /> : gate ? <SourceGate src={gateSrc!} ask={!typed} connect={connect} onClear={typed ? () => setTyped(null) : undefined} /> : !cur.id ? <div className="vsp-gate" data-theme="dark"><span className="gfull__spin gfull__holdspin" aria-label="Loading" /></div> : <PlayerBody key={cur.id} {...props} id={cur.id} api={api} shared={source} gone={gone} loadError={error} reread={reload} desk={desk} dark={props.mode === 'video' || !!props.dark} onStarted={(st) => setCur({ id: st.transcriptionId, token: null, listen: { transcriptionId: st.transcriptionId, recordingId: st.recordingId, token: st.token } })} />}
+      <div ref={root} className={`vsp${embed ? ' vsp--embed' : ''}${props.className ? ` ${props.className}` : ''}`} data-theme={(props.mode ?? 'video') === 'video' || props.dark ? 'dark' : 'light'} data-mode={(props.mode ?? 'video') === 'video' ? 'video' : 'transcript'}>
+        {empty ? <StartCard connect={connect} onPick={setTyped} /> : gate ? <SourceGate src={gateSrc!} ask={!typed} connect={connect} onClear={typed ? () => setTyped(null) : undefined} /> : !cur.id ? <div className="vsp-gate" data-theme="dark"><span className="gfull__spin gfull__holdspin" aria-label="Loading" /></div> : <PlayerBody key={cur.id} {...props} id={cur.id} api={api} shared={source} gone={gone} loadError={error} reread={reload} desk={desk} dark={(props.mode ?? 'video') === 'video' || !!props.dark} onStarted={(st) => setCur({ id: st.transcriptionId, token: null, listen: { transcriptionId: st.transcriptionId, recordingId: st.recordingId, token: st.token } })} />}
       </div>
     </PlayerApiProvider>
   );
@@ -135,7 +135,7 @@ function PlayerBody(props: VocalStackPlayerProps & { api: PlayerApi; shared: Loa
   const { api, shared, gone, desk, dark } = props;
   const code = props.id ?? "";
   const init = useMemo(() => initialOf(props), []); // eslint-disable-line react-hooks/exhaustive-deps
-  const wantVideo = props.mode === 'video';
+  const wantVideo = (props.mode ?? 'video') === 'video';
   const earlyYt = shared?.job?.source?.kind === 'url' ? ytIdOf(shared.job.source.url) : null;
   const locked = wantVideo && !(shared && !earlyYt);
   const [error, setError] = useState<ErrorLike | null>(props.loadError);
