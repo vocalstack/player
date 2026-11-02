@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
 import { Card, GrowBox, LanguageChip, Sheet, Switch, Toggle } from '../ds/Controls';
-import { D, Icon, Logo, Spinner } from '../ds/Icons';
+import { D, Icon, Logo, PlayGlyph, Spinner } from '../ds/Icons';
 import { mediaKind } from '../core/voiceplayer';
 import { useLanguageList } from '../ds/LanguagePicker';
 import { audioDownloadUrl, backgroundAudioUrl, deliveryAudioUrl } from '../core/audio';
@@ -417,7 +417,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const voicesBtn = { on: false, title: 'Voices', onClick: () => {} };
   const [posterGone, setPosterGone] = useState(false);
   useEffect(() => { if (player.t > 0.3) setPosterGone(true); }, [player.t]);
-  const picture = ytId && <>{<YtFollow ytId={ytId} title={name} t={ytAt} playing={player.playing && !voiceHolds} waiting={voice.on && !!player.timed && !!player.preparing} seekN={player.seekN} onTime={(y) => player.videoAt?.(y - (shared?.job?.crop?.startS ?? 0))} onToggle={player.has ? tapPicture : undefined} onAd={setAdOn} lead={videoLed ? yt.lead : undefined} />}<div className="vsp-poster" aria-hidden="true" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${ytId}/hqdefault.jpg)`, opacity: posterGone ? 0 : 1 }}>{!player.playing && <span className="vsp-poster__play"><svg viewBox="0 0 24 24" width="42%" height="42%" fill="currentColor" style={{ marginLeft: '6%' }}>{PLAY_D}</svg></span>}</div></>;
+  const picture = ytId && <>{<YtFollow ytId={ytId} title={name} t={ytAt} playing={player.playing && !voiceHolds} waiting={voice.on && !!player.timed && !!player.preparing} seekN={player.seekN} onTime={(y) => player.videoAt?.(y - (shared?.job?.crop?.startS ?? 0))} onToggle={player.has ? tapPicture : undefined} onAd={setAdOn} lead={videoLed ? yt.lead : undefined} />}<div className="vsp-poster" aria-hidden="true" style={{ opacity: posterGone ? 0 : 1 }}><div className="vsp-poster__img" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${ytId}/hqdefault.jpg)` }} /><span className="txyt__pausedplay"><PlayGlyph size={44} /></span></div></>;
   const video = watching && ytId && !full ? (
     <LiveVideo ytId={ytId} title={name} radius={14} large style={desk ? undefined : { margin: '8px 20px 2px' }} picture={picture}>
       <MiniPlayer pos={pos} transport={transport} chip={chipFor({ ...glassChip, width: 64, height: 28, minHeight: 28, padding: '0 8px' }, 'sm')} voices={voicesBtn} onFull={() => { browserFull(true); setFull(true); }} copied={null} />

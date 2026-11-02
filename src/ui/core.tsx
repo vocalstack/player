@@ -97,7 +97,7 @@ export function YtFollow({ ytId, title, t, playing: wantPlay, seekN, onToggle, o
   const timeCb = useRef(onTime); timeCb.current = onTime;
   const ytT = useRef<number | null>(null);
   const ytState = useRef<number | null>(null);
-  const [ytPaused, setYtPaused] = useState(false);
+  const [ytPaused, setYtPaused] = useState(true);
   const [ready, setReady] = useState(false);
   const noCaptions = () => { cmd('unloadModule', ['captions']); cmd('unloadModule', ['cc']); };
   const capT = useRef<number[]>([]);
@@ -133,7 +133,7 @@ export function YtFollow({ ytId, title, t, playing: wantPlay, seekN, onToggle, o
         else { adByDur.current = Math.abs(dur - contentDur.current) > 1.5; adCheck(); }
       }
       if (d?.event === 'onReady') { if (!leadRef.current || leadRef.current.muted) cmd('mute'); noCaptionsSoon(); leadRef.current?.onInfo({ ready: true }); }
-      if (typeof d?.info?.playerState === 'number') { if (d.info.playerState !== ytState.current && (d.info.playerState === 1 || d.info.playerState === 2)) noCaptionsSoon(); ytState.current = d.info.playerState; setYtPaused(d.info.playerState === 2 || d.info.playerState === 0); leadRef.current?.onInfo({ state: d.info.playerState }); }
+      if (typeof d?.info?.playerState === 'number') { if (d.info.playerState !== ytState.current && (d.info.playerState === 1 || d.info.playerState === 2)) noCaptionsSoon(); ytState.current = d.info.playerState; setYtPaused(d.info.playerState !== 1 && d.info.playerState !== 3); leadRef.current?.onInfo({ state: d.info.playerState }); }
       const ps = d?.info?.progressState;
       if (ps && typeof ps.seekableStart === 'number' && typeof ps.seekableEnd === 'number' && ps.seekableEnd > ps.seekableStart) {
         const first = win.current == null;
