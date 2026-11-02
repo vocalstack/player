@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { liveEmbedUrl } from '../core/youtube';
 import type { Correction, LanguageLists, ExportFormat, Voice } from '@vocalstack/js-sdk';
 import { Card, CopyButton, Eyebrow, IconButton, Sheet, Switch, Toggle, Tooltip } from '../ds/Controls';
-import { D, EqBars, Icon, PauseGlyph, PlayGlyph, Spinner } from '../ds/Icons';
+import { D, EqBars, Icon, PauseGlyph, PlayGlyph, Spinner, StopGlyph } from '../ds/Icons';
 import { clock } from '../core/format';
 import { confClass, fixedSlots, lane, speakerInitial, speakerNumber, speakerLabel, speakerLook, speakerName, type Lane, type Model, type Row, type Word } from '../core/transcript';
 import { audioClipUrl, type MediaCred } from '../core/audio';
@@ -533,13 +533,14 @@ export function autoCast(roster: CastMember[], voices: AvailableVoice[], clones 
   return out;
 }
 
-export function SpeakerCast({ roster, selected, onSelect, noClone, building, short, sexOf, t }: {
+export function SpeakerCast({ roster, selected, onSelect, noClone, building, short, warn, sexOf, t }: {
   roster: CastMember[];
   selected: number | null;
   onSelect: (key: number) => void;
   noClone: (p: CastMember) => boolean;
   building?: (p: CastMember) => boolean;
   short?: (p: CastMember) => boolean;
+  warn?: (p: CastMember) => string | null;
   sexOf: (p: CastMember) => 'male' | 'female' | null;
   t: Strings;
 }) {
@@ -549,9 +550,10 @@ export function SpeakerCast({ roster, selected, onSelect, noClone, building, sho
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '0 2px 9px', margin: '0 -2px' }}>
       {roster.map((p) => {
         const on = p.key === sel.key;
-        const busy = p.key >= 0 && !!building?.(p);
-        const dot = p.key >= 0 && !busy && noClone(p);
-        const few = p.key >= 0 && !busy && !dot && !p.hasVoice && !!short?.(p);
+        const alert = p.key >= 0 ? warn?.(p) ?? null : null;
+        const busy = p.key >= 0 && !alert && !!building?.(p);
+        const dot = p.key >= 0 && !alert && !busy && noClone(p);
+        const few = p.key >= 0 && !alert && !busy && !dot && !p.hasVoice && !!short?.(p);
         return (
           <button
             type="button"
@@ -568,7 +570,8 @@ export function SpeakerCast({ roster, selected, onSelect, noClone, building, sho
               {p.initial}
             </span>
             <span style={{ fontSize: 12.5, fontWeight: 500, color: on ? 'var(--ink-96)' : 'var(--ink-62)', whiteSpace: 'nowrap' }}>{p.name}</span>
-            {p.hasVoice && <VoiceIdGlyph color={p.fg ?? (on ? 'var(--ink-62)' : 'var(--ink-45)')} />}
+            {p.hasVoice && !alert && <VoiceIdGlyph color={p.fg ?? (on ? 'var(--ink-62)' : 'var(--ink-45)')} />}
+            {alert && <span title={alert} aria-label={alert} style={{ flex: 'none', width: 15, height: 15, marginRight: -2, borderRadius: '50%', background: '#c27c00', color: '#fff', font: '900 10.5px/1 system-ui, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>!</span>}
             {few && <span title="Not enough audio to clone" aria-label="Not enough audio to clone" style={{ flex: 'none', display: 'flex', marginRight: -2, color: on ? 'var(--ink-45)' : 'var(--ink-35)' }}><Icon d={D.micOff} size={13} sw={1.7} /></span>}
             {(dot || busy) && (
               <span title={busy ? 'Cloning this voice…' : 'No voice clone yet'} aria-label={busy ? 'Cloning this voice' : 'No voice clone yet'} style={{ flex: 'none', width: 10, height: 10, marginRight: -2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -677,7 +680,7 @@ export function VoiceSheetBody({ cast, voices, currentId, armedId = null, sample
               {dling
                 ? <span style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid var(--fill-10)', borderTopColor: 'var(--brand)', animation: 'vs-spin .7s linear infinite' }} />
                 : sampleId === v.id
-                  ? <Equaliser height={13} width={2.5} />
+                  ? <span className="vcplay"><span className="vcplay__eq"><Equaliser height={13} width={2.5} /></span><span className="vcplay__stop"><StopGlyph size={11} /></span></span>
                   : <Icon d={v.cloned ? D.voiceClone : v.gender === 'female' ? D.venus : v.gender === 'male' ? D.mars : D.mic} size={15} sw={1.6} style={{ color: v.cloned ? 'var(--brand)' : 'var(--ink-55)' }} />}
             </span>
             <div style={{ flex: 1, minWidth: 0 }}>

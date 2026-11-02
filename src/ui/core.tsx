@@ -861,6 +861,7 @@ export interface VoiceSheetHooks {
   castNoClone?: (sp: CastMember, ctx: VoiceSheetCtx) => boolean;
   castShort?: (sp: CastMember, ctx: VoiceSheetCtx) => boolean;
   castBuilding?: (sp: CastMember, ctx: VoiceSheetCtx) => boolean;
+  castWarn?: (sp: CastMember, ctx: VoiceSheetCtx) => string | null;
 }
 
 export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs, srcLang, canTranslate, pickedLang, setPickedLang, side, hearOriginal = false, timed = false, stockVoices = false, stickyPicker = false, pickerBusy = null, voiceSheet }: {
@@ -883,7 +884,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   setPickedLang: (l: string | null | undefined) => void;
   side?: { title: string; note: string };
 }) {
-  const { onAddVoice, onPickVoice, onSelectSpeaker, noCloneFor, castNoClone, castShort, castBuilding, badge, titleNode: voiceTitleNode } = voiceSheet ?? {};
+  const { onAddVoice, onPickVoice, onSelectSpeaker, noCloneFor, castNoClone, castShort, castBuilding, castWarn, badge, titleNode: voiceTitleNode } = voiceSheet ?? {};
   const hooked = !!voiceSheet;
   const pendingClones = !!voiceSheet?.pendingClones;
   const [recent, pushRecent] = useRecentLangs();
@@ -1057,12 +1058,15 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const autoOf = (key: number) => gvList.find((v) => v.cloned && v.auto && v.speaker === key) ?? null;
   const ctx: VoiceSheetCtx = { people, gvList, autoOf, savedFor };
   const toClone = badge?.(ctx) ?? 0;
+  const warns = castWarn ? people.map((p2) => castWarn(p2, ctx)).filter((w): w is string => !!w) : [];
   const voiceBtn = (
     <button type="button" className="txvoice" aria-label="Voice" aria-pressed={side ? voicesMine : undefined} title={busy || failed ? voiceTitle : undefined} style={{ cursor: 'pointer', background: active || busy || (side && voicesMine) ? 'var(--brand-tint)' : 'var(--fill-06)', boxShadow: side && voicesMine ? 'inset 0 0 0 1.5px var(--brand)' : undefined }} onClick={side ? toggleVoices : openVoices}>
       {busy
         ? <span style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid var(--fill-10)', borderTopColor: 'var(--brand)', animation: 'vs-spin .7s linear infinite' }} />
         : <Icon d={glyph} size={17} sw={1.6} style={{ color: glyphFg }} />}
-      {!!toClone && <span className="txvoice__n" title={`${toClone} speaker${toClone === 1 ? '' : 's'} can get a cloned voice`}>{toClone}</span>}
+      {warns.length > 0
+        ? <span className="txvoice__warn" title={warns.join(' · ')}>!</span>
+        : !!toClone && <span className="txvoice__n" title={`${toClone} speaker${toClone === 1 ? '' : 's'} can get a cloned voice`}>{toClone}</span>}
     </button>
   );
   const voiceSheetEl = (
@@ -1077,6 +1081,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
             onSelect={(k) => { preview.reset(); setSpkSel(k); onSelectSpeaker?.(k); }}
             noClone={(p2) => !!castNoClone?.(p2, ctx)}
             short={(p2) => !!castShort?.(p2, ctx)}
+            warn={(p2) => castWarn?.(p2, ctx) ?? null}
             building={(p2) => !savedFor(p2) && (gvList.some((v) => v.cloned && v.speaker === p2.key && v.ready === false) || !!castBuilding?.(p2, ctx))}
             sexOf={(p2) => p2.sex ?? genderOf(cast.get(p2.key))}
           />
@@ -1096,7 +1101,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
         armedId={preview.armId}
         sampleId={preview.sampleId}
         dlId={preview.dlId}
-        onPick={(v) => { if (onPickVoice?.(v) === false) { preview.reset(); return; } preview.arm(v); }}
+        onPick={(v) => { if (preview.sampleId === v.id || preview.dlId === v.id) { preview.stop(); return; } if (onPickVoice?.(v) === false) { preview.reset(); return; } preview.arm(v); }}
         onUse={pickVoice}
       />
     </Sheet>
