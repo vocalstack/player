@@ -28,7 +28,8 @@
     "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import ./test-resolve.mjs --test test/*.test.ts",
-    "dev": "vite --config example/vite.config.ts"
+    "dev": "vite --config example/vite.config.ts",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "peerDependencies": {
     "react": ">=18",
