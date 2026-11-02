@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { D, Icon, Logo, Spinner } from '../ds/Icons';
 import { startFromEmbed, type PopupStatus, type Started } from '../data/connect';
 
@@ -17,11 +17,16 @@ const STATUS: Record<PopupStatus, string> = {
 
 const LINK = /^(https?:\/\/)?([\w-]+\.)+[a-z]{2,}(\/\S*)?$/i;
 
-export function EndCard({ options, onStarted, onReplay }: { options: EndCardOptions; onStarted: (s: Started) => void; onReplay: () => void }) {
+export function EndCard({ options, onStarted, onReplay, onClose }: { options: EndCardOptions; onStarted: (s: Started) => void; onReplay: () => void; onClose: () => void }) {
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [status, setStatus] = useState<PopupStatus | null>(null);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [onClose]);
   const clean = url.trim();
   const ok = LINK.test(clean);
   const go = async () => {
@@ -39,8 +44,9 @@ export function EndCard({ options, onStarted, onReplay }: { options: EndCardOpti
     }
   };
   return (
-    <div className="vsp-end" role="dialog" aria-label="Transcribe another video" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+    <div className="vsp-end" role="dialog" aria-label="Transcribe another video" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); if (e.target === e.currentTarget) onClose(); }}>
       <div className="vsp-end__card">
+        <button type="button" className="vsp-end__close" aria-label="Close" title="Close" onClick={onClose}><Icon d={D.close} size={16} sw={1.8} /></button>
         <div className="vsp-end__brand"><Logo dark link={false} height={16} /></div>
         <div className="vsp-end__title">{options.title ?? 'Transcribe and translate any video'}</div>
         <div className="vsp-end__note">{options.note ?? 'Paste a link from YouTube, Vimeo or any page with a video. It plays right here with subtitles and spoken translations.'}</div>

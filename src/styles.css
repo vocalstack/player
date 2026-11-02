@@ -1137,7 +1137,7 @@
 .vsp.vsp--embed:-webkit-full-screen{border-radius:0;aspect-ratio:auto}
 .vsp .vsp-end{position:absolute;inset:0;z-index:95;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(5,5,7,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:#eef0f8;font-family:var(--vs-font-sans)}
 .vsp:not(.vsp--embed) .vsp-end{position:fixed}
-.vsp .vsp-end__card{width:min(100%,460px);display:flex;flex-direction:column;gap:10px;padding:22px;border-radius:18px;background:rgba(19,19,38,.92);box-shadow:0 0 0 1px rgba(255,255,255,.08),0 20px 50px rgba(0,0,0,.5)}
+.vsp .vsp-end__card{position:relative;width:min(100%,460px);display:flex;flex-direction:column;gap:10px;padding:22px;border-radius:18px;background:rgba(19,19,38,.92);box-shadow:0 0 0 1px rgba(255,255,255,.08),0 20px 50px rgba(0,0,0,.5)}
 .vsp .vsp-end__brand{opacity:.9}
 .vsp .vsp-end__title{font-size:19px;font-weight:600;letter-spacing:-.2px;line-height:1.25}
 .vsp .vsp-end__note{font-size:13px;line-height:1.45;color:rgba(238,240,248,.62)}
@@ -1175,3 +1175,5 @@
 .vsp .vsp-gate__bg{position:absolute;inset:-20px;background-size:cover;background-position:center;filter:blur(14px) brightness(.45);transform:scale(1.05)}
 .vsp .vsp-gate__card{position:relative}
 .vsp .vsp-gate__go{width:100%;gap:8px;margin-top:4px}
+.vsp .vsp-end__close{position:absolute;z-index:2;top:12px;right:12px;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:50%;background:rgba(255,255,255,.08);color:rgba(238,240,248,.8);cursor:pointer}
+.vsp .vsp-end__close:hover{background:rgba(255,255,255,.16);color:#eef0f8}

@@ -614,7 +614,7 @@ function PlayerBody(props: VocalStackPlayerProps & { api: PlayerApi; shared: Loa
   const atEnd = !!fullEl && !holding && (videoLed ? !!player.ended : !player.playing && player.dur > 0 && player.t >= player.dur - 0.5);
   useEffect(() => { if (!atEnd) setEndDismissed(false); }, [atEnd]);
   const endCard = props.endCard !== false && atEnd && !endDismissed && (
-    <EndCard options={{ appUrl: props.appUrl, ...(props.endCard || {}) }} onStarted={props.onStarted} onReplay={() => { setEndDismissed(true); autoplayDone.current = true; if (player.seekFrac) player.seekFrac(0); else player.seekRow(0); if (!player.playing) player.toggle(); }} />
+    <EndCard options={{ appUrl: props.appUrl, ...(props.endCard || {}) }} onStarted={props.onStarted} onClose={() => setEndDismissed(true)} onReplay={() => { setEndDismissed(true); autoplayDone.current = true; if (player.seekFrac) player.seekFrac(0); else player.seekRow(0); if (!player.playing) player.toggle(); }} />
   );
   if (locked) return <>{gone ? <div className="gfull" data-theme="dark">{gonePanel}</div> : hold || fullEl || <div className="gfull" data-theme="dark" />}{endCard}{toast}</>;
   if (desk) {
