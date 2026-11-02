@@ -25,12 +25,10 @@ jobs:
         run: |
           version=$(node -p "require('./package.json').version")
           [ "${GITHUB_REF_NAME}" = "v$version" ] || { echo "::error::ref ${GITHUB_REF_NAME} does not match version $version (want v$version)"; exit 1; }
-      - run: npm install -g npm@^11.5.1
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
       - name: npm publish
         run: |
-          npm --version
-          npm publish --access public --provenance --tag latest --loglevel verbose
+          npm publish --access public --provenance --tag latest
