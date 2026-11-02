@@ -37,6 +37,15 @@ export function followTarget(lines: readonly FollowLine[], clips: ReadonlyMap<nu
   return { kind: 'done', sid: line.sid };
 }
 
+export function mayRunOn(lines: readonly FollowLine[], t: number, playingSid: number | null): boolean {
+  if (playingSid == null) return false;
+  const k = lineAt(lines, t);
+  if (k < 0) return false;
+  const line = lines[k];
+  if (t >= line.end) return line.sid === playingSid;
+  return k > 0 && lines[k - 1].sid === playingSid && t - line.start < 1.5;
+}
+
 export function upcomingSrcs(lines: readonly FollowLine[], clips: ReadonlyMap<number, readonly FollowClip[]>, t: number, n = FOLLOW_AHEAD): string[] {
   const k = Math.max(0, lineAt(lines, t));
   const out: string[] = [];
@@ -56,7 +65,7 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
     return m;
   }, [o.clips]);
   const cache = useRef(new Map<string, HTMLAudioElement>());
-  const cur = useRef<{ src: string; el: HTMLAudioElement } | null>(null);
+  const cur = useRef<{ src: string; sid: number; el: HTMLAudioElement } | null>(null);
   const [state, setState] = useState<FollowState>({ missing: null, sid: null });
   const el = (src: string) => {
     let a = cache.current.get(src);
@@ -84,8 +93,9 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
     if (!o.playing) { c?.el.pause(); return; }
     if (want.kind !== 'play') {
       const stillSpeaking = c && !c.el.paused && !c.el.ended;
-      if (stillSpeaking && want.kind !== 'none') return;
-      if (!stillSpeaking) cur.current = null;
+      if (stillSpeaking && mayRunOn(o.lines, o.t, c.sid)) return;
+      if (c) c.el.pause();
+      cur.current = null;
       return;
     }
     if (c && c.src === want.src) {
@@ -98,7 +108,7 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
     const a = el(want.src);
     a.muted = o.muted;
     try { a.currentTime = want.offset; } catch { }
-    cur.current = { src: want.src, el: a };
+    cur.current = { src: want.src, sid: want.sid, el: a };
     void a.play().catch(() => {});
   }, [o.on, o.t, o.playing, o.muted, o.lines, bySid]); // eslint-disable-line react-hooks/exhaustive-deps
   return state;

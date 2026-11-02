@@ -40,3 +40,15 @@ test('the clips of the line playing and the next ones are loaded ahead', () => {
   assert.deepEqual(upcomingSrcs(lines, c, 11, 1), ['a', 'b']);
   assert.deepEqual(upcomingSrcs(lines, c, 26), ['c']);
 });
+
+test('after a jump the voice of the line before stops; only the line that just ended may run on', async () => {
+  const { mayRunOn } = await import('../src/core/voiceFollow.ts');
+  const lines = [{ sid: 1, start: 10, end: 14 }, { sid: 2, start: 20, end: 25 }, { sid: 3, start: 30, end: 33 }];
+  assert.equal(mayRunOn(lines, 15, 1), true);
+  assert.equal(mayRunOn(lines, 15, 3), false);
+  assert.equal(mayRunOn(lines, 26, 1), false);
+  assert.equal(mayRunOn(lines, 20.5, 1), true);
+  assert.equal(mayRunOn(lines, 22, 1), false);
+  assert.equal(mayRunOn(lines, 5, 2), false);
+  assert.equal(mayRunOn(lines, 15, null), false);
+});
