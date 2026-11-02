@@ -1216,3 +1216,8 @@
 .vsp .vsp-idleroot--small .gfull__prog--two>.gfull__row:first-child{display:none}
 .vsp .vsp-idleroot--small .vsp-idle{padding-top:54px;padding-bottom:64px}
 .vsp .vsp-idlesheet__back{position:absolute;left:-6px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;gap:2px;padding:4px 6px 4px 0;border:0;background:none;color:var(--ink-96);font-family:var(--vs-font-sans);font-size:15px;font-weight:600;letter-spacing:0;line-height:1;white-space:nowrap;cursor:pointer}
+.vsp .txyt__pausedplay{width:clamp(56px,20cqmin,112px);height:clamp(56px,20cqmin,112px)}
+.vsp .txyt__pausedplay svg{width:39%;height:39%}
+.vsp .gfull__t--at{margin-right:10px}
+.vsp .gfull__seek~.gfull__t{margin-left:10px}
+@container (max-height:260px){.vsp .txyt__pausedplay{display:none}}
