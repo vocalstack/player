@@ -242,6 +242,7 @@ export function FullVideo({ compact = false, noFull = false, page = true, pictur
   }, []);
   const small = compact && !isFull;
   const big = !small && desk && !sideways && (boxW == null || boxW >= 880);
+  const mini = !big && !isFull && boxW != null && boxW < 480;
   useEffect(() => {
     setCalm(false);
     if (!transport.playing || sheetOpen) return;
@@ -297,11 +298,11 @@ export function FullVideo({ compact = false, noFull = false, page = true, pictur
     </div>
   );
   const glass = (lbl: string, d: string, sw: number, onClick: () => void, style?: React.CSSProperties, grow = 0) => (
-    <button type="button" className="gfull__btn" title={lbl} aria-label={lbl} onClick={onClick}><Icon d={d} size={(big ? 20 : 18) + grow} sw={sw} style={style} /></button>
+    <button type="button" className="gfull__btn" title={lbl} aria-label={lbl} onClick={onClick}><Icon d={d} size={(big ? 20 : mini ? 15 : 18) + grow} sw={sw} style={style} /></button>
   );
   const acts = (
     <div className="gfull__acts">
-      {voicesBtn && <VoicesButton v={voicesBtn} size={big ? 20 : 18} />}
+      {voicesBtn && <VoicesButton v={voicesBtn} size={big ? 20 : mini ? 15 : 18} />}
       {onShare && glass('Share', D.share, 1.6, onShare)}
       {canFull() && !noFull && glass(isFull ? 'Exit full screen' : 'Full screen', isFull ? ICON_EXIT : ICON_FULL, 1.7, () => realFull(!isFull))}
       {onClose && glass('Close player', D.close, 1.7, onClose)}
@@ -315,7 +316,7 @@ export function FullVideo({ compact = false, noFull = false, page = true, pictur
     </div>
   );
   return (
-    <div ref={rootRef} className={`gfull${big ? ' gfull--desk' : ''}${swipeFull ? ' gfull--swipe' : ''}${ad ? ' gfull--ad' : ''}${calm ? ' gfull--calm' : ''}`} data-theme="dark" role="dialog" aria-label={title} onPointerMove={onMove} onPointerDownCapture={(e) => { if (calm) swallow.current = true; setTouchN((n) => n + 1); if (!(e.target as Element).closest?.('[aria-label="Exit full screen"], [aria-label="Full screen"], [aria-label="Close player"]')) onTouch(); }}
+    <div ref={rootRef} className={`gfull${big ? ' gfull--desk' : ''}${mini ? ' gfull--mini' : ''}${swipeFull ? ' gfull--swipe' : ''}${ad ? ' gfull--ad' : ''}${calm ? ' gfull--calm' : ''}`} data-theme="dark" role="dialog" aria-label={title} onPointerMove={onMove} onPointerDownCapture={(e) => { if (calm) swallow.current = true; setTouchN((n) => n + 1); if (!(e.target as Element).closest?.('[aria-label="Exit full screen"], [aria-label="Full screen"], [aria-label="Close player"]')) onTouch(); }}
       onClickCapture={(e) => { if (swallow.current) { swallow.current = false; e.stopPropagation(); e.preventDefault(); } }}>
       {swipeFull && barsUp && <div className="gfull__swipe" aria-live="polite"><Icon d="m4.5 15.75 7.5-7.5 7.5 7.5" size={14} sw={2} />Swipe up for full screen</div>}
       <div className={`gfull__frame${land ? ' gfull__frame--land' : ''}`}>
@@ -353,6 +354,8 @@ export function FullVideo({ compact = false, noFull = false, page = true, pictur
               <div className="gfull__chip">{chip}</div>
               {acts}
             </>
+          ) : mini ? (
+            <div className="gfull__row"><GlassTransport t={transport} mini /><SeekRow pos={pos} interactive /><div className="gfull__chip">{chip}</div>{acts}</div>
           ) : (
             <>
               <div className="gfull__row"><GlassBrand live={pos.live} pct={pct} mark /><SeekRow pos={pos} interactive /></div>

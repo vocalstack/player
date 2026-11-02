@@ -1221,3 +1221,20 @@
 .vsp .gfull__t--at{margin-right:10px}
 .vsp .gfull__seek~.gfull__t{margin-left:10px}
 @container (max-height:260px){.vsp .txyt__pausedplay{display:none}}
+.vsp .gfull--mini .gfull__top{top:8px;right:8px;gap:4px}
+.vsp .gfull--mini .gfull__btn{width:30px;height:30px}
+.vsp .gfull--mini .gfull__prog{gap:6px;padding:0 8px 8px}
+.vsp .gfull--mini .gfull__row{gap:6px;flex:1}
+.vsp .gfull--mini .gfull__acts{gap:2px}
+.vsp .gfull--mini .gfull__chip{margin-left:0}
+.vsp .gfull--mini .gfull__chip .gfull__btn,.vsp .gfull--mini .gfull__chip>*{width:30px;height:30px;min-height:30px}
+.vsp .gfull--mini .gfull__transport{gap:0;margin-right:2px}
+.vsp .gfull--mini .gfull__step{display:none}
+.vsp .gfull--mini .gfull__play{width:32px;height:32px}
+.vsp .gfull--mini .gfull__t{font-size:9.5px}
+.vsp .gfull--mini .gfull__t--at{margin-right:6px}
+.vsp .gfull--mini .gfull__seek~.gfull__t{margin-left:6px}
+.vsp .gfull--mini .gfull__sub{bottom:46px;padding:0 10px}
+.vsp .gfull--mini .gfull__sub>div{font-size:clamp(11.5px,3.6cqw,15px);max-height:2.6em;line-height:1.3}
+.vsp .gfull--mini .gfull__sub>div>span:not(.gfull__spin),.vsp .gfull--mini .gfull__subback>span{padding:1px 5px}
+.vsp .gfull--mini .gfull__pausedinfo{display:none}
