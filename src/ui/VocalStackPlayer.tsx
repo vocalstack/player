@@ -46,8 +46,6 @@ export interface PlayerControls {
   settings?: boolean;
 }
 
-export type PlayerSource = { id: string; src?: never } | { src: string; id?: never };
-
 export interface VocalStackPlayerProps {
   id?: string;
   src?: string;
@@ -67,6 +65,7 @@ export interface VocalStackPlayerProps {
   endCard?: EndCardOptions | false;
   appUrl?: string;
   settingsExtra?: ReactNode;
+  shareUrl?: (t: number | null) => string;
   onSource?: (s: LoadedSource) => void;
   onProgress?: (pct: number | null) => void;
   onError?: (e: ErrorLike) => void;
@@ -405,7 +404,7 @@ function PlayerBody(props: VocalStackPlayerProps & { api: PlayerApi; shared: Loa
   useEffect(() => () => window.clearTimeout(expT.current), []);
   const copiedT = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(copiedT.current), []);
-  const shareAtUrl = (t: number | null) => { const u = new URL(window.location.href); if (t != null && t > 0) u.searchParams.set('t', String(t)); else u.searchParams.delete('t'); return u.href; };
+  const shareAtUrl = (t: number | null) => { if (props.shareUrl) return props.shareUrl(t); const u = new URL(window.location.href); if (t != null && t > 0) u.searchParams.set('t', String(t)); else u.searchParams.delete('t'); return u.href; };
   const startAt = useRef<number | null>(init.startAt);
   const startSeek = (t0: number) => {
     if (player.seekFrac && player.dur > 0) { player.seekFrac(Math.min(1, t0 / player.dur)); return; }
@@ -426,7 +425,7 @@ function PlayerBody(props: VocalStackPlayerProps & { api: PlayerApi; shared: Loa
     startAt.current = null;
     if (Math.abs(player.t - t0) > 2) startSeek(t0);
   }, [player.playing]); // eslint-disable-line react-hooks/exhaustive-deps
-  const shareHere = () => shareLink(window.location.href, name, () => { window.clearTimeout(copiedT.current); setLinkCopied(true); copiedT.current = window.setTimeout(() => setLinkCopied(false), 2200); });
+  const shareHere = () => shareLink(shareAtUrl(null), name, () => { window.clearTimeout(copiedT.current); setLinkCopied(true); copiedT.current = window.setTimeout(() => setLinkCopied(false), 2200); });
   const exportRow = (key: 'srt' | 'pdf', title: string, sub: string) => {
     const f = TX_FORMATS.find((x) => x.key === key)!;
     const busy = expBusy === key, done = expDone === key;
