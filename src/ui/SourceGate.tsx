@@ -4,6 +4,10 @@ import { ytIdOf } from '../core/youtube';
 import { openPopup, rememberConnected, wasConnected, type PopupStatus, type Started } from '../data/connect';
 import { FullVideo, type PlayerPos, type PlayerTransport } from './full';
 import { useDesk } from './useDesk';
+import { useIdleControls, type IdlePrefs } from './IdleSettings';
+import { shareLink } from './shared';
+
+export interface IdleState { prefs: IdlePrefs; set: (p: Partial<IdlePrefs>) => void; shareUrl?: string }
 
 const STATUS: Record<PopupStatus, string> = {
   'signing-in': 'Sign in to VocalStack in the window that opened…',
@@ -66,15 +70,10 @@ function Backdrop({ poster, src }: { poster: string | null; src: string | null }
   return <div className="vsp-idle__pic vsp-idle__pic--brand" />;
 }
 
-const LANG_CHIP = (onAct: () => void) => (
-  <button type="button" className="gfull__btn" aria-label="Language" title="Language" onClick={(e) => { e.stopPropagation(); onAct(); }}>
-    <Icon d={D.langAuto} size={19} sw={1.7} />
-  </button>
-);
-
 const NOW: PlayerPos = { live: false, atEdge: false, edgeFrac: null, pct: 0, atLabel: '0:00', labelAt: () => '0:00', endLabel: '0:00', onSeek: () => {} };
 
-function IdlePlayer({ poster, src, title, page, onAct, children }: { poster: string | null; src: string | null; title: string; page: boolean; onAct: () => void; children: ReactNode }) {
+function IdlePlayer({ idle, poster, src, title, page, onAct, children }: { idle: IdleState; poster: string | null; src: string | null; title: string; page: boolean; onAct: () => void; children: ReactNode }) {
+  const ctl = useIdleControls(idle.prefs, idle.set);
   const desk = useDesk();
   const box = useRef<HTMLDivElement>(null);
   const [small, setSmall] = useState(false);
@@ -91,8 +90,8 @@ function IdlePlayer({ poster, src, title, page, onAct, children }: { poster: str
   const transport: PlayerTransport = { prevOn: false, nextOn: false, onPrev: () => {}, onNext: () => {}, playing: false, playable: true, playTitle: 'Connect to play', onPlay: onAct };
   return (
     <div ref={box} className={`vsp-idleroot${small ? ' vsp-idleroot--small' : ''}`}>
-      <FullVideo page={page} picture={<Backdrop poster={poster} src={src} />} title={title} desk={desk} pos={NOW} sub={null} mute={{ muted: true, onToggle: onAct }} cc={{ on: true, onToggle: onAct }} chip={LANG_CHIP(onAct)} transport={transport} picker={null} sheet={null} voices={null} voicesBtn={null} sheetOpen={false} onSettings={onAct} onShare={onAct} copied={null} onTouch={() => {}} />
-      <div className="vsp-idle" data-theme="dark"><div className="vsp-idle__box">{children}</div></div>
+      <FullVideo page={page} picture={<Backdrop poster={poster} src={src} />} title={title} desk={desk} pos={NOW} sub={null} mute={{ muted: idle.prefs.muted, onToggle: () => idle.set({ muted: !idle.prefs.muted }) }} cc={{ on: idle.prefs.subtitles, onToggle: () => idle.set({ subtitles: !idle.prefs.subtitles }) }} chip={ctl.chip} transport={transport} picker={ctl.sheets} sheet={null} voices={null} voicesBtn={null} sheetOpen={ctl.sheetOpen} onSettings={ctl.openSettings} onShare={() => shareLink(idle.shareUrl ?? window.location.href, title)} copied={null} onTouch={() => {}} />
+      {!ctl.sheetOpen && <div className="vsp-idle" data-theme="dark"><div className="vsp-idle__box">{children}</div></div>}
     </div>
   );
 }
@@ -110,10 +109,10 @@ function ConnectButton({ connect, onClick, label }: { connect: Connect; onClick:
   );
 }
 
-export function SourceGate({ src, ask, connect, page, poster = null, onClear }: { src: string; ask: boolean; connect: Connect; page: boolean; poster?: string | null; onClear?: () => void }) {
+export function SourceGate({ idle, src, ask, connect, page, poster = null, onClear }: { idle: IdleState; src: string; ask: boolean; connect: Connect; page: boolean; poster?: string | null; onClear?: () => void }) {
   const go = () => connect.start(src, ask);
   return (
-    <IdlePlayer poster={poster} src={src} title={hostOf(src)} page={page} onAct={go}>
+    <IdlePlayer idle={idle} poster={poster} src={src} title={hostOf(src)} page={page} onAct={go}>
       <ConnectButton connect={connect} onClick={go} label={connect.connected ? 'Play with VocalStack' : 'Connect to VocalStack'} />
       {!connect.busy && <div className="vsp-idle__note">{connect.connected ? `Plays ${hostOf(src)} with subtitles and spoken translations.` : `Connect to play ${hostOf(src)} with subtitles and spoken translations.`}</div>}
       {onClear && !connect.busy && <button type="button" className="vsp-idle__other" onClick={onClear}>Choose another video</button>}
@@ -121,7 +120,7 @@ export function SourceGate({ src, ask, connect, page, poster = null, onClear }: 
   );
 }
 
-export function StartCard({ connect, page, poster = null, onPick }: { connect: Connect; page: boolean; poster?: string | null; onPick: (url: string) => void }) {
+export function StartCard({ idle, connect, page, poster = null, onPick }: { idle: IdleState; connect: Connect; page: boolean; poster?: string | null; onPick: (url: string) => void }) {
   const [url, setUrl] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const clean = url.trim();
@@ -134,7 +133,7 @@ export function StartCard({ connect, page, poster = null, onPick }: { connect: C
   };
   if (!connect.connected) {
     return (
-      <IdlePlayer poster={poster} src={null} title="VocalStack" page={page} onAct={connect.connect}>
+      <IdlePlayer idle={idle} poster={poster} src={null} title="VocalStack" page={page} onAct={connect.connect}>
         <ConnectButton connect={connect} onClick={connect.connect} label="Connect to VocalStack" />
         {!connect.busy && <div className="vsp-idle__note">Connect your VocalStack account to watch any video with subtitles and spoken translations.</div>}
       </IdlePlayer>
@@ -142,7 +141,7 @@ export function StartCard({ connect, page, poster = null, onPick }: { connect: C
   }
   const go = () => { if (ok) submit(); else inputRef.current?.focus(); };
   return (
-    <IdlePlayer poster={poster} src={null} title="VocalStack" page={page} onAct={go}>
+    <IdlePlayer idle={idle} poster={poster} src={null} title="VocalStack" page={page} onAct={go}>
       <form className="vsp-idle__form" onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <span className="vsp-idle__field">
           <Icon d={D.link} size={16} sw={1.8} />

@@ -23,7 +23,8 @@ import { PlayerWait, playerWaitOf, useHeld } from './wait';
 import { EndCard, type EndCardOptions } from './EndCard';
 import type { Started } from '../data/connect';
 import { useDesk } from './useDesk';
-import { SourceGate, StartCard, useConnect } from './SourceGate';
+import { SourceGate, StartCard, useConnect, type IdleState } from './SourceGate';
+import { IDLE_DEFAULTS, type IdlePrefs } from './IdleSettings';
 import { useLookup } from '../data/lookup';
 
 export interface PlayerSettings {
@@ -127,6 +128,10 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
   const found = useLookup(props.src ?? null, props.token ?? null, props.baseUrl ?? null);
   useEffect(() => { if (found?.id) setCur({ id: found.id, token: props.token }); }, [found?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [typed, setTyped] = useState<string | null>(null);
+  const [idlePrefs, setIdlePrefs] = useState<IdlePrefs>(() => ({ ...IDLE_DEFAULTS, ...Object.fromEntries(Object.entries({ ...(props.initial ?? {}), ...(props.settings ?? {}) }).filter(([, v]) => v !== undefined)) } as IdlePrefs));
+  const [touched, setTouched] = useState<Partial<IdlePrefs>>({});
+  const idle: IdleState = { prefs: idlePrefs, set: (p) => { setIdlePrefs((x) => ({ ...x, ...p })); setTouched((x) => ({ ...x, ...p })); }, shareUrl: props.shareUrl?.(null) };
+  const { muted: idleMuted, ...idleChosen } = touched;
   useEffect(() => { setTyped(null); }, [props.id, props.src]);
   const gateSrc = props.src ?? typed;
   const gate = !cur.id && !!gateSrc && (typed != null || found !== undefined);
@@ -150,7 +155,7 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
   return (
     <PlayerApiProvider value={api}>
       <div ref={root} className={`vsp${embed ? ' vsp--embed' : ''}${props.className ? ` ${props.className}` : ''}`} data-theme={(props.mode ?? 'video') === 'video' || props.dark ? 'dark' : 'light'} data-mode={(props.mode ?? 'video') === 'video' ? 'video' : 'transcript'}>
-        {empty ? <StartCard connect={connect} page={!embed} poster={props.poster ?? null} onPick={setTyped} /> : gate ? <SourceGate src={gateSrc!} ask={!typed} connect={connect} page={!embed} poster={props.poster ?? null} onClear={typed ? () => setTyped(null) : undefined} /> : !cur.id ? <div className="vsp-gate" data-theme="dark"><span className="gfull__spin gfull__holdspin" aria-label="Loading" /></div> : <PlayerBody key={cur.id} {...props} handle={handle} id={cur.id} api={api} shared={source} gone={gone} loadError={error} reread={reload} desk={desk} dark={(props.mode ?? 'video') === 'video' || !!props.dark} onStarted={(st) => setCur({ id: st.transcriptionId, token: null, listen: { transcriptionId: st.transcriptionId, recordingId: st.recordingId, token: st.token } })} />}
+        {empty ? <StartCard idle={idle} connect={connect} page={!embed} poster={props.poster ?? null} onPick={setTyped} /> : gate ? <SourceGate idle={idle} src={gateSrc!} ask={!typed} connect={connect} page={!embed} poster={props.poster ?? null} onClear={typed ? () => setTyped(null) : undefined} /> : !cur.id ? <div className="vsp-gate" data-theme="dark"><span className="gfull__spin gfull__holdspin" aria-label="Loading" /></div> : <PlayerBody key={cur.id} {...props} initial={{ ...(props.initial ?? {}), ...idleChosen }} startMuted={idleMuted === true} handle={handle} id={cur.id} api={api} shared={source} gone={gone} loadError={error} reread={reload} desk={desk} dark={(props.mode ?? 'video') === 'video' || !!props.dark} onStarted={(st) => setCur({ id: st.transcriptionId, token: null, listen: { transcriptionId: st.transcriptionId, recordingId: st.recordingId, token: st.token } })} />}
       </div>
     </PlayerApiProvider>
   );
@@ -159,7 +164,7 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
 
 type PubTab = 'summary' | 'export';
 
-function PlayerBody(props: VocalStackPlayerProps & { handle: { current: PlayerHandle | null }; api: PlayerApi; shared: LoadedSource | null; gone: boolean; loadError: ErrorLike | null; reread: () => void; desk: boolean; dark: boolean; onStarted: (s: Started) => void }) {
+function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handle: { current: PlayerHandle | null }; api: PlayerApi; shared: LoadedSource | null; gone: boolean; loadError: ErrorLike | null; reread: () => void; desk: boolean; dark: boolean; onStarted: (s: Started) => void }) {
   const { api, shared, gone, desk, dark } = props;
   const code = props.id ?? "";
   const init = useMemo(() => initialOf(props), []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -336,7 +341,7 @@ function PlayerBody(props: VocalStackPlayerProps & { handle: { current: PlayerHa
     const tryPlay = (n: number) => { if (playerRef.current.playing || autoplayDone.current) return; playerRef.current.toggle(); if (n > 0) setTimeout(() => tryPlay(n - 1), 1500); };
     const muted = () => { if (!playerRef.current.muted) playerRef.current.toggleMute(); setSoundTip(true); tryPlay(3); };
     const p = playerRef.current;
-    if (!p.autoplay) { muted(); return; }
+    if (!p.autoplay || props.startMuted) { muted(); return; }
     void p.autoplay().then((sound) => { if (sound === false) setSoundTip(true); else if (sound == null && !autoplayDone.current) muted(); });
   }, [locked, playable, full, holding]);
   const unmutedNow = useRef(false);
