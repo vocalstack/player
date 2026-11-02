@@ -1033,11 +1033,11 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
       <LanguagePicker open={picker} onClose={closePicker} keepOpen={(!!side || stickyPicker) && !fromVoices} value={original ? null : lang} onSelect={selectLang} languages={trLangs} title={side?.title ?? 'SPOKEN LANGUAGE'} note={side?.note ?? TX_PICKER_NOTE} searchPlaceholder={t.search} none="Original" pinned={(original ? srcLang : lang) ? [(original ? srcLang : lang)!] : []} recent={recent} requireVoice={fromVoices} sticky={stickyPicker} busy={pickerBusy} />
   );
   const savedClones = useMemo(() => gvList.filter((v) => v.cloned && !v.auto), [gvList]);
-  const savedFor = (sp: CastMember) => (sp.voiceId ? savedClones.find((v) => v.id === `clone:${sp.voiceId}`) : undefined) ?? savedClones.find((v) => v.name === sp.name) ?? null;
+  const savedFor = (sp: CastMember) => (sp.voiceId ? savedClones.find((v) => v.id === `clone:${sp.voiceId}`) ?? null : null);
   const people = useMemo(() => spkRoster.filter((p2) => p2.key >= 0), [spkRoster]);
   const sheetList = useMemo(() => {
     const stock = gvList.filter((v) => !v.cloned);
-    if (!spkCastOn) return [...stock, ...savedClones];
+    if (!spkCastOn) return [...stock, ...(ended && people.length === 1 ? savedClones.filter((v) => v.id === `clone:${people[0].voiceId}`) : [])];
     const own: AvailableVoice[] = [];
     for (const sp of people) {
       if (savedFor(sp)) continue;
@@ -1046,14 +1046,13 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
       own.push({ id: auto.id, name: sp.name, cloned: true, default: false, live: true, auto: true, gender: sp.sex ?? auto.gender ?? null, speaker: sp.key, consent: auto.consent ?? null });
     }
     return [...stock, ...savedClones, ...own];
-  }, [gvList, savedClones, spkCastOn, people, pendingClones]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [gvList, savedClones, spkCastOn, people, pendingClones, ended]); // eslint-disable-line react-hooks/exhaustive-deps
   const selSp = spkCastOn ? people.find((p2) => p2.key === spkSelected) ?? null : null;
   const genderOf = (id: string | undefined) => (id ? gvList.find((v) => v.id === id)?.gender ?? null : null);
   const selSex = selSp ? selSp.sex ?? genderOf(cast.get(selSp.key)) : null;
   const shownList = useMemo(() => {
     if (!selSp) return sheetList;
-    const others = new Set(people.filter((p2) => p2.key !== selSp.key).map((p2) => savedFor(p2)?.id).filter(Boolean));
-    return sheetList.filter((v) => (v.cloned ? (v.live ? v.speaker === selSp.key : !others.has(v.id)) : true));
+    return sheetList.filter((v) => (v.cloned ? (v.live ? v.speaker === selSp.key : v.id === `clone:${selSp.voiceId}`) : true));
   }, [sheetList, selSp, selSex, people]); // eslint-disable-line react-hooks/exhaustive-deps
   const autoOf = (key: number) => gvList.find((v) => v.cloned && v.auto && v.speaker === key) ?? null;
   const ctx: VoiceSheetCtx = { people, gvList, autoOf, savedFor };

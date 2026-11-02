@@ -517,8 +517,7 @@ export function autoCast(roster: CastMember[], voices: AvailableVoice[], clones 
   for (const sp of roster) {
     const saved = sp.voiceId ? voices.find((v) => v.cloned && !v.auto && v.consent !== 'pending' && v.id === `clone:${sp.voiceId}`) : undefined;
     const own = saved ?? (!clones ? undefined : (sp.voiceId ? voices.find((v) => v.cloned && v.consent !== 'pending' && v.id === `clone:${sp.voiceId}`) : undefined)
-      ?? (sp.key >= 0 ? voices.find((v) => v.cloned && v.auto && v.consent !== 'pending' && v.speaker === sp.key) : undefined)
-      ?? (sp.name ? voices.find((v) => v.cloned && !v.auto && v.consent !== 'pending' && v.name === sp.name) : undefined));
+      ?? (sp.key >= 0 ? voices.find((v) => v.cloned && v.auto && v.consent !== 'pending' && v.speaker === sp.key) : undefined));
     if (own) {
       out.set(sp.key, own.id);
       used.add(own.id);
