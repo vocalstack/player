@@ -4,16 +4,26 @@
   "description": "VocalStack video and transcript player for React: synced transcript, subtitles, spoken translations and background sound, over the public VocalStack API.",
   "license": "MIT",
   "type": "module",
-  "repository": { "type": "git", "url": "git+https://github.com/vocalstack/player.git" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vocalstack/player.git"
+  },
   "homepage": "https://vocalstack.com",
-  "sideEffects": ["*.css"],
+  "sideEffects": [
+    "*.css"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
     "./style.css": "./dist/style.css"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -25,7 +35,7 @@
     "react-dom": ">=18"
   },
   "dependencies": {
-    "@vocalstack/js-sdk": "^2.0.0-alpha.0"
+    "@vocalstack/js-sdk": "^2.0.0-alpha.1"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
