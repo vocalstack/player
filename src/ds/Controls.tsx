@@ -122,7 +122,14 @@ export function IconButton({ children, onClick, label, size, variant, bordered =
   );
 }
 
-export function LanguageChip({ flag, code, label, onClick, variant, block, bordered = true, size, style }: { flag: ReactNode; code: string; label?: string; onClick?: () => void; variant?: 'primary'; block?: boolean; bordered?: boolean; size?: 'sm'; style?: React.CSSProperties }) {
+export function LanguageChip({ flag, code, label, onClick, variant, block, bordered = true, size, style, flagOnly }: { flag: ReactNode; code: string; label?: string; onClick?: () => void; variant?: 'primary'; block?: boolean; bordered?: boolean; size?: 'sm'; style?: React.CSSProperties; flagOnly?: boolean }) {
+  if (flagOnly) {
+    return (
+      <button type="button" className="vs-lang-chip vs-lang-chip--flag" onClick={onClick} aria-label={label ? (code ? `${label} (${code})` : label) : code || 'Language'} title={label ?? code} style={style}>
+        <span className="vs-lang-chip__flag">{flag}</span>
+      </button>
+    );
+  }
   const named = block && !!code;
   return (
     <button type="button" className={`vs-lang-chip${variant ? ` vs-lang-chip--${variant}` : ''}${block ? ' vs-lang-chip--block' : ''}${block && !named ? ' vs-lang-chip--bare' : ''}${bordered ? '' : ' vs-lang-chip--borderless'}${size === 'sm' ? ' vs-lang-chip--sm' : ''}`} onClick={onClick} aria-label={label ? (code ? `${label} (${code})` : label) : code} style={style}>

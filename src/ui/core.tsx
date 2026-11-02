@@ -15,7 +15,7 @@ import { confClass, fixedSlots, lane, speakerInitial, speakerLabel, speakerLook,
 import { ClipQueue, newMediaElement, readCursor, VoiceNotStarted, type ReadPos, type VoiceClip } from '../core/voiceplayer';
 import { placePosition, snapPosition, type PlayPos } from '../core/playPosition';
 import { lineSpeechEnd, spreadWords } from '../core/readalong';
-import { type AvailableVoice, type CastMember, FixBadges, FixPen, rowFixes, BAR_CHIP, FeedBar, NO_VOICE_TIP, feedInset, SpeakerCast, VoiceIdGlyph, VoiceSheetBody, autoCast, castKey, langMeta, namedCount, rowKey, speakerRoster, useArchiveVoice, useFeedBar, useVoiceCatalogue, useDragScroll } from './shared';
+import { type AvailableVoice, type CastMember, FixBadges, FixPen, rowFixes, FeedBar, NO_VOICE_TIP, feedInset, SpeakerCast, VoiceIdGlyph, VoiceSheetBody, autoCast, castKey, langMeta, namedCount, rowKey, speakerRoster, useArchiveVoice, useFeedBar, useVoiceCatalogue, useDragScroll } from './shared';
 
 export function lineWords(rows: Row[], i: number, lang?: string | null): Word[] {
   const r = rows[i];
@@ -1022,9 +1022,9 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const chipMeta = original ? { ...langMeta(langs, null), flag: <Icon d={D.langAuto} size={21} sw={1.7} style={{ color: 'currentColor', display: 'block' }} /> } : meta;
   const chip = canTranslate ? (side ? (
     <span className="barchip" style={pickerMine ? { background: 'var(--brand-tint)', boxShadow: '0 0 0 1.5px var(--brand)' } : undefined}>
-      <LanguageChip flag={chipMeta.flag} code={chipMeta.code} bordered={false} onClick={toggleChip} style={BAR_CHIP} />
+      <LanguageChip flag={chipMeta.flag} code={chipMeta.code} bordered={false} onClick={toggleChip} flagOnly label={chipMeta.label} />
     </span>
-  ) : <LanguageChip flag={chipMeta.flag} code={chipMeta.code} bordered={false} onClick={openPicker} style={BAR_CHIP} />) : null;
+  ) : <LanguageChip flag={chipMeta.flag} code={chipMeta.code} bordered={false} onClick={openPicker} flagOnly label={chipMeta.label} />) : null;
   const glyph = D.voiceClone;
   const active = on && (!!arch.track || rendering);
   const glyphFg = failed ? 'var(--conf-low)' : active || (side && voicesMine) ? 'var(--brand)' : 'var(--ink-55)';

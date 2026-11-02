@@ -161,6 +161,9 @@
 .vsp .vs-lang-chip--block .vs-lang-chip__chevron{margin-left:auto}
 .vsp .vs-lang-chip--bare{justify-content:center}
 .vsp .vs-lang-chip--bare .vs-lang-chip__chevron{margin-left:0}
+.vsp .vs-lang-chip--flag{width:36px;min-height:36px;height:36px;padding:0;gap:0;justify-content:center;background:transparent;border-color:transparent;border-radius:50%}
+.vsp .vs-lang-chip--flag:hover{background:var(--fill-06);border-color:transparent}
+.vsp .vs-lang-chip--flag .vs-lang-chip__flag{font-size:22px;display:flex;align-items:center;justify-content:center}
 .vsp .vs-lang-chip--sm{min-height:34px;padding:0 10px;gap:6px}
 .vsp .vs-lang-chip--sm .vs-lang-chip__flag{font-size:16px}
 .vsp .vs-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;flex:none;padding:0;border-radius:var(--vs-radius-full);background:var(--vs-control-surface);border:1px solid var(--vs-control-border);color:var(--vs-text-secondary);cursor:pointer;transition:background-color var(--vs-duration) var(--vs-ease),border-color var(--vs-duration) var(--vs-ease),color var(--vs-duration) var(--vs-ease)}
@@ -1248,3 +1251,6 @@
 .vsp .gfull--desk .gfull__pausedsum{max-width:760px}
 .vsp .gfull--small:not(.gfull--mini) .gfull__sub{transition:bottom .3s ease}
 .vsp .gfull--small.gfull--calm:not(.gfull--mini) .gfull__sub{bottom:10px}
+.vsp .gfull__pausedhead{display:flex;align-items:center;gap:8px;min-width:0}
+.vsp .gfull__pausedhead .gfull__pausedtitle{min-width:0}
+.vsp .gfull__pausedmark{flex:none;display:inline-flex;filter:drop-shadow(0 1px 6px rgba(5,6,21,.6))}

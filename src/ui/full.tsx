@@ -325,7 +325,7 @@ export function FullVideo({ compact = false, noFull = false, page = true, pictur
         {paused && !ad && (
           <div className={`gfull__pausedinfo${!transport.playing ? ' gfull__pausedinfo--on' : ''}`} aria-hidden={transport.playing}>
             <div className="gfull__pausedtext">
-              <div className="gfull__pausedtitle">{paused.title}</div>
+              <div className="gfull__pausedhead">{(mini || small) && <span className="gfull__pausedmark" aria-hidden="true"><Mark dark size={20} /></span>}<div className="gfull__pausedtitle">{paused.title}</div></div>
               {paused.summary && <div className="gfull__pausedsum">{paused.summary}</div>}
             </div>
             {shareCard}
