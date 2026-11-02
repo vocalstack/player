@@ -1,0 +1,385 @@
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { IconButton, Sheet } from '../ds/Controls';
+import type { Strings } from '../data/i18n';
+import { D, Icon, Logo, Mark, PauseGlyph, PlayGlyph, SITE } from '../ds/Icons';
+import { qrSvgUrl } from '../core/qr';
+import { shareLink } from './shared';
+import { clock } from '../core/format';
+
+const HINT_CODES = ['es', 'fr', 'ro', 'ja', 'pt'];
+
+const DUCK = 0.5;
+
+const ICON_FULL = 'M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15';
+const ICON_EXIT = 'M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25';
+
+function fullNow(): Element | null {
+  const d = document as Document & { webkitFullscreenElement?: Element };
+  return d.fullscreenElement ?? d.webkitFullscreenElement ?? null;
+}
+
+let fullTarget: HTMLElement | null = null;
+export function setFullTarget(el: HTMLElement | null) {
+  fullTarget = el;
+}
+
+function canFull(): boolean {
+  const d = document as Document & { webkitFullscreenEnabled?: boolean };
+  return !!(d.fullscreenEnabled || d.webkitFullscreenEnabled);
+}
+
+function noBrowserFull(): boolean {
+  if (typeof document === 'undefined' || !window.matchMedia?.('(pointer: coarse)').matches) return false;
+  const el = (fullTarget ?? document.documentElement) as HTMLElement & { webkitRequestFullscreen?: unknown };
+  return !el.requestFullscreen && !el.webkitRequestFullscreen;
+}
+
+export function browserFull(on: boolean) {
+  if (typeof document === 'undefined' || !window.matchMedia?.('(pointer: coarse)').matches) return;
+  realFull(on);
+}
+
+export function realFull(on: boolean) {
+  if (typeof document === 'undefined') return;
+  const d = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => Promise<void> };
+  const el = (fullTarget ?? document.documentElement) as HTMLElement & { webkitRequestFullscreen?: (o?: FullscreenOptions) => Promise<void> };
+  const now = d.fullscreenElement ?? d.webkitFullscreenElement;
+  try {
+    if (on && !now) void (el.requestFullscreen ?? el.webkitRequestFullscreen)?.call(el, { navigationUI: 'hide' })?.catch(() => {});
+    if (!on && now) void (d.exitFullscreen ?? d.webkitExitFullscreen)?.call(d)?.catch(() => {});
+  } catch { }
+}
+
+function useMedia(q: string): boolean {
+  const [on, setOn] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.(q).matches);
+  useEffect(() => {
+    const m = window.matchMedia?.(q);
+    if (!m) return;
+    const f = () => setOn(m.matches);
+    f();
+    m.addEventListener('change', f);
+    return () => m.removeEventListener('change', f);
+  }, [q]);
+  return on;
+}
+
+export type PlayerPos = { live: boolean; atEdge: boolean; edgeFrac: number | null; readyFrac?: number | null; pct: number; atLabel: string; labelAt: (frac: number) => string; endLabel: string; onSeek: (frac: number) => void };
+export type VoicesBtn = { on: boolean; title: string; onClick: () => void };
+export type PlayerTransport = { prevOn: boolean; nextOn: boolean; onPrev: () => void; onNext: () => void; playing: boolean; playable: boolean; playTitle: string; onPlay?: () => void; busy?: boolean };
+
+function SeekRow({ pos, interactive, axis = 'x' }: { pos: PlayerPos; interactive: boolean; axis?: 'x' | 'y' }) {
+  const [drag, setDrag] = useState<number | null>(null);
+  const fracOf = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const f = axis === 'y' ? (e.clientY - r.top) / Math.max(1, r.height) : (e.clientX - r.left) / Math.max(1, r.width);
+    return Math.min(1, Math.max(0, f));
+  };
+  const up = (e: React.PointerEvent<HTMLDivElement>) => { if (drag == null) return; const f = fracOf(e); setDrag(null); pos.onSeek(f); };
+  const shown = drag != null ? drag * 100 : pos.pct;
+  return (
+    <>
+      <span className={`gfull__t${interactive ? ' gfull__t--at' : ''}`}>{drag != null ? pos.labelAt(drag) : pos.atLabel}</span>
+      <div className={`gfull__seek${interactive ? ' gfull__seek--on' : ''}`} role={interactive ? 'slider' : undefined} aria-label={interactive ? 'Playback position' : undefined} aria-valuemin={interactive ? 0 : undefined} aria-valuemax={interactive ? 100 : undefined} aria-valuenow={interactive ? Math.round(shown) : undefined}
+        onPointerDown={interactive ? (e) => { e.stopPropagation(); e.currentTarget.setPointerCapture?.(e.pointerId); setDrag(fracOf(e)); e.preventDefault(); } : undefined}
+        onPointerMove={interactive ? (e) => { if (drag != null) setDrag(fracOf(e)); } : undefined}
+        onPointerUp={interactive ? up : undefined} onPointerCancel={interactive ? () => setDrag(null) : undefined}>
+        <div className={`gfull__track${pos.readyFrac != null ? ' gfull__track--part' : ''}`}>
+          {pos.readyFrac != null && <div className="gfull__ready" style={{ width: `${Math.min(100, pos.readyFrac * 100)}%` }} />}
+          <div style={{ width: `${shown}%`, background: (drag == null ? pos.atEdge : pos.edgeFrac != null && drag >= pos.edgeFrac) ? '#ec634d' : '#55abe5', transition: drag != null ? 'none' : undefined }} />
+          <i style={{ left: `${shown}%`, transition: drag != null ? 'none' : undefined }} />
+        </div>
+      </div>
+      <span className="gfull__t gfull__end" style={{ color: pos.live ? '#ec634d' : 'rgba(234,236,250,.6)' }}>{pos.endLabel}</span>
+    </>
+  );
+}
+
+function PanelSeek({ pos }: { pos: PlayerPos }) {
+  const [drag, setDrag] = useState<number | null>(null);
+  const fracOf = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    return Math.min(1, Math.max(0, (e.clientX - r.left) / Math.max(1, r.width)));
+  };
+  const up = (e: React.PointerEvent<HTMLDivElement>) => { if (drag == null) return; const f = fracOf(e); setDrag(null); pos.onSeek(f); };
+  const shown = drag != null ? drag * 100 : pos.pct;
+  const glide = drag != null ? 'none' : undefined;
+  return (
+    <div className="gaseek">
+      <div className="gaseek__bar" role="slider" aria-label="Playback position" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(shown)}
+        onPointerDown={(e) => { e.currentTarget.setPointerCapture?.(e.pointerId); setDrag(fracOf(e)); e.preventDefault(); }}
+        onPointerMove={(e) => { if (drag != null) setDrag(fracOf(e)); }}
+        onPointerUp={up} onPointerCancel={() => setDrag(null)}>
+        <div className="gaseek__track" />
+        <div className="gaseek__fill" style={{ width: `${shown}%`, transition: glide }} />
+        <i style={{ left: `${shown}%`, transition: glide }} />
+      </div>
+      <div className="gaseek__labels">
+        <span className="gaseek__t">{drag != null ? pos.labelAt(drag) : pos.atLabel}</span>
+        <span className="gaseek__t gaseek__end">{pos.endLabel}</span>
+      </div>
+    </div>
+  );
+}
+
+function GlassTransport({ t, mini }: { t: PlayerTransport; mini?: boolean }) {
+  return (
+    <div className="gfull__transport">
+      <button type="button" className="gfull__step" aria-label="Previous line" title="Previous line" style={{ opacity: t.prevOn ? 1 : 0.3 }} onClick={t.onPrev}><Icon d={D.chevronLeft} size={mini ? 13 : 16} sw={mini ? 1.8 : 1.9} /></button>
+      <button type="button" className="gfull__play" aria-label={t.busy ? 'Preparing audio' : t.playing ? 'Pause' : 'Play'} title={t.playTitle} disabled={!t.playable}
+        style={{ background: !t.playable ? 'rgba(5,6,21,.42)' : t.playing ? 'rgba(238,240,248,.92)' : 'var(--brand)', color: !t.playable ? 'rgba(234,236,250,.5)' : t.playing ? '#131326' : 'var(--brand-ink)', cursor: t.playable ? 'pointer' : 'default' }}
+        onClick={t.onPlay}>{t.busy ? <span className="gfull__spin" aria-hidden="true" /> : t.playing ? <PauseGlyph size={mini ? 14 : 18} /> : <PlayGlyph size={mini ? 15 : 19} />}</button>
+      <button type="button" className="gfull__step" aria-label="Next line" title="Next line" style={{ opacity: t.nextOn ? 1 : 0.3 }} onClick={t.onNext}><Icon d={D.chevronRight} size={mini ? 13 : 16} sw={mini ? 1.8 : 1.9} /></button>
+    </div>
+  );
+}
+
+function GlassBrand({ live, mini, desk, pct, mark }: { live: boolean; mini?: boolean; desk?: boolean; pct?: number | null; mark?: boolean }) {
+  return <div className={`gfull__brand${mark ? ' gfull__brand--mark' : ''}`}><a href={SITE} target="_blank" rel="noopener" style={{ display: 'block', lineHeight: 0 }} aria-label="VocalStack" title="VocalStack">{mark ? <Mark dark size={22} /> : <Logo dark link={false} height={mini ? 11 : desk ? 18 : 15} />}</a>{live && <span className="gfull__live"><i />LIVE</span>}{pct != null && <span className="gfull__txpct" title="Still being transcribed: it plays as far as it is written">{`TRANSCRIBING ${pct}%`}</span>}</div>;
+}
+
+function VoicesButton({ v, size }: { v: VoicesBtn; size: number }) {
+  return <button type="button" className="gfull__btn" aria-label="Voices" title={v.title} disabled={!v.on} style={{ opacity: v.on ? 1 : 0.45, cursor: v.on ? 'pointer' : 'default' }} onClick={v.on ? v.onClick : undefined}><Icon d={D.headphones} size={size} sw={1.6} /></button>;
+}
+
+export function MiniPlayer({ pos, transport, chip, voices, onShare, onFull, copied }: { pos: PlayerPos; transport: PlayerTransport; chip: React.ReactNode; voices: VoicesBtn; onShare?: () => void; onFull: () => void; copied: React.ReactNode }) {
+  return (
+    <div className="gmini" data-theme="dark">
+      <div className="gmini__shade" aria-hidden="true" />
+      <div className="gmini__top"><GlassBrand live={pos.live} mini /></div>
+      <div className="gmini__foot">
+        <div className="gmini__row"><SeekRow pos={pos} interactive /></div>
+        <div className="gmini__row gmini__row--ctl">
+          <GlassTransport t={transport} mini />
+          <span style={{ flex: 1 }} />
+          <div className="gfull__chip">{chip}</div>
+          <VoicesButton v={voices} size={14} />
+          {onShare && <button type="button" className="gfull__btn" aria-label="Share" title="Share" onClick={(e) => { e.stopPropagation(); onShare(); }}><Icon d={D.share} size={13} sw={1.8} /></button>}
+          <button type="button" className="gfull__btn" aria-label="Full screen" title="Full screen" onClick={onFull}><Icon d={ICON_FULL} size={14} sw={1.8} /></button>
+        </div>
+      </div>
+      {copied}
+    </div>
+  );
+}
+
+const DIM_WORD: React.CSSProperties = { color: 'rgba(255,255,255,.4)' };
+
+export function FullVideo({ page = true, picture, title, desk, pos, sub, wait, pct, mute, cc, ad, chip, transport, picker, sheet, voices, voicesBtn, sheetOpen, onShare, onSettings, paused, copied, onTouch, onClose }: { page?: boolean; onTouch: () => void; onSettings?: () => void; paused?: { title: string; summary: string | null; share?: { url: (t: number | null) => string; at: number } | null } | null; voices: React.ReactNode; voicesBtn: VoicesBtn | null; picture: React.ReactNode; title: string; desk: boolean; pos: PlayerPos; sub: { who: string | null; color: string; words: { t: string; sp: string; dim: boolean }[]; cursor?: number | null } | null; wait?: React.ReactNode; pct?: number | null; mute?: { muted: boolean; onToggle: () => void }; cc?: { on: boolean; onToggle: () => void }; ad?: boolean; chip: React.ReactNode; transport: PlayerTransport; picker: React.ReactNode; sheet: React.ReactNode; sheetOpen: boolean; onShare?: () => void; copied: React.ReactNode; onClose?: () => void }) {
+  const [isFull, setIsFull] = useState(() => !!fullNow());
+  useEffect(() => {
+    const on = () => setIsFull(!!fullNow());
+    document.addEventListener('fullscreenchange', on);
+    document.addEventListener('webkitfullscreenchange', on);
+    return () => { document.removeEventListener('fullscreenchange', on); document.removeEventListener('webkitfullscreenchange', on); };
+  }, []);
+  const close = useRef(onClose);
+  close.current = onClose;
+  const play = useRef(transport.playable ? transport.onPlay : undefined);
+  play.current = transport.playable ? transport.onPlay : undefined;
+  const [calm, setCalm] = useState(false);
+  const [touchN, setTouchN] = useState(0);
+  const swallow = useRef(false);
+  useEffect(() => () => realFull(false), []);
+  useEffect(() => {
+    if (!page) return;
+    const els = [document.documentElement, document.body];
+    const was = els.map((el) => el.style.background);
+    els.forEach((el) => { el.style.background = '#050507'; });
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    const tint = meta?.content;
+    if (meta) meta.content = '#050507';
+    return () => { els.forEach((el, i) => { el.style.background = was[i]; }); if (meta && tint) meta.content = tint; };
+  }, []);
+  const swipeFull = useMemo(() => page && noBrowserFull(), [page]);
+  const [barsUp, setBarsUp] = useState(swipeFull);
+  useEffect(() => {
+    if (!page) return;
+    const els = [document.documentElement, document.body];
+    const was = els.map((el) => [el.style.overflow, el.style.overscrollBehavior] as const);
+    if (!swipeFull) {
+      els.forEach((el) => { el.style.overflow = 'hidden'; el.style.overscrollBehavior = 'none'; });
+      return () => els.forEach((el, i) => { el.style.overflow = was[i][0]; el.style.overscrollBehavior = was[i][1]; });
+    }
+    const strip = document.createElement('div');
+    strip.setAttribute('aria-hidden', 'true');
+    strip.style.cssText = 'position:absolute;top:0;left:0;width:1px;height:calc(100lvh + 160px);pointer-events:none';
+    document.body.appendChild(strip);
+    document.documentElement.style.overscrollBehavior = 'none';
+    const onScroll = () => { if (window.scrollY > 24) setBarsUp(false); };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      strip.remove();
+      document.documentElement.style.overscrollBehavior = was[0][1];
+      window.scrollTo(0, 0);
+    };
+  }, [swipeFull, page]);
+  const sheetUp = useRef(sheetOpen);
+  sheetUp.current = sheetOpen;
+  useEffect(() => {
+    const typing = (el: EventTarget | null) => el instanceof HTMLElement && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !sheetUp.current && close.current) { e.stopPropagation(); close.current(); }
+      if (e.key === ' ' && !sheetUp.current && !typing(e.target)) { e.preventDefault(); e.stopPropagation(); if (!e.repeat) play.current?.(); }
+      if ((e.key === 'f' || e.key === 'F') && !e.metaKey && !e.ctrlKey && !e.altKey && !sheetUp.current && !typing(e.target) && canFull()) { e.preventDefault(); if (!e.repeat) realFull(!fullNow()); }
+    };
+    const keyUp = (e: KeyboardEvent) => { if (e.key === ' ' && !sheetUp.current && !typing(e.target)) e.preventDefault(); };
+    window.addEventListener('keydown', key, true);
+    window.addEventListener('keyup', keyUp, true);
+    return () => { window.removeEventListener('keydown', key, true); window.removeEventListener('keyup', keyUp, true); };
+  }, []);
+  const sideways = useMedia('(orientation: landscape) and (max-height: 540px)');
+  const big = desk && !sideways;
+  useEffect(() => {
+    setCalm(false);
+    if (!transport.playing || sheetOpen) return;
+    const h = setTimeout(() => setCalm(true), 3000);
+    return () => clearTimeout(h);
+  }, [transport.playing, sheetOpen, touchN]);
+  const calmRef = useRef(calm); calmRef.current = calm;
+  const movedAt = useRef(0);
+  const onMove = (e: React.PointerEvent) => {
+    if (e.pointerType !== 'mouse') return;
+    const now = Date.now();
+    if (!calmRef.current && now - movedAt.current < 1000) return;
+    movedAt.current = now;
+    setTouchN((n) => n + 1);
+  };
+  const land = !big && sideways;
+  const subBox = useRef<HTMLDivElement>(null);
+  const subKey = sub ? sub.words.map((w) => (w.dim ? 0 : 1)).join('') + sub.words.length + ':' + (sub.cursor ?? '') : '';
+  useLayoutEffect(() => {
+    const box = subBox.current;
+    if (!box) return;
+    const reading = !!sub?.words.some((w) => w.dim) || sub?.cursor != null;
+    const said = box.querySelectorAll<HTMLElement>(sub?.cursor != null && !sub.words.some((w) => w.dim) ? '[data-at]' : '[data-said]');
+    const row = parseFloat(getComputedStyle(box).lineHeight) || 24;
+    const extra = Math.round(box.scrollHeight / row) - Math.round(box.clientHeight / row);
+    const room = Math.max(0, extra) * row;
+    if (room <= 0) { if (box.scrollTop) box.scrollTo({ top: 0 }); return; }
+    const rowOf = (el: HTMLElement) => Math.round((el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop) / row);
+    const page = Math.max(1, Math.round(box.clientHeight / row));
+    const at = reading ? (said.length ? Math.floor(rowOf(said[said.length - 1]) / page) * page * row : 0) : room;
+    const want = Math.max(0, Math.min(room, at));
+    if (Math.abs(want - box.scrollTop) > 1) box.scrollTop = want;
+  }, [subKey, land]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [shareAt, setShareAt] = useState(true);
+  const [shareCopied, setShareCopied] = useState(false);
+  const shareT = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(shareT.current), []);
+  const shareUrl = paused?.share ? paused.share.url(shareAt && paused.share.at >= 1 ? Math.floor(paused.share.at) : null) : '';
+  const shareQr = useMemo(() => (big && shareUrl && !transport.playing ? qrSvgUrl(shareUrl) : ''), [big, shareUrl, transport.playing]);
+  const copyShare = () => { void navigator.clipboard?.writeText(shareUrl).then(() => { setShareCopied(true); window.clearTimeout(shareT.current); shareT.current = window.setTimeout(() => setShareCopied(false), 1800); }, () => {}); };
+  const shareCard = big && paused?.share && (
+    <div className="gfull__sharecard" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+      {shareQr && <div className="gfull__shareqr" role="img" aria-label="QR code for this link" style={{ backgroundImage: `url("${shareQr}")` }} />}
+      <div className="gfull__sharebody">
+        <div className="gfull__shareeyebrow">SHARE THIS MOMENT</div>
+        <label className="gfull__shareat"><input type="checkbox" checked={shareAt} onChange={(e) => setShareAt(e.target.checked)} disabled={paused.share.at < 1} />Start at {clock(Math.floor(paused.share.at))}</label>
+        <div className="gfull__shareurl"><span>{shareUrl.replace(/^https?:\/\//, '')}</span></div>
+        <div className="gfull__shareacts">
+          <button type="button" className="gfull__sharebtn gfull__sharebtn--main" onClick={copyShare}><Icon d={shareCopied ? D.check : D.copy} size={14} sw={1.8} />{shareCopied ? 'Copied' : 'Copy link'}</button>
+          <button type="button" className="gfull__sharebtn" onClick={() => shareLink(shareUrl, title)}><Icon d={D.share} size={14} sw={1.6} />Share</button>
+        </div>
+      </div>
+    </div>
+  );
+  const glass = (lbl: string, d: string, sw: number, onClick: () => void, style?: React.CSSProperties, grow = 0) => (
+    <button type="button" className="gfull__btn" title={lbl} aria-label={lbl} onClick={onClick}><Icon d={d} size={(big ? 20 : 18) + grow} sw={sw} style={style} /></button>
+  );
+  const acts = (
+    <div className="gfull__acts">
+      {voicesBtn && <VoicesButton v={voicesBtn} size={big ? 20 : 18} />}
+      {onShare && glass('Share', D.share, 1.6, onShare)}
+      {canFull() && glass(isFull ? 'Exit full screen' : 'Full screen', isFull ? ICON_EXIT : ICON_FULL, 1.7, () => realFull(!isFull))}
+      {onClose && glass('Close player', D.close, 1.7, onClose)}
+    </div>
+  );
+  const top = (mute || cc || onSettings) && (
+    <div className="gfull__top">
+      {mute && glass(mute.muted ? 'Unmute' : 'Mute', mute.muted ? D.volumeOff : D.volume, 1.6, mute.onToggle)}
+      {cc && glass(cc.on ? 'Hide subtitles' : 'Show subtitles', cc.on ? D.cc : D.ccOff, 1.7, cc.onToggle, undefined, 4)}
+      {onSettings && glass('Settings', D.cog, 1.6, onSettings)}
+    </div>
+  );
+  return (
+    <div className={`gfull${big ? ' gfull--desk' : ''}${swipeFull ? ' gfull--swipe' : ''}${ad ? ' gfull--ad' : ''}${calm ? ' gfull--calm' : ''}`} data-theme="dark" role="dialog" aria-label={title} onPointerMove={onMove} onPointerDownCapture={(e) => { if (calm) swallow.current = true; setTouchN((n) => n + 1); if (!(e.target as Element).closest?.('[aria-label="Exit full screen"], [aria-label="Full screen"], [aria-label="Close player"]')) onTouch(); }}
+      onClickCapture={(e) => { if (swallow.current) { swallow.current = false; e.stopPropagation(); e.preventDefault(); } }}>
+      {swipeFull && barsUp && <div className="gfull__swipe" aria-live="polite"><Icon d="m4.5 15.75 7.5-7.5 7.5 7.5" size={14} sw={2} />Swipe up for full screen</div>}
+      <div className={`gfull__frame${land ? ' gfull__frame--land' : ''}`}>
+        {picture}
+        <div className="gfull__shade" aria-hidden="true" />
+        {paused && !ad && (
+          <div className={`gfull__pausedinfo${!transport.playing ? ' gfull__pausedinfo--on' : ''}`} aria-hidden={transport.playing}>
+            <div className="gfull__pausedtext">
+              <div className="gfull__pausedtitle">{paused.title}</div>
+              {paused.summary && <div className="gfull__pausedsum">{paused.summary}</div>}
+            </div>
+            {shareCard}
+          </div>
+        )}
+        {top}
+        {copied}
+        {wait ? (
+          typeof wait === 'string'
+            ? <div className="gfull__sub" aria-live="polite"><div className="gfull__wait"><span className="gfull__spin" aria-hidden="true" />{wait}</div></div>
+            : <div className="gfull__sub">{wait}</div>
+        ) : sub && (
+          <div className="gfull__sub">
+            <div ref={subBox}>
+              <div className="gfull__subback" aria-hidden="true"><span>{sub.who && <><b>{sub.who}:</b> </>}{sub.words.map((w) => w.t + w.sp).join('')}</span></div>
+              <span>{sub.who && <><b style={{ color: sub.color }}>{sub.who}:</b> </>}{sub.words.map((w, j) => <span key={j} data-said={w.dim ? undefined : ''} data-at={sub.cursor != null && j <= sub.cursor ? '' : undefined} style={w.dim ? DIM_WORD : undefined}>{w.t}{w.sp}</span>)}</span>
+            </div>
+          </div>
+        )}
+        <div className={`gfull__prog${big ? '' : ' gfull__prog--two'}`}>
+          {big ? (
+            <>
+              <GlassBrand live={pos.live} desk pct={pct} />
+              <GlassTransport t={transport} />
+              <SeekRow pos={pos} interactive />
+              <div className="gfull__chip">{chip}</div>
+              {acts}
+            </>
+          ) : (
+            <>
+              <div className="gfull__row"><GlassBrand live={pos.live} pct={pct} mark /><SeekRow pos={pos} interactive /></div>
+              <div className="gfull__row"><GlassTransport t={transport} /><span style={{ flex: 1 }} /><div className="gfull__chip">{chip}</div>{acts}</div>
+            </>
+          )}
+        </div>
+        {picker}
+        {sheet}
+        {voices}
+      </div>
+    </div>
+  );
+}
+
+
+export function ListenerHeader({ dark, back: onBack, home, live, title, badge, subline, onOptions, optionsActive }: { dark: boolean; back?: () => void; home?: boolean; live?: boolean; title?: string; badge?: React.ReactNode; subline?: string; onOptions: () => void; optionsActive?: boolean }) {
+  return (
+    <div className="ghead">
+      {onBack && <button type="button" className="ghead__back" aria-label="Back" title="Back" onClick={onBack}><Icon d={D.chevronLeft} size={19} sw={1.7} /></button>}
+      {live && <span className="mark"><Mark dark={dark} size={30} /></span>}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex' }}>
+        {home ? (
+          <div className="ghead__logo"><Logo dark={dark} height={22} /></div>
+        ) : (
+          <div className="ghead__title" onClick={onBack} title={onBack ? 'Back' : undefined} style={{ cursor: onBack ? 'pointer' : 'default' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="ghead__name">{title}</span>
+              {badge}
+            </div>
+            {subline && <div className="ghead__sub">{subline}</div>}
+          </div>
+        )}
+      </div>
+      <IconButton size="sm" bordered={false} variant={optionsActive ? 'primary' : undefined} onClick={onOptions} label="Options">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5.5" r="1.85" /><circle cx="12" cy="12" r="1.85" /><circle cx="12" cy="18.5" r="1.85" /></svg>
+      </IconButton>
+    </div>
+  );
+}
+const VIDEO_D = 'm15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z';
+export const modeOptions = (t: Strings, video = false) => [{ value: 'read' as const, label: t.read, icon: <Icon d={D.book} size={17} /> }, { value: 'listen' as const, label: <span style={{ display: 'inline-block', minWidth: 52, textAlign: 'center' }}>{video ? t.watch : t.listen}</span>, icon: <Icon d={video ? VIDEO_D : D.headphones} size={19} sw={1.5} /> }];
