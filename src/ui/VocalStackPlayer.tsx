@@ -89,6 +89,7 @@ export interface VocalStackPlayerProps {
   voice?: string | null;
   settingsExtra?: ReactNode;
   shareUrl?: (t: number | null) => string;
+  onShare?: () => void;
   onSource?: (s: LoadedSource) => void;
   onProgress?: (pct: number | null) => void;
   onError?: (e: ErrorLike) => void;
@@ -499,7 +500,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     const id = window.setInterval(tick, PLAYBACK_MS);
     return () => window.clearInterval(id);
   }, []);
-  const shareHere = () => shareLink(shareAtUrl(null), name, () => { window.clearTimeout(copiedT.current); setLinkCopied(true); copiedT.current = window.setTimeout(() => setLinkCopied(false), 2200); });
+  const shareHere = () => props.onShare ? props.onShare() : shareLink(shareAtUrl(null), name, () => { window.clearTimeout(copiedT.current); setLinkCopied(true); copiedT.current = window.setTimeout(() => setLinkCopied(false), 2200); });
   const exportRow = (key: 'srt' | 'pdf', title: string, sub: string) => {
     const f = TX_FORMATS.find((x) => x.key === key)!;
     const busy = expBusy === key, done = expDone === key;
@@ -626,7 +627,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     <FullVideo page={(props.layout ?? 'embed') === 'page'} picture={picture} title={name} desk={desk} pos={pos} mute={{ muted: player.muted, onToggle: toggleSound }} cc={ctl.subtitles ? { on: ccOn, onToggle: () => setCcOn((v) => !v) } : undefined} noFull={!ctl.fullscreen} ad={adOn} wait={waitState && !softWait ? <PlayerWait state={waitState} line={voiceHolds ? subWords.map((w) => w.t + w.sp).join('') : null} onRetry={waitRetry} onOriginal={waitOriginal} /> : player.edgeWait ? `Transcribing ${Math.round(pct)}% — it plays on as more is written` : null} pct={running ? Math.round(pct) : null}
       sub={ccOn && subRow ? { who: subLook ? speakerLabel(model, subRow.speaker) : null, color: subLook ? subLook.fg ?? `var(--lane-${subLook.lane})` : '#fff', words: subWords, cursor: spokenWordOf(player, player.idx, subLine) } : null}
       chip={chipFor(desk ? glassChip : { ...glassChip, width: 64, padding: '0 6px' }, desk ? undefined : 'sm')} transport={transport}
-      picker={voice.sheets} sheet={locked ? settingsSheet : null} voices={null} voicesBtn={locked ? null : voicesBtn} sheetOpen={voice.sheetsOpen || settings} onShare={locked && ctl.share ? shareHere : undefined} onSettings={locked && ctl.settings ? () => { voice.closePicker(); setSettings((v) => !v); } : undefined} compact={!!props.compact} paused={{ title: name, summary: sharedSummary.state === 'ready' ? sharedSummary.summary ?? null : null, share: ctl.share ? { url: shareAtUrl, at: player.t } : null }}
+      picker={voice.sheets} sheet={locked ? settingsSheet : null} voices={null} voicesBtn={locked ? null : voicesBtn} sheetOpen={voice.sheetsOpen || settings} onShare={locked && ctl.share ? shareHere : undefined} onSettings={locked && ctl.settings ? () => { voice.closePicker(); setSettings((v) => !v); } : undefined} compact={!!props.compact} paused={{ title: name, summary: sharedSummary.state === 'ready' ? sharedSummary.summary ?? null : null, share: ctl.share && (props.shareUrl || !props.onShare) ? { url: shareAtUrl, at: player.t } : null }}
       copied={linkCopied ? <div className="gfull__toast" aria-live="polite"><Icon d={D.check} size={13} sw={2} />Link copied</div> : soundTip ? <div className="gfull__toast gfull__soundtip" aria-live="polite"><Icon d={D.volumeOff} size={14} sw={1.8} />Tap for sound</div> : softNote ? <div className="gfull__toast" role="status" aria-live="polite"><Spinner size={13} color="#eef0f8" track="rgba(255,255,255,.25)" />{softNote}</div> : voice.on && (videoLed ? follow.missing != null : player.silent) ? <div className="gfull__toast" role="status" aria-live="polite"><Spinner size={13} color="#eef0f8" track="rgba(255,255,255,.25)" />{`${waitLangName || 'Translated'} voice is still being prepared · playing with subtitles`}</div> : null} onTouch={() => { browserFull(true); soundOn(); }} onClose={locked ? undefined : () => { browserFull(false); setFull(false); }} />
   );
   useEffect(() => { if (!locked && full && !watching) { browserFull(false); setFull(false); } }, [locked, full, watching]);
