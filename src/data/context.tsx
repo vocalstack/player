@@ -93,7 +93,7 @@ export async function loadSource(api: PlayerApi, id: string): Promise<PlayerSour
   if (api.listen) {
     const recording = await api.client.recordings.get(api.listen.recordingId, api.readAs);
     const r: any = recording;
-    return { key: id, code: null, transcriptionId: api.listen.transcriptionId, name: r.name ?? r.title ?? '', recording, job: r.job ?? null, allowDownload: true, allowExport: true, allowTranslate: true, sharedBy: null };
+    return { key: id, code: null, transcriptionId: api.listen.transcriptionId, name: r.name ?? r.title ?? '', recording, job: r.job ?? (r.source ? { source: r.source } : null), allowDownload: true, allowExport: true, allowTranslate: true, sharedBy: null };
   }
   if (api.owner) {
     const tx = await api.client.transcriptions.get(id);

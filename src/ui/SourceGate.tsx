@@ -123,6 +123,7 @@ export function SourceGate({ idle, src, ask, connect, page, poster = null, onCle
 export function StartCard({ idle, connect, page, poster = null, onPick }: { idle: IdleState; connect: Connect; page: boolean; poster?: string | null; onPick: (url: string) => void }) {
   const [url, setUrl] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastAuto = useRef<string | null>(null);
   const clean = url.trim();
   const ok = LINK.test(clean);
   const submit = () => {
@@ -140,17 +141,34 @@ export function StartCard({ idle, connect, page, poster = null, onPick }: { idle
     );
   }
   const go = () => { if (ok) submit(); else inputRef.current?.focus(); };
+  const auto = (v: string) => {
+    const c = v.trim();
+    if (!LINK.test(c) || connect.busy || c === lastAuto.current) return;
+    lastAuto.current = c;
+    const full = /^https?:\/\//i.test(c) ? c : `https://${c}`;
+    onPick(full);
+    connect.start(full, false);
+  };
   return (
     <IdlePlayer idle={idle} poster={poster} src={null} title="VocalStack" page={page} onAct={go}>
       <form className="vsp-idle__form" onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <span className="vsp-idle__field">
           <Icon d={D.link} size={16} sw={1.8} />
-          <input ref={inputRef} className="vsp-idle__input" type="url" inputMode="url" enterKeyHint="go" autoComplete="off" spellCheck={false} placeholder="Paste a video link" value={url} onChange={(e) => setUrl(e.target.value)} aria-label="Video link" autoFocus />
+          <input ref={inputRef} className="vsp-idle__input" type="url" inputMode="url" enterKeyHint="go" autoComplete="off" spellCheck={false} placeholder="Paste a video link" value={url} onChange={(e) => setUrl(e.target.value)} onPaste={(e) => { const v = e.clipboardData.getData('text'); if (v) { setUrl(v.trim()); auto(v); e.preventDefault(); } }} aria-label="Video link" autoFocus />
           {connect.busy && <Spinner size={15} color="#eef0f8" track="rgba(255,255,255,.2)" />}
         </span>
       </form>
       {connect.busy ? <div className="vsp-idle__note" role="status">{STATUS[connect.status ?? 'checking']}</div> : <div className="vsp-idle__note">YouTube, Vimeo, an mp3 or any video link. Press Enter or ▶ to play it here with subtitles and spoken translations.</div>}
       {connect.err && <div className="vsp-end__err" role="alert">{connect.err}</div>}
+    </IdlePlayer>
+  );
+}
+
+export function ErrorGate({ idle, message, onRetry, page }: { idle: IdleState; message: string; onRetry: () => void; page: boolean }) {
+  return (
+    <IdlePlayer idle={idle} poster={null} src={null} title="VocalStack" page={page} onAct={onRetry}>
+      <div className="vsp-idle__err" role="alert"><Icon d={D.warn} size={16} sw={1.8} />{message}</div>
+      <button type="button" className="vsp-idle__connect" onClick={onRetry}><Icon d={D.uturn} size={18} sw={1.8} /><span>Try again</span></button>
     </IdlePlayer>
   );
 }

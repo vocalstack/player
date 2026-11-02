@@ -23,7 +23,7 @@ import { PlayerWait, playerWaitOf, useHeld } from './wait';
 import { EndCard, type EndCardOptions } from './EndCard';
 import type { Started } from '../data/connect';
 import { useDesk } from './useDesk';
-import { SourceGate, StartCard, useConnect, type IdleState } from './SourceGate';
+import { ErrorGate, SourceGate, StartCard, useConnect, type IdleState } from './SourceGate';
 import { IDLE_DEFAULTS, type IdlePrefs } from './IdleSettings';
 import { useLookup } from '../data/lookup';
 
@@ -160,7 +160,7 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
   return (
     <PlayerApiProvider value={api}>
       <div ref={root} className={`vsp${embed ? ' vsp--embed' : ''}${props.className ? ` ${props.className}` : ''}`} data-theme={(props.mode ?? 'video') === 'video' || props.dark ? 'dark' : 'light'} data-mode={(props.mode ?? 'video') === 'video' ? 'video' : 'transcript'}>
-        {empty ? <StartCard idle={idle} connect={connect} page={!embed} poster={props.poster ?? null} onPick={setTyped} /> : gate ? <SourceGate idle={idle} src={gateSrc!} ask={!typed} connect={connect} page={!embed} poster={props.poster ?? null} onClear={typed ? () => setTyped(null) : undefined} /> : !cur.id ? <div className="vsp-gate" data-theme="dark"><span className="gfull__spin gfull__holdspin" aria-label="Loading" /></div> : <PlayerBody key={cur.id} {...props} initial={{ ...(props.initial ?? {}), ...idleChosen }} startMuted={idleMuted === true} handle={handle} id={cur.id} api={api} shared={source} gone={gone} loadError={error} reread={reload} desk={desk} dark={(props.mode ?? 'video') === 'video' || !!props.dark} onStarted={(st) => setCur({ id: st.transcriptionId, token: null, listen: { transcriptionId: st.transcriptionId, recordingId: st.recordingId, token: st.token } })} />}
+        {empty ? <StartCard idle={idle} connect={connect} page={!embed} poster={props.poster ?? null} onPick={setTyped} /> : gate ? <SourceGate idle={idle} src={gateSrc!} ask={!typed} connect={connect} page={!embed} poster={props.poster ?? null} onClear={typed ? () => setTyped(null) : undefined} /> : !cur.id ? <div className="vsp-gate" data-theme="dark"><span className="gfull__spin gfull__holdspin" aria-label="Loading" /></div> : error && !source ? <ErrorGate idle={idle} message={error.message} onRetry={reload} page={!embed} /> : <PlayerBody key={cur.id} {...props} initial={{ ...(props.initial ?? {}), ...idleChosen }} startMuted={idleMuted === true} handle={handle} id={cur.id} api={api} shared={source} gone={gone} loadError={error} reread={reload} desk={desk} dark={(props.mode ?? 'video') === 'video' || !!props.dark} onStarted={(st) => setCur({ id: st.transcriptionId, token: null, listen: { transcriptionId: st.transcriptionId, recordingId: st.recordingId, token: st.token } })} />}
       </div>
     </PlayerApiProvider>
   );
@@ -174,8 +174,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const code = props.id ?? "";
   const init = useMemo(() => initialOf(props), []); // eslint-disable-line react-hooks/exhaustive-deps
   const wantVideo = (props.mode ?? 'video') === 'video';
-  const earlyYt = shared?.job?.source?.kind === 'url' ? ytIdOf(shared.job.source.url) : null;
-  const locked = wantVideo && !(shared && !earlyYt);
+  const locked = wantVideo;
   const [error, setError] = useState<ErrorLike | null>(props.loadError);
   useEffect(() => { if (props.loadError) setError(props.loadError); }, [props.loadError]);
   const [tab, setTab] = useState<PubTab | 'none'>('none');
@@ -367,7 +366,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const anyExport = canDownload || canExport;
   const ytAt = (shared?.job?.crop?.startS ?? 0) + pictureT(player, rows);
   const listening = mode === 'listen';
-  const watching = listening && !!ytId;
+  const watching = listening && (!!ytId || locked);
   const pickMode = (m: 'read' | 'listen') => { srcPlayer.pause(); voice.player.pause(); setMode(m); if (m === 'read' && full) { browserFull(false); setFull(false); } };
   const meta = voice.barChip;
   const t = strings(meta.label);
@@ -418,7 +417,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const voicesBtn = { on: false, title: 'Voices', onClick: () => {} };
   const [posterGone, setPosterGone] = useState(false);
   useEffect(() => { if (player.t > 0.3) setPosterGone(true); }, [player.t]);
-  const picture = ytId && <>{<YtFollow ytId={ytId} title={name} t={ytAt} playing={player.playing && !voiceHolds} waiting={voice.on && !!player.timed && !!player.preparing} seekN={player.seekN} onTime={(y) => player.videoAt?.(y - (shared?.job?.crop?.startS ?? 0))} onToggle={player.has ? tapPicture : undefined} onAd={setAdOn} lead={videoLed ? yt.lead : undefined} />}<div className="vsp-poster" aria-hidden="true" style={{ opacity: posterGone ? 0 : 1 }}><div className="vsp-poster__img" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${ytId}/hqdefault.jpg)` }} /><span className="txyt__pausedplay"><PlayGlyph size={44} /></span></div></>;
+  const picture = !ytId ? (locked ? <div className="vsp-idle__pic vsp-idle__pic--brand" /> : null) : <>{<YtFollow ytId={ytId} title={name} t={ytAt} playing={player.playing && !voiceHolds} waiting={voice.on && !!player.timed && !!player.preparing} seekN={player.seekN} onTime={(y) => player.videoAt?.(y - (shared?.job?.crop?.startS ?? 0))} onToggle={player.has ? tapPicture : undefined} onAd={setAdOn} lead={videoLed ? yt.lead : undefined} />}<div className="vsp-poster" aria-hidden="true" style={{ opacity: posterGone ? 0 : 1 }}><div className="vsp-poster__img" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${ytId}/hqdefault.jpg)` }} /><span className="txyt__pausedplay"><PlayGlyph size={44} /></span></div></>;
   const video = watching && ytId && !full ? (
     <LiveVideo ytId={ytId} title={name} radius={14} large style={desk ? undefined : { margin: '8px 20px 2px' }} picture={picture}>
       <MiniPlayer pos={pos} transport={transport} chip={chipFor({ ...glassChip, width: 64, height: 28, minHeight: 28, padding: '0 8px' }, 'sm')} voices={voicesBtn} onFull={() => { browserFull(true); setFull(true); }} copied={null} />
@@ -623,7 +622,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     </Sheet>
   );
 
-  const fullEl = full && watching && ytId && (
+  const fullEl = full && watching && (!!ytId || locked) && (
     <FullVideo page={(props.layout ?? 'embed') === 'page'} picture={picture} title={name} desk={desk} pos={pos} mute={{ muted: player.muted, onToggle: toggleSound }} cc={ctl.subtitles ? { on: ccOn, onToggle: () => setCcOn((v) => !v) } : undefined} noFull={!ctl.fullscreen} ad={adOn} wait={waitState && !softWait ? <PlayerWait state={waitState} line={voiceHolds ? subWords.map((w) => w.t + w.sp).join('') : null} onRetry={waitRetry} onOriginal={waitOriginal} /> : player.edgeWait ? `Transcribing ${Math.round(pct)}% — it plays on as more is written` : null} pct={running ? Math.round(pct) : null}
       sub={ccOn && subRow ? { who: subLook ? speakerLabel(model, subRow.speaker) : null, color: subLook ? subLook.fg ?? `var(--lane-${subLook.lane})` : '#fff', words: subWords, cursor: spokenWordOf(player, player.idx, subLine) } : null}
       chip={chipFor(desk ? glassChip : { ...glassChip, width: 64, padding: '0 6px' }, desk ? undefined : 'sm')} transport={transport}

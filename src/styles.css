@@ -1258,3 +1258,6 @@
 .vsp .vsp-idleroot--small .gfull__prog--two>.gfull__row:first-child{display:revert}
 .vsp .gfull.gfull--mini .gfull__sub,.vsp .gfull.gfull--mini .gfull__frame--land .gfull__sub{bottom:48px}
 .vsp .gfull.gfull--mini.gfull--calm .gfull__sub,.vsp .gfull.gfull--mini.gfull--calm .gfull__frame--land .gfull__sub{bottom:6px}
+.vsp .vsp-idle__err{display:inline-flex;align-items:center;gap:8px;max-width:min(92cqw,460px);padding:8px 14px;border-radius:999px;background:rgba(5,6,21,.72);color:#f3c2b8;font-size:clamp(12px,2.2cqw,14px);line-height:1.35;text-align:left}
+.vsp .gfull.gfull--mini .gfull__sub,.vsp .gfull.gfull--mini .gfull__frame--land .gfull__sub{bottom:48px}
+.vsp .gfull.gfull--mini.gfull--calm .gfull__sub,.vsp .gfull.gfull--mini.gfull--calm .gfull__frame--land .gfull__sub{bottom:6px}
