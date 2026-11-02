@@ -54,6 +54,7 @@ export interface PlaybackState {
   idx: number;
   seekN: number;
   lang: string | null;
+  muted: boolean;
 }
 
 export interface PlayerHandle {
@@ -61,6 +62,7 @@ export interface PlayerHandle {
   play: () => void;
   pause: () => void;
   toggle: () => void;
+  toggleMute: () => void;
 }
 
 const PLAYBACK_MS = 100;
@@ -120,6 +122,7 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
   useImperativeHandle(ref, () => ({
     seek: (t) => handle.current?.seek(t),
     play: () => handle.current?.play(),
+    toggleMute: () => handle.current?.toggleMute(),
     pause: () => handle.current?.pause(),
     toggle: () => handle.current?.toggle(),
   }), []);
@@ -472,6 +475,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     play: () => { autoplayDone.current = true; if (!playerRef.current.playing) playerRef.current.toggle(); },
     pause: () => { autoplayDone.current = true; playerRef.current.pause(); },
     toggle: () => { autoplayDone.current = true; playerRef.current.toggle(); },
+    toggleMute: () => { setSoundTip(false); playerRef.current.toggleMute(); },
   };
   useEffect(() => () => { props.handle.current = null; }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const onPlayback = useRef(props.onPlayback);
@@ -484,8 +488,8 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
       const cb = onPlayback.current;
       if (!cb) return;
       const p = playerRef.current;
-      const s: PlaybackState = { t: p.t, dur: p.dur, playing: p.playing, idx: p.idx, seekN: p.seekN, lang: playbackLang.current };
-      const key = `${s.t.toFixed(2)}|${s.dur}|${s.playing}|${s.idx}|${s.seekN}|${s.lang}`;
+      const s: PlaybackState = { t: p.t, dur: p.dur, playing: p.playing, idx: p.idx, seekN: p.seekN, lang: playbackLang.current, muted: p.muted };
+      const key = `${s.t.toFixed(2)}|${s.dur}|${s.playing}|${s.idx}|${s.seekN}|${s.lang}|${s.muted}`;
       if (key === last) return;
       last = key;
       cb(s);
