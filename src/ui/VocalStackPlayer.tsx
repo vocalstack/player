@@ -6,7 +6,7 @@ import { useLanguageList } from '../ds/LanguagePicker';
 import { audioDownloadUrl, audioSealed, backgroundAudioUrl, deliveryAudioUrl } from '../core/audio';
 import { FileFollow } from './FileFollow';
 import { EmbedFollow } from './EmbedFollow';
-import { hasEmbed, loomId } from '../core/embeds';
+import { hasEmbed, loomId, sourceVideoUrl } from '../core/embeds';
 import { loomSetup } from '../core/loomStream';
 import { displayName, useYtTitle } from '../data/title';
 import { bedNote, REMOVE_BG_LABEL, removeBgFromQuery, trackPlan, useBackgroundBed, useSeparatedTrack, withRemoveBg } from '../core/background';
@@ -270,7 +270,8 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const doneTo = lastRow ? lastRow.words[lastRow.words.length - 1]?.end ?? lastRow.start : 0;
   const edgeS = locked && running ? Math.max(doneTo, progress?.processedS ?? 0) : null;
   const audioPlayer = useTxPlayer(audioUrl, (hasAudio || sourceAudio) && !!shared?.allowDownload, rows, lenS, sourceAudio ? shared?.job?.crop?.startS ?? 0 : 0, edgeS);
-  const ytId = shared?.job?.source?.kind === 'url' ? ytIdOf(shared.job.source.url) : null;
+  const srcVideoUrl = sourceVideoUrl(shared?.job?.source as Parameters<typeof sourceVideoUrl>[0]);
+  const ytId = srcVideoUrl ? ytIdOf(srcVideoUrl) : null;
   const ytLed = !!ytId && !audioUrl;
   const ytTitle = useYtTitle(ytId);
   const yt = useYtLead(rows, lenS, shared?.job?.crop?.startS ?? 0, edgeS);
@@ -429,7 +430,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const [posterGone, setPosterGone] = useState(false);
   useEffect(() => { if (player.t > 0.3) setPosterGone(true); }, [player.t]);
   const fileVideo = !ytId && locked && recordingId && shared?.allowDownload && !running ? <FileFollow key={recordingId} src={audioDownloadUrl(api.origin, recordingId, 'video', api.cred)} t={pictureT(player, rows)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} /> : null;
-  const embedSrc = !ytId && locked && shared?.job?.source?.kind === 'url' && hasEmbed(shared.job.source.url) ? shared.job.source.url : null;
+  const embedSrc = !ytId && locked && srcVideoUrl && hasEmbed(srcVideoUrl) ? srcVideoUrl : null;
   const loomVid = embedSrc ? loomId(embedSrc) : null;
   const loomFollow = useMemo(() => (loomVid ? loomSetup(loomVid) : undefined), [loomVid]);
   const embedPic = loomFollow ? <FileFollow key={loomVid} setup={loomFollow} seekOver={1} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />

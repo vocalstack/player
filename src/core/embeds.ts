@@ -87,3 +87,25 @@ export function embedUrl(raw: string, at: EmbedAt): string | null {
 export function hasEmbed(raw: string | null | undefined): boolean {
   return !!raw && embedUrl(raw, { t: 0, play: false, host: 'localhost' }) != null;
 }
+
+export function urlFromEmbed(site: string | null | undefined, id: string | null | undefined): string | null {
+  const v = id?.trim();
+  if (!site || !v) return null;
+  switch (site) {
+    case 'loom': return /^[0-9a-f]{32}$/i.test(v) ? `https://www.loom.com/share/${v}` : null;
+    case 'vimeo': return /^\d+(\/[0-9a-z]+)?$/i.test(v) ? `https://vimeo.com/${v}` : null;
+    case 'dailymotion': return /^[a-z0-9]+$/i.test(v) ? `https://www.dailymotion.com/video/${v}` : null;
+    case 'youtube': return /^[\w-]{6,}$/.test(v) ? `https://www.youtube.com/watch?v=${v}` : null;
+    case 'twitch':
+      if (/^v\d+$/.test(v)) return `https://www.twitch.tv/videos/${v.slice(1)}`;
+      if (v.startsWith('clip:')) return `https://clips.twitch.tv/${encodeURIComponent(v.slice(5))}`;
+      if (v.startsWith('channel:')) return `https://www.twitch.tv/${encodeURIComponent(v.slice(8))}`;
+      return null;
+    default: return null;
+  }
+}
+
+export function sourceVideoUrl(src: { kind?: string; url?: string | null; site?: string | null; embedId?: string | null } | null | undefined): string | null {
+  if (!src || src.kind !== 'url') return null;
+  return urlFromEmbed(src.site, src.embedId) ?? src.url ?? null;
+}

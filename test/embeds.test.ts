@@ -33,3 +33,14 @@ test('loom stream requests carry the signature', async () => {
   load(xhr, 'https://luna.loom.com/id/x/rev/1/resource/hls/seg1.ts?Policy=p&Signature=s&Key-Pair-Id=k');
   assert.deepEqual(calls, ['https://luna.loom.com/id/x/rev/1/resource/hls/video_720.m3u8?Policy=p&Signature=s&Key-Pair-Id=k']);
 });
+
+test('a share link rebuilds the video address from its embed id', async () => {
+  const { urlFromEmbed, sourceVideoUrl } = await import('../src/core/embeds.ts');
+  assert.equal(urlFromEmbed('loom', '29a5fc11a57846f5ab5a81ef1e24e16d'), 'https://www.loom.com/share/29a5fc11a57846f5ab5a81ef1e24e16d');
+  assert.equal(urlFromEmbed('vimeo', '123/abcdef12'), 'https://vimeo.com/123/abcdef12');
+  assert.equal(urlFromEmbed('twitch', 'v42'), 'https://www.twitch.tv/videos/42');
+  assert.equal(urlFromEmbed('twitch', 'clip:Funny'), 'https://clips.twitch.tv/Funny');
+  assert.equal(urlFromEmbed('loom', 'nope'), null);
+  assert.equal(sourceVideoUrl({ kind: 'url', url: 'https://www.loom.com', site: 'loom', embedId: '29a5fc11a57846f5ab5a81ef1e24e16d' }), 'https://www.loom.com/share/29a5fc11a57846f5ab5a81ef1e24e16d');
+  assert.equal(sourceVideoUrl({ kind: 'url', url: 'https://youtu.be/abc123' }), 'https://youtu.be/abc123');
+});
