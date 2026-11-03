@@ -16,3 +16,7 @@ test('the title comes from the name, then the source, then YouTube, then the hos
   assert.equal(displayName({ name: null, url: 'https://www.vimeo.com/123', id }), 'vimeo.com');
   assert.equal(displayName({ id: 'r4m4srrrhi24' }), 'r4m4srrrhi24');
 });
+
+test('a link id used as a name gives way to the real title', () => {
+  assert.equal(displayName({ name: '29a5fc11a57846f5ab5a81ef1e24e16d', sourceName: 'How to Handle High Level B2C', id }), 'How to Handle High Level B2C');
+});

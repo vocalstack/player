@@ -21,10 +21,11 @@ export function useYtTitle(ytId: string | null): string | null {
   return title;
 }
 
+const HASH = /^[0-9a-f]{16,}$/i;
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function displayName(parts: { name?: string | null; sourceName?: string | null; ytTitle?: string | null; url?: string | null; id: string }): string {
-  const clean = (s?: string | null) => { const t = s?.trim(); return t && t !== parts.id && !ID.test(t) ? t : null; };
+  const clean = (s?: string | null) => { const t = s?.trim(); return t && t !== parts.id && !ID.test(t) && !HASH.test(t) ? t : null; };
   const host = (() => { if (!parts.url) return null; try { return new URL(parts.url).hostname.replace(/^www\./, ''); } catch { return null; } })();
   return clean(parts.name) ?? clean(parts.sourceName) ?? clean(parts.ytTitle) ?? host ?? (ID.test(parts.id) ? 'VocalStack' : parts.id);
 }

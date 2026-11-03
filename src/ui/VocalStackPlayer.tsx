@@ -245,7 +245,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     reread.current = Date.now();
     props.reread();
   }, [settled, liveMoving, live?.state, live?.processedS, code]);
-  const status = rowStatusOf(progress?.state ?? shared?.job?.state);
+  const status = rowStatusOf(progress?.state ?? shared?.job?.state ?? (api.listen ? (rec?.state === 'finalized' ? 'done' : rec?.state ? 'transcribing' : undefined) : undefined));
   const running = !!recordingId && (status === 'transcribing' || status === 'queued');
   const holding = locked && !gone && (!shared || ((running || status === 'cropping') && rows.length === 0));
   const pct = running ? (progress?.pct ?? 0) : 100;
