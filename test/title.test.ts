@@ -29,3 +29,7 @@ test('media links carry the media token', async () => {
   }
   assert.match(audioDownloadUrl('https://a', 'r', 'video', { accessToken: 't' }), /access_token=t/);
 });
+
+test('a name that is just a web address gives way to the source title', () => {
+  assert.equal(displayName({ name: 'cdnapisec.kaltura.com/html5/html5lib/v2.46/mwEmbedFrame.php/p/691292', sourceName: 'Introducing TrISMA', id }), 'Introducing TrISMA');
+});

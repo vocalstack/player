@@ -21,7 +21,7 @@ export function useYtTitle(ytId: string | null): string | null {
   return title;
 }
 
-const HASH = /^[0-9a-f]{16,}$/i;
+const HASH = /^(?:[0-9a-f]{16,}|(?:https?:\/\/)?(?:[\w-]+\.)+[a-z]{2,}(?::\d+)?\/\S*)$/i;
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function displayName(parts: { name?: string | null; sourceName?: string | null; ytTitle?: string | null; url?: string | null; id: string }): string {

@@ -135,8 +135,11 @@ export function embedUrl(raw: string, at: EmbedAt): string | null {
   }
 }
 
+const FOLLOWS = new Set(['loom', 'vimeo', 'dailymotion', 'twitch', 'facebook', 'tiktok', 'kick', 'streamable', 'wistia', 'vidyard']);
+
 export function hasEmbed(raw: string | null | undefined): boolean {
-  return !!raw && embedUrl(raw, { t: 0, play: false, host: 'localhost' }) != null;
+  const site = siteOf(raw);
+  return !!raw && !!site && FOLLOWS.has(site.id) && embedUrl(raw, { t: 0, play: false, host: 'localhost' }) != null;
 }
 
 export function urlFromEmbed(site: string | null | undefined, id: string | null | undefined): string | null {
