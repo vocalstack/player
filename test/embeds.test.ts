@@ -44,3 +44,14 @@ test('a share link rebuilds the video address from its embed id', async () => {
   assert.equal(sourceVideoUrl({ kind: 'url', url: 'https://www.loom.com', site: 'loom', embedId: '29a5fc11a57846f5ab5a81ef1e24e16d' }), 'https://www.loom.com/share/29a5fc11a57846f5ab5a81ef1e24e16d');
   assert.equal(sourceVideoUrl({ kind: 'url', url: 'https://youtu.be/abc123' }), 'https://youtu.be/abc123');
 });
+
+test('social site embeds', async () => {
+  const { embedUrl, urlFromEmbed, sourceVideoUrl } = await import('../src/core/embeds.ts');
+  assert.match(embedUrl('https://www.tiktok.com/@patroxofficial/video/6742501081818877190', { t: 0, play: true })!, /tiktok\.com\/embed\/v2\/6742501081818877190/);
+  assert.match(embedUrl('https://x.com/SpaceX/status/1732824684683784516', { t: 0, play: true })!, /Tweet\.html\?id=1732824684683784516/);
+  assert.match(embedUrl('https://www.instagram.com/p/aye83DjauH/', { t: 0, play: true })!, /instagram\.com\/p\/aye83DjauH\/embed/);
+  assert.match(embedUrl('https://kick.com/SomeOne', { t: 0, play: true })!, /player\.kick\.com\/someone/);
+  assert.match(embedUrl('https://streamable.com/dnd1', { t: 3, play: true })!, /streamable\.com\/e\/dnd1/);
+  assert.equal(urlFromEmbed('x', '1732824684683784516'), 'https://x.com/i/status/1732824684683784516');
+  assert.match(sourceVideoUrl({ kind: 'url', url: 'https://www.facebook.com', site: 'facebook', embedId: '274175099429670' })!, /watch\/\?v=274175099429670/);
+});

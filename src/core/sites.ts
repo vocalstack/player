@@ -1,4 +1,4 @@
-export type SiteId = 'youtube' | 'loom' | 'vimeo' | 'twitch' | 'facebook' | 'instagram' | 'dailymotion' | 'tiktok' | 'x' | 'soundcloud' | 'kick' | 'mixcloud' | 'bandcamp';
+export type SiteId = 'youtube' | 'loom' | 'vimeo' | 'twitch' | 'facebook' | 'instagram' | 'dailymotion' | 'tiktok' | 'x' | 'soundcloud' | 'kick' | 'mixcloud' | 'bandcamp' | 'streamable';
 
 export interface Site {
   id: SiteId;
@@ -22,6 +22,7 @@ export const SITES: Site[] = [
   { id: 'soundcloud', name: 'SoundCloud', color: '#ff7a1a', hosts: /(^|\.)soundcloud\.com$/, audioOnly: true, glyph: 'M11 8.6a5 5 0 0 1 7.8 3.1 3 3 0 0 1-.3 6H11V8.6ZM8.6 9.4h1.3v8.3H8.6V9.4Zm-2.4 1.2h1.3v7.1H6.2v-7.1Zm-2.4 1.6h1.3v5.5H3.8v-5.5Zm-2.4 1.6h1.3v3.9H1.4v-3.9Z' },
   { id: 'kick', name: 'Kick', color: '#53fc18', hosts: /(^|\.)kick\.com$/, glyph: 'M4 3h5.5v5H11V6h2V3h5.5v6.5h-2V11h-2v2h2v1.5h2V21H13v-3h-2v-2H9.5v5H4V3Z' },
   { id: 'mixcloud', name: 'Mixcloud', color: '#7f8cff', hosts: /(^|\.)mixcloud\.com$/, audioOnly: true, glyph: 'M17.5 9.5a5.5 5.5 0 0 0-10.6 1.2A3.8 3.8 0 0 0 7.3 18h10.2a4.25 4.25 0 0 0 0-8.5Z' },
+  { id: 'streamable', name: 'Streamable', color: '#0f90fa', hosts: /(^|\.)streamable\.com$/, glyph: 'M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5v-11Zm6 2.3v6.4l5.2-3.2L10 8.8Z' },
   { id: 'bandcamp', name: 'Bandcamp', color: '#1da0c3', hosts: /(^|\.)bandcamp\.com$/, audioOnly: true, glyph: 'M2 18 8.5 6H22l-6.5 12H2Z' },
 ];
 

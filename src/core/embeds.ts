@@ -79,6 +79,26 @@ export function embedUrl(raw: string, at: EmbedAt): string | null {
     }
     case 'facebook':
       return `https://www.facebook.com/plugins/video.php?${new URLSearchParams({ href: raw, autoplay: String(!!at.play), mute: '1', show_text: 'false' })}`;
+    case 'tiktok': {
+      const m = /\/video\/(\d+)/.exec(u(raw)?.pathname ?? '');
+      return m ? `https://www.tiktok.com/embed/v2/${m[1]}?${new URLSearchParams({ autoplay: String(play), muted: '1', controls: '0' })}` : null;
+    }
+    case 'x': {
+      const m = /\/status(?:es)?\/(\d+)/.exec(u(raw)?.pathname ?? '');
+      return m ? `https://platform.twitter.com/embed/Tweet.html?${new URLSearchParams({ id: m[1], theme: 'dark', dnt: 'true' })}` : null;
+    }
+    case 'instagram': {
+      const m = /\/(?:p|reel|reels|tv)\/([\w-]+)/.exec(u(raw)?.pathname ?? '');
+      return m ? `https://www.instagram.com/p/${m[1]}/embed` : null;
+    }
+    case 'kick': {
+      const name = u(raw)?.pathname.split('/').filter(Boolean)[0];
+      return name ? `https://player.kick.com/${encodeURIComponent(name.toLowerCase())}?${new URLSearchParams({ autoplay: String(!!at.play), muted: 'true' })}` : null;
+    }
+    case 'streamable': {
+      const id = u(raw)?.pathname.split('/').filter(Boolean).pop();
+      return id ? `https://streamable.com/e/${id}?${new URLSearchParams({ autoplay: String(play), muted: '1', nocontrols: '1' })}${at.t ? `#t=${secs(at.t)}` : ''}` : null;
+    }
     default:
       return null;
   }
@@ -96,6 +116,12 @@ export function urlFromEmbed(site: string | null | undefined, id: string | null 
     case 'vimeo': return /^\d+(\/[0-9a-z]+)?$/i.test(v) ? `https://vimeo.com/${v}` : null;
     case 'dailymotion': return /^[a-z0-9]+$/i.test(v) ? `https://www.dailymotion.com/video/${v}` : null;
     case 'youtube': return /^[\w-]{6,}$/.test(v) ? `https://www.youtube.com/watch?v=${v}` : null;
+    case 'tiktok': return /^\d+$/.test(v) ? `https://www.tiktok.com/@_/video/${v}` : null;
+    case 'x': return /^\d+$/.test(v) ? `https://x.com/i/status/${v}` : null;
+    case 'instagram': return /^[\w-]+$/.test(v) ? `https://www.instagram.com/p/${v}/` : null;
+    case 'kick': return v.startsWith('channel:') ? `https://kick.com/${encodeURIComponent(v.slice(8))}` : null;
+    case 'streamable': return /^\w+$/.test(v) ? `https://streamable.com/${v}` : null;
+    case 'facebook': return /^\d+$/.test(v) ? `https://www.facebook.com/watch/?v=${v}` : null;
     case 'twitch':
       if (/^v\d+$/.test(v)) return `https://www.twitch.tv/videos/${v.slice(1)}`;
       if (v.startsWith('clip:')) return `https://clips.twitch.tv/${encodeURIComponent(v.slice(5))}`;

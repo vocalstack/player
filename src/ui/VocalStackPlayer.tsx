@@ -429,7 +429,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const voicesBtn = { on: false, title: 'Voices', onClick: () => {}, busy: voice.voiceWaiting || voiceHolds };
   const [posterGone, setPosterGone] = useState(false);
   useEffect(() => { if (player.t > 0.3) setPosterGone(true); }, [player.t]);
-  const fileVideo = !ytId && locked && recordingId && shared?.allowDownload && !running ? <FileFollow key={recordingId} src={audioDownloadUrl(api.origin, recordingId, 'video', api.cred)} t={pictureT(player, rows)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} /> : null;
+  const fileVideo = !ytId && locked && recordingId && shared?.allowDownload && !running && shared?.job?.hasVideo !== false ? <FileFollow key={recordingId} src={audioDownloadUrl(api.origin, recordingId, 'video', api.cred)} t={pictureT(player, rows)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} /> : null;
   const embedSrc = !ytId && locked && srcVideoUrl && hasEmbed(srcVideoUrl) ? srcVideoUrl : null;
   const loomVid = embedSrc ? loomId(embedSrc) : null;
   const loomFollow = useMemo(() => (loomVid ? loomSetup(loomVid) : undefined), [loomVid]);
