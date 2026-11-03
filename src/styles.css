@@ -221,7 +221,7 @@
 .vsp .vs-tip__bubble--start .vs-tip__arrow{left:14px}
 .vsp .vs-tip__bubble--end .vs-tip__arrow{right:14px}
 .vsp .vs-picker__search{padding:11px 13px;border-radius:var(--vs-radius-tile);background:var(--vs-surface-inset);display:flex;align-items:center;gap:9px}
-.vsp .vs-picker__search input{flex:1;border:0;background:none;outline:none;font-family:var(--vs-font-sans);font-size:14px;color:var(--vs-text-primary)}
+.vsp .vs-picker__search input{flex:1;min-width:0;border:0;background:none;outline:none;font-family:var(--vs-font-sans);font-size:14px;color:var(--vs-text-primary)}
 .vsp .vs-picker__search input::placeholder{color:var(--vs-text-muted)}
 .vsp .vs-picker__row{display:flex;align-items:center;gap:12px;padding:11px 6px;border-radius:var(--vs-radius-tile);cursor:pointer;background:none;border:0;width:100%;text-align:left;font-family:var(--vs-font-sans);min-height:44px}
 .vsp .vs-picker__row + .vs-picker__row{margin-top:2px}
@@ -247,6 +247,7 @@
 .vsp .vs-sheet--picker .vs-picker__row{padding:6px 6px;gap:10px}
 .vsp .vs-sheet--picker .vs-picker__label{font-size:14.5px}
 .vsp .vs-sheet--picker .vs-picker__native{font-size:11px;margin-top:1px}}
+@container vssheet (max-height: 520px) and (max-width: 420px){.vsp .vs-sheet.vs-sheet--picker{grid-template-rows:auto auto minmax(0,1fr)}.vsp .vs-sheet--picker .vs-sheet__header{grid-column:1/-1;grid-row:2;padding:6px 10px 0}.vsp .vs-sheet--picker .vs-sheet__body{grid-row:3}}
 .vsp .vs-picker__slot{flex:none;width:18px;display:flex;justify-content:center;color:var(--vs-text-muted)}
 .vsp .vs-picker__check{flex:none;width:16px;display:flex;justify-content:center;color:var(--vs-primary-500)}
 .vsp .vs-picker__forget{display:flex;align-items:center;justify-content:center;color:var(--vs-text-muted);opacity:0;cursor:pointer;transition:opacity .12s,color .12s}
