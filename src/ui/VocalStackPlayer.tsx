@@ -6,6 +6,7 @@ import { useLanguageList } from '../ds/LanguagePicker';
 import { audioDownloadUrl, audioSealed, backgroundAudioUrl, deliveryAudioUrl } from '../core/audio';
 import { FileFollow } from './FileFollow';
 import { EmbedFollow } from './EmbedFollow';
+import { FacebookFollow } from './FacebookFollow';
 import { hasEmbed, loomId, sourceVideoUrl } from '../core/embeds';
 import { siteOf } from '../core/sites';
 import { loomSetup } from '../core/loomStream';
@@ -434,7 +435,9 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const embedSrc = !ytId && locked && srcVideoUrl && hasEmbed(srcVideoUrl) ? srcVideoUrl : null;
   const loomVid = embedSrc ? loomId(embedSrc) : null;
   const loomFollow = useMemo(() => (loomVid ? loomSetup(loomVid) : undefined), [loomVid]);
-  const embedPic = loomFollow ? <FileFollow key={loomVid} setup={loomFollow} seekOver={1} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
+  const fbSrc = embedSrc && siteOf(embedSrc)?.id === 'facebook' ? embedSrc : null;
+  const embedPic = fbSrc ? <FacebookFollow key={fbSrc} url={fbSrc} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
+    : loomFollow ? <FileFollow key={loomVid} setup={loomFollow} seekOver={1} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
     : embedSrc ? <EmbedFollow url={embedSrc} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} title={name} /> : null;
   const baseTap = player.has ? <div className="txyt vsp-follow"><div aria-hidden="true" className="txyt__tap" onClick={tapPicture} style={{ cursor: 'pointer' }} /><div className={`txyt__paused${!player.playing ? ' txyt__paused--on' : ''}`} aria-hidden="true"><span className="txyt__pausedplay"><PlayGlyph size={44} /></span></div></div> : null;
   const picture = !ytId ? (locked ? <><div className="vsp-idle__pic vsp-idle__pic--brand" />{baseTap}{embedPic}{fileVideo}</> : null) : <>{<YtFollow ytId={ytId} title={name} t={ytAt} playing={player.playing && !voiceHolds} waiting={voice.on && !!player.timed && !!player.preparing} seekN={player.seekN} onTime={(y) => player.videoAt?.(y - (shared?.job?.crop?.startS ?? 0))} onToggle={player.has ? tapPicture : undefined} onAd={setAdOn} lead={videoLed ? yt.lead : undefined} />}<div className="vsp-poster" aria-hidden="true" style={{ opacity: posterGone ? 0 : 1 }}><div className="vsp-poster__img" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${ytId}/hqdefault.jpg)` }} /><span className="txyt__pausedplay"><PlayGlyph size={44} /></span></div></>;
