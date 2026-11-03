@@ -38,7 +38,7 @@ export function FileFollow({ src, setup, t, playing, seekN, onToggle, seekOver =
   }, [ready, playing, seekOver]);
   if (gone) return null;
   return (
-    <div className="txyt vsp-follow">
+    <div className="txyt vsp-follow" style={ready ? { background: '#000' } : undefined}>
     <video
       ref={ref}
       className="vsp-file"
