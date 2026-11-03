@@ -1340,3 +1340,22 @@
 .vsp .vsp-embed{background:#000}
 .vsp .vsp-thumbpic{position:absolute;inset:0;background:#000 center/contain no-repeat}
 .vsp .vsp-fb__box--live iframe{pointer-events:auto}
+.vsp .vsp-end{background:rgba(5,6,21,.38);backdrop-filter:blur(8px) saturate(1.1);-webkit-backdrop-filter:blur(8px) saturate(1.1)}
+.vsp .vsp-end__card{width:min(100%,440px);gap:12px;padding:24px 24px 20px;border-radius:22px;background:rgba(16,17,38,.55);backdrop-filter:blur(26px) saturate(1.5);-webkit-backdrop-filter:blur(26px) saturate(1.5);box-shadow:0 30px 80px rgba(0,0,0,.45)}
+.vsp .vsp-end__title{font-size:18px;font-weight:600;letter-spacing:-.25px}
+.vsp .vsp-end__note{color:rgba(238,240,248,.68)}
+.vsp .vsp-end__row{margin-top:6px}
+.vsp .vsp-end__input{height:44px;padding:0 14px;border:0;border-radius:12px;background:rgba(255,255,255,.09);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+.vsp .vsp-end__input::placeholder{color:rgba(238,240,248,.42)}
+.vsp .vsp-end__input:focus{border:0;box-shadow:inset 0 0 0 1.5px #55abe5,0 0 0 4px rgba(85,171,229,.18)}
+.vsp .vsp-end__go{height:44px;min-width:118px;border-radius:12px;background:#55abe5;color:#06101c;transition:filter .15s ease,opacity .15s ease}
+.vsp .vsp-end__go:hover:not(:disabled){filter:brightness(1.08)}
+.vsp .vsp-end__go:disabled{opacity:.4}
+.vsp .vsp-end__close{top:14px;right:14px;width:30px;height:30px;background:transparent;color:rgba(238,240,248,.55)}
+.vsp .vsp-end__close:hover{background:rgba(255,255,255,.1)}
+.vsp .vsp-end__foot{margin-top:4px;color:rgba(238,240,248,.42)}
+.vsp .vsp-end__replay{background:transparent;color:rgba(238,240,248,.82);padding:6px 4px 6px 8px}
+.vsp .vsp-end__replay:hover{color:#fff;background:rgba(255,255,255,.08)}
+.vsp .vsp-endpill{position:absolute;z-index:94;left:50%;top:50%;transform:translate(-50%,72px);display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px 0 13px;border:0;border-radius:99px;background:rgba(16,17,38,.6);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);color:#eef0f8;font-family:var(--vs-font-sans);font-size:13.5px;font-weight:600;cursor:pointer;box-shadow:0 12px 30px rgba(0,0,0,.35)}
+.vsp .vsp-endpill:hover{background:rgba(16,17,38,.78)}
+.vsp:not(.vsp--embed) .vsp-endpill{position:fixed}

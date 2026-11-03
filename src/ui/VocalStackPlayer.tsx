@@ -721,7 +721,10 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const endCard = props.endCard !== false && atEnd && !endDismissed && (
     <EndCard options={{ appUrl: props.appUrl, ...(props.endCard || {}) }} onStarted={props.onStarted} onClose={() => setEndDismissed(true)} onReplay={() => { setEndDismissed(true); autoplayDone.current = true; if (player.seekFrac) player.seekFrac(0); else player.seekRow(0); if (!player.playing) player.toggle(); }} />
   );
-  if (locked) return <>{gone ? <div className="gfull" data-theme="dark">{gonePanel}</div> : hold || fullEl || <div className="gfull" data-theme="dark" />}{endCard}{toast}</>;
+  const endPill = props.endCard !== false && atEnd && endDismissed && (
+    <button type="button" className="vsp-endpill" onClick={(e) => { e.stopPropagation(); setEndDismissed(false); }}><Icon d={D.link} size={15} sw={1.8} />Transcribe a video</button>
+  );
+  if (locked) return <>{gone ? <div className="gfull" data-theme="dark">{gonePanel}</div> : hold || fullEl || <div className="gfull" data-theme="dark" />}{endCard}{endPill}{toast}</>;
   if (desk) {
     const deskAudio = listening && !watching && !gone && <div className="pubdeskctl">{pubTransport(true)}</div>;
     const sideOn = !gone && (tabs.length > 0 || watching || !!voice.sidePanel || !!deskAudio);
