@@ -5,6 +5,7 @@ import { mediaKind } from '../core/voiceplayer';
 import { useLanguageList } from '../ds/LanguagePicker';
 import { audioDownloadUrl, backgroundAudioUrl, deliveryAudioUrl } from '../core/audio';
 import { FileFollow } from './FileFollow';
+import { displayName, useYtTitle } from '../data/title';
 import { bedNote, REMOVE_BG_LABEL, removeBgFromQuery, trackPlan, useBackgroundBed, useSeparatedTrack, withRemoveBg } from '../core/background';
 import { useVoiceFollow } from '../core/voiceFollow';
 import { useMediaKeys } from '../core/mediaKeys';
@@ -264,6 +265,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const audioPlayer = useTxPlayer(audioUrl, (hasAudio || sourceAudio) && !!shared?.allowDownload, rows, lenS, sourceAudio ? shared?.job?.crop?.startS ?? 0 : 0, edgeS);
   const ytId = shared?.job?.source?.kind === 'url' ? ytIdOf(shared.job.source.url) : null;
   const ytLed = !!ytId && !audioUrl;
+  const ytTitle = useYtTitle(ytId);
   const yt = useYtLead(rows, lenS, shared?.job?.crop?.startS ?? 0, edgeS);
   const videoLed = !!ytId;
   const srcPlayer = videoLed ? yt.player : audioPlayer;
@@ -284,7 +286,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   useEffect(() => { if (running && !player.playing && feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight; }, [running, rows.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const findHits = useFindPull(feedRef, rows, find, findQ, setFind);
   const findField = <TxFind open={find} q={findQ} onQ={setFindQ} onClose={() => setFind(false)} hits={findHits} desk={desk} inline={desk} />;
-  const name = shared?.name || props.src || code;
+  const name = displayName({ name: shared?.name, sourceName: shared?.job?.source?.name, ytTitle, url: shared?.job?.source?.kind === 'url' ? shared.job.source.url : props.src ?? null, id: code });
   const canDownload = !!shared?.allowDownload;
   const canExport = !!shared?.allowExport;
   const dlLang = voice.readLang;
