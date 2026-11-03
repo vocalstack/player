@@ -1271,5 +1271,5 @@
 .vsp .vsp-prov__tile svg{flex:none;width:42%;height:42%;filter:drop-shadow(0 0 10px color-mix(in srgb,var(--tint) 45%,transparent))}
 .vsp .vsp-prov__name{font-family:var(--vs-font-sans);font-size:calc(var(--s) * .125);font-weight:600;letter-spacing:.01em;line-height:1;color:rgba(238,240,248,.62);white-space:nowrap}
 @container (max-height:220px){.vsp .vsp-prov__name{display:none}}
-@keyframes vsp-prov-drift{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes vsp-prov-drift{from{transform:translateX(0)}to{transform:translateX(-25%)}}
 @media (prefers-reduced-motion:reduce){.vsp .vsp-prov__row{animation:none}}

@@ -37,7 +37,8 @@ const TILES: Tile[] = [
   { name: 'Live', tint: '#ff5a5a', glyph: <g fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><rect x="3" y="6" width="18" height="12" rx="3" /><circle cx="8" cy="12" r="1.6" fill="currentColor" stroke="none" /><path d="M11.5 10h6M11.5 14h4" /></g> },
 ];
 
-const ROWS = 9;
+const ROWS = 14;
+const COPIES = 4;
 
 function row(i: number): Tile[] {
   const n = TILES.length;
@@ -63,8 +64,7 @@ export function ProviderGrid() {
           const cells = row(i);
           return (
             <div key={i} className={`vsp-prov__row${i % 2 ? ' vsp-prov__row--rev' : ''}`} style={{ animationDuration: `${80 + i * 11}s`, animationDelay: `-${i * 17}s` }}>
-              {cells.map((t, k) => <Cell key={`a${k}`} t={t} />)}
-              {cells.map((t, k) => <Cell key={`b${k}`} t={t} />)}
+              {Array.from({ length: COPIES }, (_, c) => cells.map((t, k) => <Cell key={`${c}-${k}`} t={t} />))}
             </div>
           );
         })}
