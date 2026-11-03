@@ -1359,3 +1359,10 @@
 .vsp .vsp-endpill{position:absolute;z-index:94;left:50%;top:50%;transform:translate(-50%,72px);display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px 0 13px;border:0;border-radius:99px;background:rgba(16,17,38,.6);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);color:#eef0f8;font-family:var(--vs-font-sans);font-size:13.5px;font-weight:600;cursor:pointer;box-shadow:0 12px 30px rgba(0,0,0,.35)}
 .vsp .vsp-endpill:hover{background:rgba(16,17,38,.78)}
 .vsp:not(.vsp--embed) .vsp-endpill{position:fixed}
+.vsp .vsp-end{background:rgba(5,6,21,.66)}
+.vsp .vsp-end__card{background:rgba(18,19,42,.9)}
+@supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.vsp .vsp-end{background:rgba(5,6,21,.5)}.vsp .vsp-end__card{background:rgba(18,19,42,.72)}}
+.vsp .vsp-end{z-index:120}
+.vsp .vsp-endpill{z-index:119}
+.vsp .vsp-end,.vsp .vsp-end{background:rgba(5,6,21,.62)}
+.vsp .vsp-end__card,.vsp .vsp-end .vsp-end__card{background:rgba(18,19,42,.93)}
