@@ -235,6 +235,8 @@ function GrowAnim({ children, ms }: { children: ReactNode; ms: number }) {
       return Math.max(0, max - (sheet.offsetHeight - box.offsetHeight));
     };
     const measure = () => {
+      const scrim = box.closest<HTMLElement>('.vs-sheet-scrim');
+      if (scrim && scrim.clientHeight <= 460) { clearTimeout(settle); setH(null); return; }
       const full = el.offsetHeight;
       clearTimeout(settle);
       setH(Math.min(full, room()));

@@ -259,8 +259,9 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const sourceAudio = !hasAudio && !!src && (src.kind !== 'url' || src.bytes != null) && (status === 'transcribing' || status === 'queued' || status === 'done');
   const deliveryUrl = recordingId && shared?.allowDownload && hasAudio ? deliveryAudioUrl(api.origin, recordingId, api.cred) : null;
   const sourceStored = !!src && (src.kind !== 'url' || src.bytes != null);
-  const deliveryReady = useSealed(deliveryUrl && sourceStored ? deliveryUrl : null);
-  const audioUrl = deliveryUrl && (!sourceStored || deliveryReady) ? deliveryUrl
+  const sealed = useSealed(deliveryUrl && sourceStored ? deliveryUrl : null);
+  const audioUrl = deliveryUrl && (!sourceStored || sealed === 'yes') ? deliveryUrl
+    : deliveryUrl && sealed === 'unknown' ? null
     : recordingId && shared?.allowDownload && (sourceAudio || (hasAudio && sourceStored)) ? audioDownloadUrl(api.origin, recordingId, 'source', api.cred) : null;
   const lastRow = rows[rows.length - 1];
   const doneTo = lastRow ? lastRow.words[lastRow.words.length - 1]?.end ?? lastRow.start : 0;
@@ -338,7 +339,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     if (!player.has || voice.relang) return;
     at.until = 0;
     if (Math.abs(player.t - at.t) > 0.5) { if (player.seekFrac && player.dur > 0) player.seekFrac(at.t / player.dur); else player.seekRow(at.idx); }
-    if (at.playing && !player.playing) { autoplayDone.current = true; player.toggle(); }
+    if (at.playing && !player.playing && mode === 'listen') { autoplayDone.current = true; player.toggle(); }
   });
   const autoplayed = useRef(false);
   const autoplayDone = useRef(false);
@@ -374,6 +375,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const listening = mode === 'listen';
   const watching = listening && (!!ytId || locked);
   const pickMode = (m: 'read' | 'listen') => { srcPlayer.pause(); voice.player.pause(); setMode(m); if (m === 'read' && full) { browserFull(false); setFull(false); } };
+  useEffect(() => { if (listening) return; if (srcPlayer.playing) srcPlayer.pause(); if (voice.player.playing) voice.player.pause(); }, [listening, srcPlayer.playing, voice.player.playing]); // eslint-disable-line react-hooks/exhaustive-deps
   const meta = voice.barChip;
   const t = strings(meta.label);
   const modeSwitch = <Switch<'read' | 'listen'> value={mode} onChange={pickMode} bordered={false} options={modeOptions(t, !!ytId)} />;
@@ -415,7 +417,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const waitRetry = () => { if (waitState?.kind === 'translateFailed') { setLanguage(askLang); return; } autoplayDone.current = true; player.toggle(); };
   const waitOriginal = () => { const at = player.idx; player.pause(); setTxLang(null); autoplayDone.current = true; srcPlayer.playRow(at); };
   const transport: PlayerTransport = { prevOn: player.idx > 0, nextOn: player.idx < rows.length - 1, onPrev: player.prev, onNext: player.next, playing: player.playing, playable, playTitle: voice.playTitle ?? (player.playing ? 'Pause' : 'Play'), onPlay: () => { autoplayDone.current = true; player.toggle(); }, busy: (voice.relang && !ytId) || voiceHolds };
-  useMediaKeys(playable ? { playing: player.playing, toggle: () => { autoplayDone.current = true; player.toggle(); }, next: player.next, prev: player.prev } : null, pageTitle);
+  useMediaKeys(playable && listening ? { playing: player.playing, toggle: () => { autoplayDone.current = true; player.toggle(); }, next: player.next, prev: player.prev } : null, pageTitle);
   const glassChip: React.CSSProperties = { background: 'transparent', color: '#eef0f8', width: 74, justifyContent: 'center', boxSizing: 'border-box' };
   const chipFor = (style: React.CSSProperties, size?: 'sm') => !meta.can || !ctl.language ? null : locked
     ? <button type="button" className="gfull__btn" title={langBusy ? `${meta.label ?? meta.code}: still being prepared` : meta.label ?? meta.code} aria-label={`Language: ${meta.label ?? meta.code}`} aria-busy={langBusy || undefined} onClick={() => { setSettings(false); meta.onClick(); }} style={{ position: 'relative' }}><span style={{ fontSize: size === 'sm' ? 17 : 21, lineHeight: 1 }}>{meta.flag}</span>{langBusy && <span style={{ position: 'absolute', right: 2, bottom: 2, display: 'flex', borderRadius: 999, background: 'rgba(5,6,21,.7)', padding: 1 }}><Spinner size={11} color="#eef0f8" track="rgba(255,255,255,.25)" /></span>}</button>
@@ -480,9 +482,9 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const seekTo = (t0: number) => { autoplayDone.current = true; startAt.current = null; startSeek(Math.max(0, t0)); };
   props.handle.current = {
     seek: (t0) => seekTo(t0),
-    play: () => { autoplayDone.current = true; if (!playerRef.current.playing) playerRef.current.toggle(); },
+    play: () => { autoplayDone.current = true; if (listening && !playerRef.current.playing) playerRef.current.toggle(); },
     pause: () => { autoplayDone.current = true; playerRef.current.pause(); },
-    toggle: () => { autoplayDone.current = true; playerRef.current.toggle(); },
+    toggle: () => { autoplayDone.current = true; if (listening || playerRef.current.playing) playerRef.current.toggle(); },
     toggleMute: () => { setSoundTip(false); playerRef.current.toggleMute(); },
   };
   useEffect(() => () => { props.handle.current = null; }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -644,7 +646,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     </div>
   );
   const gonePanel = gone && <div className="hint" style={{ padding: '30px 20px', textAlign: 'center', fontSize: 13 }}>This link is no longer shared. Ask the person who sent it for a new one.</div>;
-  const lines = <TxLines model={model} rows={rows} player={player} tail={tail} tailFg={tailFg} running={running} desk={desk} feedRef={feedRef} listener showLabels={labelsOn} find={findQ} findOpen={!desk && find} lang={feedLang} warm={warm} onVisible={onVisible} wordHl={wordsOn} />;
+  const lines = <TxLines model={model} rows={rows} player={listening ? player : { ...player, playRow: player.seekRow }} tail={tail} tailFg={tailFg} running={running} desk={desk} feedRef={feedRef} listener showLabels={labelsOn} find={findQ} findOpen={!desk && find} lang={feedLang} warm={warm} onVisible={onVisible} wordHl={wordsOn} />;
   const toast = <Toast error={error ?? subError ?? (voiceFailed && full ? null : player.error) ?? voice.error} onClose={() => { setError(null); clearError(); player.clearError(); voice.clearError(); }} />;
   const subline = [lenS ? clock(lenS) : null, langCode ? langCode.toUpperCase() : null, by || 'Read-only copy'].filter(Boolean).join(' · ');
   const pubTransport = (deskScrub: boolean) => (
@@ -787,15 +789,15 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   );
 }
 
-function useSealed(url: string | null): boolean {
-  const [ok, setOk] = useState<string | null>(null);
+function useSealed(url: string | null): 'yes' | 'no' | 'unknown' {
+  const [st, setSt] = useState<{ url: string; ok: boolean } | null>(null);
   useEffect(() => {
-    if (!url || ok === url) return;
+    if (!url || (st?.url === url && st.ok)) return;
     let live = true;
     let h: ReturnType<typeof setTimeout> | undefined;
-    const check = () => { void audioSealed(url).then((y) => { if (!live) return; if (y) setOk(url); else h = setTimeout(check, 3000); }); };
+    const check = () => { void audioSealed(url).then((y) => { if (!live) return; setSt({ url, ok: y }); if (!y) h = setTimeout(check, 3000); }); };
     check();
     return () => { live = false; if (h) clearTimeout(h); };
-  }, [url, ok]);
-  return !!url && ok === url;
+  }, [url, st?.url === url && st?.ok]); // eslint-disable-line react-hooks/exhaustive-deps
+  return !url || st?.url !== url ? 'unknown' : st.ok ? 'yes' : 'no';
 }

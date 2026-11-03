@@ -553,7 +553,7 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
     prev: () => seekRow(idx - 1), next: () => seekRow(idx + 1), hold, release,
     error, clearError: () => setError(null), has: available, edgeWait,
     wordSync: true,
-    pause: () => { setWait(false); audio.current?.pause(); },
+    pause: () => { setWait(false); if (carry.current?.asked) carry.current = null; audio.current?.pause(); },
     setVolume: (v: number) => { if (audio.current) audio.current.volume = v; },
     silence: (on: boolean) => { silenced.current = on; if (audio.current) audio.current.muted = mutedRef.current || on; },
   };
@@ -976,6 +976,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
       if (!vp.has && !vp.playing) { setWant(true); return; }
       vp.toggle();
     },
+    pause: () => { setWant(false); vp.pause(); },
   };
 
   const openPicker = () => setPicker(true);

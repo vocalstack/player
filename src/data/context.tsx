@@ -74,6 +74,17 @@ export function useApi(o: ApiOptions): PlayerApi {
     const v = typeof t === 'function' ? await t() : t;
     return v || undefined;
   }, []);
+  const [ownerTok, setOwnerTok] = useState<string | null>(() => {
+    const t = o.token;
+    const v = typeof t === 'function' ? t() : t;
+    return typeof v === 'string' && v ? v : null;
+  });
+  useEffect(() => {
+    if (!owner) return;
+    let live = true;
+    void bearer().then((v) => { if (live && v) setOwnerTok((cur) => cur ?? v); });
+    return () => { live = false; };
+  }, [owner, bearer]);
   const given = o.client ?? null;
   const client = useMemo(() => given ?? new VocalStack({ baseUrl: origin, token: hasToken && !listen ? bearer : undefined }), [given, origin, hasToken, bearer, listen]);
   return useMemo(() => {
@@ -81,8 +92,8 @@ export function useApi(o: ApiOptions): PlayerApi {
     if (listenerToken) return { client, origin, owner: false, shareCode: null, listen: null, bearer, cred: { listenerToken }, readAs: { listenerToken } };
     const shareCode = owner ? null : o.id || null;
     const readAs: ReadAs = shareCode ? { shareCode } : {};
-    return { client, origin, owner, shareCode, listen: null, bearer, cred: { shareCode }, readAs };
-  }, [client, origin, owner, o.id, bearer, listen, listenerToken]);
+    return { client, origin, owner, shareCode, listen: null, bearer, cred: owner ? { accessToken: ownerTok ?? undefined } : { shareCode }, readAs };
+  }, [client, origin, owner, o.id, bearer, listen, listenerToken, ownerTok]);
 }
 
 export function withMedia(api: PlayerApi, media: string | null): PlayerApi {

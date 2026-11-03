@@ -23,7 +23,7 @@ export const OFFLINE = "Can't reach VocalStack. Check your connection.";
 
 const BROWSER: Record<string, string> = {
   NotAllowedError: 'The browser blocked this. Allow it for this site, then try again.',
-  NotSupportedError: 'This browser cannot play this.',
+  NotSupportedError: "The audio couldn't be loaded. Try again in a moment.",
   AbortError: 'It was cancelled.',
 };
 
