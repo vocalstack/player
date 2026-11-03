@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 type Tile = { name: string; glyph: ReactNode; tint: string };
 
@@ -57,8 +57,22 @@ function Cell({ t }: { t: Tile }) {
 }
 
 export function ProviderGrid() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [seen, setSeen] = useState(true);
+  const [shown, setShown] = useState(() => typeof document === 'undefined' || !document.hidden);
+  useEffect(() => {
+    const vis = () => setShown(!document.hidden);
+    document.addEventListener('visibilitychange', vis);
+    const el = ref.current;
+    let io: IntersectionObserver | null = null;
+    if (el && typeof IntersectionObserver !== 'undefined') {
+      io = new IntersectionObserver(([e]) => setSeen(e.isIntersecting));
+      io.observe(el);
+    }
+    return () => { document.removeEventListener('visibilitychange', vis); io?.disconnect(); };
+  }, []);
   return (
-    <div className="vsp-prov" aria-hidden="true">
+    <div ref={ref} className={`vsp-prov${seen && shown ? '' : ' vsp-prov--still'}`} aria-hidden="true">
       <div className="vsp-prov__plane">
         {Array.from({ length: ROWS }, (_, i) => {
           const cells = row(i);
