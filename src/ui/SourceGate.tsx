@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { D, Icon, Spinner } from '../ds/Icons';
 import { ytIdOf } from '../core/youtube';
+import { siteOf } from '../core/sites';
 import { openPopup, rememberConnected, wasConnected, type PopupStatus, type Started } from '../data/connect';
 import { FullVideo, type PlayerPos, type PlayerTransport } from './full';
 import { useDesk } from './useDesk';
@@ -64,7 +65,7 @@ function isMedia(src: string): boolean {
 }
 
 function Backdrop({ poster, src }: { poster: string | null; src: string | null }) {
-  const yt = src ? ytIdOf(src) : null;
+  const yt = src && siteOf(src)?.id === 'youtube' ? ytIdOf(src) : null;
   const img = poster ?? (yt ? `https://i.ytimg.com/vi/${yt}/hqdefault.jpg` : null);
   if (img) return <div className="vsp-idle__pic" style={{ backgroundImage: `url(${img})` }} />;
   if (src && isMedia(src)) return <video className="vsp-idle__pic vsp-idle__frame" src={`${src}#t=1`} muted playsInline preload="metadata" aria-hidden="true" />;

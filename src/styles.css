@@ -1215,7 +1215,6 @@
 .vsp .vsp-idleroot{position:absolute;inset:0}
 .vsp:not(.vsp--embed) .vsp-idleroot{position:fixed}
 .vsp .vsp-idleroot .vsp-idle{padding-top:clamp(52px,14cqh,72px);padding-bottom:clamp(96px,30cqh,128px)}
-.vsp .vsp-idleroot--small .gfull__prog--two>.gfull__row:first-child{display:none}
 .vsp .vsp-idleroot--small .vsp-idle{padding-top:54px;padding-bottom:64px}
 .vsp .vsp-idlesheet__back{position:absolute;left:-6px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;gap:2px;padding:4px 6px 4px 0;border:0;background:none;color:var(--ink-96);font-family:var(--vs-font-sans);font-size:15px;font-weight:600;letter-spacing:0;line-height:1;white-space:nowrap;cursor:pointer}
 .vsp .txyt__pausedplay{width:clamp(56px,20cqmin,112px);height:clamp(56px,20cqmin,112px)}
@@ -1255,7 +1254,6 @@
 .vsp .gfull__pausedmark{flex:none;display:inline-flex;filter:drop-shadow(0 1px 6px rgba(5,6,21,.6))}
 .vsp .gfull--mini .gfull__frame--land .gfull__sub{padding:0 10px}
 .vsp .vsp-idleroot .gfull--mini~.vsp-idle,.vsp .vsp-idleroot .vsp-idle{padding-bottom:clamp(56px,16cqh,72px)}
-.vsp .vsp-idleroot--small .gfull__prog--two>.gfull__row:first-child{display:revert}
 .vsp .gfull.gfull--mini .gfull__sub,.vsp .gfull.gfull--mini .gfull__frame--land .gfull__sub{bottom:48px}
 .vsp .gfull.gfull--mini.gfull--calm .gfull__sub,.vsp .gfull.gfull--mini.gfull--calm .gfull__frame--land .gfull__sub{bottom:6px}
 .vsp .vsp-idle__err{display:inline-flex;align-items:center;gap:8px;max-width:min(92cqw,460px);padding:8px 14px;border-radius:999px;background:rgba(5,6,21,.72);color:#f3c2b8;font-size:clamp(12px,2.2cqw,14px);line-height:1.35;text-align:left}

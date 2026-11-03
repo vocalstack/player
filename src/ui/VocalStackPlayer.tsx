@@ -7,6 +7,7 @@ import { audioDownloadUrl, audioSealed, backgroundAudioUrl, deliveryAudioUrl } f
 import { FileFollow } from './FileFollow';
 import { EmbedFollow } from './EmbedFollow';
 import { hasEmbed, loomId, sourceVideoUrl } from '../core/embeds';
+import { siteOf } from '../core/sites';
 import { loomSetup } from '../core/loomStream';
 import { displayName, useYtTitle } from '../data/title';
 import { bedNote, REMOVE_BG_LABEL, removeBgFromQuery, trackPlan, useBackgroundBed, useSeparatedTrack, withRemoveBg } from '../core/background';
@@ -271,7 +272,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const edgeS = locked && running ? Math.max(doneTo, progress?.processedS ?? 0) : null;
   const audioPlayer = useTxPlayer(audioUrl, (hasAudio || sourceAudio) && !!shared?.allowDownload, rows, lenS, sourceAudio ? shared?.job?.crop?.startS ?? 0 : 0, edgeS);
   const srcVideoUrl = sourceVideoUrl(shared?.job?.source as Parameters<typeof sourceVideoUrl>[0]);
-  const ytId = srcVideoUrl ? ytIdOf(srcVideoUrl) : null;
+  const ytId = srcVideoUrl && siteOf(srcVideoUrl)?.id === 'youtube' ? ytIdOf(srcVideoUrl) : null;
   const ytLed = !!ytId && !audioUrl;
   const ytTitle = useYtTitle(ytId);
   const yt = useYtLead(rows, lenS, shared?.job?.crop?.startS ?? 0, edgeS);
