@@ -7,6 +7,7 @@ import { FullVideo, type PlayerPos, type PlayerTransport } from './full';
 import { useDesk } from './useDesk';
 import { useIdleControls, type IdlePrefs } from './IdleSettings';
 import { shareLink } from './shared';
+import { shareCodeOf } from '../core/share';
 import { ProviderGrid } from './Providers';
 
 export interface IdleState { prefs: IdlePrefs; set: (p: Partial<IdlePrefs>) => void; shareUrl?: string }
@@ -122,46 +123,53 @@ export function SourceGate({ idle, src, ask, connect, page, poster = null, onCle
   );
 }
 
-export function StartCard({ idle, connect, page, poster = null, onPick }: { idle: IdleState; connect: Connect; page: boolean; poster?: string | null; onPick: (url: string) => void }) {
+export function StartCard({ idle, connect, page, poster = null, onPick, onShare }: { idle: IdleState; connect: Connect; page: boolean; poster?: string | null; onPick: (url: string) => void; onShare?: (code: string) => Promise<boolean> }) {
   const [url, setUrl] = useState('');
+  const [opening, setOpening] = useState(false);
+  const [shareErr, setShareErr] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const lastAuto = useRef<string | null>(null);
   const clean = url.trim();
-  const ok = LINK.test(clean);
-  const submit = () => {
-    if (!ok || connect.busy) return;
-    const full = /^https?:\/\//i.test(clean) ? clean : `https://${clean}`;
+  const isLink = (v: string) => LINK.test(v) || !!shareCodeOf(v);
+  const ok = isLink(clean);
+  const busy = connect.busy || opening;
+  const launch = async (raw: string) => {
+    const full = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    setShareErr(null);
+    const code = shareCodeOf(full);
+    if (code && onShare) {
+      setOpening(true);
+      const found = await onShare(code).catch(() => false);
+      setOpening(false);
+      if (found) return;
+      if (!connect.connected) { setShareErr('That share link does not open. It may have been revoked.'); return; }
+    }
     onPick(full);
     connect.start(full, false);
   };
-  if (!connect.connected) {
-    return (
-      <IdlePlayer idle={idle} poster={poster} src={null} title="VocalStack" page={page} onAct={connect.connect}>
-        <ConnectButton connect={connect} onClick={connect.connect} label="Connect to VocalStack" />
-        {!connect.busy && <div className="vsp-idle__note">Connect your VocalStack account to watch any video with subtitles and spoken translations.</div>}
-      </IdlePlayer>
-    );
-  }
-  const go = () => { if (ok) submit(); else inputRef.current?.focus(); };
+  const submit = () => { if (ok && !busy) void launch(clean); };
+  const go = () => { if (ok) submit(); else if (!connect.connected) connect.connect(); else inputRef.current?.focus(); };
   const auto = (v: string) => {
     const c = v.trim();
-    if (!LINK.test(c) || connect.busy || c === lastAuto.current) return;
+    if (!isLink(c) || busy || c === lastAuto.current) return;
     lastAuto.current = c;
-    const full = /^https?:\/\//i.test(c) ? c : `https://${c}`;
-    onPick(full);
-    connect.start(full, false);
+    void launch(c);
   };
+  const note = connect.busy ? <div className="vsp-idle__note" role="status">{STATUS[connect.status ?? 'checking']}</div>
+    : opening ? <div className="vsp-idle__note" role="status">Opening the shared transcript…</div>
+    : <div className="vsp-idle__note">{connect.connected ? 'Paste a VocalStack share link, or a YouTube, Vimeo, mp3 or any video link to play it here with subtitles and spoken translations.' : 'Paste a VocalStack share link to watch it here, or connect to transcribe any video link.'}</div>;
   return (
     <IdlePlayer idle={idle} poster={poster} src={null} title="VocalStack" page={page} onAct={go}>
       <form className="vsp-idle__form" onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <span className="vsp-idle__field">
           <Icon d={D.link} size={16} sw={1.8} />
-          <input ref={inputRef} className="vsp-idle__input" type="url" inputMode="url" enterKeyHint="go" autoComplete="off" spellCheck={false} placeholder="Paste a video link" value={url} onChange={(e) => setUrl(e.target.value)} onPaste={(e) => { const v = e.clipboardData.getData('text'); if (v) { setUrl(v.trim()); auto(v); e.preventDefault(); } }} aria-label="Video link" autoFocus />
-          {connect.busy && <Spinner size={15} color="#eef0f8" track="rgba(255,255,255,.2)" />}
+          <input ref={inputRef} className="vsp-idle__input" type="url" inputMode="url" enterKeyHint="go" autoComplete="off" spellCheck={false} placeholder={connect.connected ? 'Paste a video link' : 'Paste a share link'} value={url} onChange={(e) => setUrl(e.target.value)} onPaste={(e) => { const v = e.clipboardData.getData('text'); if (v) { setUrl(v.trim()); auto(v); e.preventDefault(); } }} aria-label="Video link" autoFocus={connect.connected} />
+          {busy && <Spinner size={15} color="#eef0f8" track="rgba(255,255,255,.2)" />}
         </span>
       </form>
-      {connect.busy ? <div className="vsp-idle__note" role="status">{STATUS[connect.status ?? 'checking']}</div> : <div className="vsp-idle__note">YouTube, Vimeo, an mp3 or any video link. Press Enter or ▶ to play it here with subtitles and spoken translations.</div>}
-      {connect.err && <div className="vsp-end__err" role="alert">{connect.err}</div>}
+      {note}
+      {!connect.connected && !busy && <ConnectButton connect={connect} onClick={connect.connect} label="Connect to VocalStack" />}
+      {(shareErr || connect.err) && <div className="vsp-end__err" role="alert">{shareErr ?? connect.err}</div>}
     </IdlePlayer>
   );
 }
