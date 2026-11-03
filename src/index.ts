@@ -12,3 +12,5 @@ export { Transport, ReplayScrub, ExportPanel, SummaryPanel, SpeakerCast, VoiceSh
 export { FullVideo, MiniPlayer, PanelSeek, browserFull, realFull, setFullTarget, type PlayerPos, type PlayerTransport, type VoicesBtn } from './ui/full';
 export { useBackgroundBed, useSeparatedTrack, bedNote, trackPlan, REMOVE_BG_LABEL, REMOVE_BG_NOTE, type BedState, type TrackPlan, type Separated } from './core/background';
 export { snapPosition, placePosition, type PlayPos } from './core/playPosition';
+export { SITES, siteOf, siteById, hostOfUrl, type Site, type SiteId } from './core/sites';
+export { SiteIcon } from './ui/SiteIcon';
