@@ -1316,3 +1316,20 @@
 .vsp .vs-side .vs-sheet-scrim{container-type:normal}
 .vsp .vs-picker__row--extra{display:none}
 .vsp .vsp-file{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:transparent;transition:opacity .3s ease}
+@container vssheet (max-height:460px){
+.vsp .vs-sheet.vs-sheet--settings,.vsp .gfull .vs-sheet.vs-sheet--settings,.vsp .gfull.gfull--desk .vs-sheet.vs-sheet--settings,.vsp .gfull.gfull--desk .vs-sheet.vs-sheet--settings.vs-sheet--page,.vsp .gfull:not(.gfull--desk) .vs-sheet.vs-sheet--settings.vs-sheet--page{position:relative;top:auto;bottom:auto;margin:0;width:100%;height:100%;max-height:100%;align-self:stretch;border-radius:14px 14px 0 0}
+.vsp .vs-sheet--settings .vs-sheet__title{font-size:10px}
+.vsp .vs-sheet--settings .vs-sheet__done{font-size:12.5px}
+.vsp .vs-sheet--settings:not(.vs-sheet--page) .vs-sheet__body div:has(> .srow--tap){display:grid!important;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;padding-bottom:6px}
+.vsp .vs-sheet--settings:not(.vs-sheet--page) .vs-sheet__body div:has(> .srow--tap)>:not(.srow--tap){grid-column:1/-1}
+.vsp .vs-sheet--settings:not(.vs-sheet--page) .srow--tap{flex-direction:column;align-items:flex-start;justify-content:space-between;gap:6px;min-height:0;padding:10px 12px;background:var(--fill-05);border-radius:12px}
+.vsp .vs-sheet--settings:not(.vs-sheet--page) .srow--tap:hover{background:var(--fill-08)}
+.vsp .vs-sheet--settings:not(.vs-sheet--page) .srow--tap>div{width:100%}
+.vsp .vs-sheet--settings:not(.vs-sheet--page) .srow--tap>svg:last-child{display:none}
+.vsp .vs-sheet--settings .sdiv{display:none}
+.vsp .vs-sheet--page .vs-sheet__body div:has(> .srow){display:grid!important;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));column-gap:10px;row-gap:2px}
+.vsp .vs-sheet--page .vs-sheet__body div:has(> .srow)>:not(.srow){grid-column:1/-1}
+.vsp .vs-sheet--settings .srow__t{font-size:13.5px}
+.vsp .vs-sheet--settings .srow__s{font-size:11px;margin-top:2px;line-height:1.35}
+.vsp .vs-sheet--settings .srow{padding:8px 10px;gap:10px}
+}

@@ -3,7 +3,7 @@ import { Card, GrowBox, LanguageChip, Sheet, Switch, Toggle } from '../ds/Contro
 import { D, Icon, Logo, PlayGlyph, Spinner } from '../ds/Icons';
 import { mediaKind } from '../core/voiceplayer';
 import { useLanguageList } from '../ds/LanguagePicker';
-import { audioDownloadUrl, backgroundAudioUrl, deliveryAudioUrl } from '../core/audio';
+import { audioDownloadUrl, audioSealed, backgroundAudioUrl, deliveryAudioUrl } from '../core/audio';
 import { FileFollow } from './FileFollow';
 import { displayName, useYtTitle } from '../data/title';
 import { bedNote, REMOVE_BG_LABEL, removeBgFromQuery, trackPlan, useBackgroundBed, useSeparatedTrack, withRemoveBg } from '../core/background';
@@ -257,8 +257,11 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const hasAudio = !!shared?.job?.hasAudio;
   const src = shared?.job?.source;
   const sourceAudio = !hasAudio && !!src && (src.kind !== 'url' || src.bytes != null) && (status === 'transcribing' || status === 'queued' || status === 'done');
-  const audioUrl = recordingId && shared?.allowDownload && hasAudio ? deliveryAudioUrl(api.origin, recordingId, api.cred)
-    : recordingId && shared?.allowDownload && sourceAudio ? audioDownloadUrl(api.origin, recordingId, 'source', api.cred) : null;
+  const deliveryUrl = recordingId && shared?.allowDownload && hasAudio ? deliveryAudioUrl(api.origin, recordingId, api.cred) : null;
+  const sourceStored = !!src && (src.kind !== 'url' || src.bytes != null);
+  const deliveryReady = useSealed(deliveryUrl && sourceStored ? deliveryUrl : null);
+  const audioUrl = deliveryUrl && (!sourceStored || deliveryReady) ? deliveryUrl
+    : recordingId && shared?.allowDownload && (sourceAudio || (hasAudio && sourceStored)) ? audioDownloadUrl(api.origin, recordingId, 'source', api.cred) : null;
   const lastRow = rows[rows.length - 1];
   const doneTo = lastRow ? lastRow.words[lastRow.words.length - 1]?.end ?? lastRow.start : 0;
   const edgeS = locked && running ? Math.max(doneTo, progress?.processedS ?? 0) : null;
@@ -784,3 +787,15 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   );
 }
 
+function useSealed(url: string | null): boolean {
+  const [ok, setOk] = useState<string | null>(null);
+  useEffect(() => {
+    if (!url || ok === url) return;
+    let live = true;
+    let h: ReturnType<typeof setTimeout> | undefined;
+    const check = () => { void audioSealed(url).then((y) => { if (!live) return; if (y) setOk(url); else h = setTimeout(check, 3000); }); };
+    check();
+    return () => { live = false; if (h) clearTimeout(h); };
+  }, [url, ok]);
+  return !!url && ok === url;
+}

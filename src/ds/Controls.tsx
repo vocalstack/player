@@ -214,6 +214,12 @@ function useVisualViewportInset(ref: React.RefObject<HTMLDivElement | null>, ope
 }
 
 export function GrowBox({ children, ms = 220 }: { children: ReactNode; ms?: number }) {
+  const [anim] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches);
+  if (!anim) return <div>{children}</div>;
+  return <GrowAnim ms={ms}>{children}</GrowAnim>;
+}
+
+function GrowAnim({ children, ms }: { children: ReactNode; ms: number }) {
   const outer = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const [h, setH] = useState<number | null>(null);
