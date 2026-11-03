@@ -55,3 +55,14 @@ test('social site embeds', async () => {
   assert.equal(urlFromEmbed('x', '1732824684683784516'), 'https://x.com/i/status/1732824684683784516');
   assert.match(sourceVideoUrl({ kind: 'url', url: 'https://www.facebook.com', site: 'facebook', embedId: '274175099429670' })!, /watch\/\?v=274175099429670/);
 });
+
+test('more site embeds', async () => {
+  const { embedUrl, urlFromEmbed } = await import('../src/core/embeds.ts');
+  assert.equal(embedUrl('https://www.ted.com/talks/candace_parker_how_to_break_down_barriers', { t: 0, play: false }), 'https://embed.ted.com/talks/candace_parker_how_to_break_down_barriers');
+  assert.match(embedUrl('https://drive.google.com/file/d/1AbC_d/view?usp=sharing', { t: 0, play: false })!, /file\/d\/1AbC_d\/preview/);
+  assert.match(embedUrl('https://bsky.app/profile/bsky.app/post/3l3vgf77uco2g', { t: 0, play: false })!, /embed\.bsky\.app\/embed\/bsky\.app\/app\.bsky\.feed\.post\/3l3vgf77uco2g/);
+  assert.match(embedUrl('https://archive.org/details/XD300-23_68HomerSongs', { t: 0, play: false })!, /archive\.org\/embed\/XD300-23_68HomerSongs/);
+  assert.match(embedUrl('https://odysee.com/@Mantega:1/First-day-in-SF:1', { t: 5, play: true })!, /odysee\.com\/\$\/embed\/@Mantega:1\/First-day-in-SF:1/);
+  assert.match(embedUrl('https://fast.wistia.net/embed/iframe/abc123xyz', { t: 0, play: false })!, /fast\.wistia\.net\/embed\/iframe\/abc123xyz/);
+  assert.equal(urlFromEmbed('ted', 'some_talk'), 'https://www.ted.com/talks/some_talk');
+});

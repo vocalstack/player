@@ -95,6 +95,37 @@ export function embedUrl(raw: string, at: EmbedAt): string | null {
       const name = u(raw)?.pathname.split('/').filter(Boolean)[0];
       return name ? `https://player.kick.com/${encodeURIComponent(name.toLowerCase())}?${new URLSearchParams({ autoplay: String(!!at.play), muted: 'true' })}` : null;
     }
+    case 'ted': {
+      const m = /\/talks\/([\w-]+)/.exec(u(raw)?.pathname ?? '');
+      return m ? `https://embed.ted.com/talks/${m[1]}` : null;
+    }
+    case 'wistia': {
+      const x = u(raw);
+      const m = /\/(?:medias|embed\/iframe|embed\/medias)\/([a-z0-9]+)/i.exec(x?.pathname ?? '') ?? (x && /(^|\.)wi\.st$/i.test(x.hostname) ? /\/([a-z0-9]+)/i.exec(x.pathname) : null);
+      return m ? `https://fast.wistia.net/embed/iframe/${m[1]}?${new URLSearchParams({ autoPlay: String(!!at.play), muted: 'true', playbar: 'false', controlsVisibleOnLoad: 'false', time: String(secs(at.t)) })}` : null;
+    }
+    case 'vidyard': {
+      const m = /\/(?:watch\/)?([A-Za-z0-9_-]{16,})(?:\.html)?\/?$/.exec(u(raw)?.pathname ?? '');
+      return m ? `https://play.vidyard.com/${m[1]}.html?${new URLSearchParams({ autoplay: String(play), muted: '1', hidden_controls: '1' })}` : null;
+    }
+    case 'archive': {
+      const m = /\/(?:details|embed)\/([^/?#]+)/.exec(u(raw)?.pathname ?? '');
+      return m ? `https://archive.org/embed/${m[1]}` : null;
+    }
+    case 'odysee': {
+      const x = u(raw);
+      const path = x?.pathname.replace(/^\/\$\/embed\//, '/').replace(/^\//, '');
+      return path && path.includes(':') ? `https://odysee.com/$/embed/${path}?${new URLSearchParams({ autoplay: 'false', t: String(secs(at.t)) })}` : null;
+    }
+    case 'bluesky': {
+      const m = /\/profile\/([^/]+)\/post\/([^/?#]+)/.exec(u(raw)?.pathname ?? '');
+      return m ? `https://embed.bsky.app/embed/${m[1]}/app.bsky.feed.post/${m[2]}` : null;
+    }
+    case 'gdrive': {
+      const x = u(raw);
+      const id = /\/file\/d\/([\w-]+)/.exec(x?.pathname ?? '')?.[1] ?? x?.searchParams.get('id');
+      return id ? `https://drive.google.com/file/d/${id}/preview` : null;
+    }
     case 'streamable': {
       const id = u(raw)?.pathname.split('/').filter(Boolean).pop();
       return id ? `https://streamable.com/e/${id}?${new URLSearchParams({ autoplay: String(play), muted: '1', nocontrols: '1' })}${at.t ? `#t=${secs(at.t)}` : ''}` : null;
@@ -122,6 +153,13 @@ export function urlFromEmbed(site: string | null | undefined, id: string | null 
     case 'kick': return v.startsWith('channel:') ? `https://kick.com/${encodeURIComponent(v.slice(8))}` : null;
     case 'streamable': return /^\w+$/.test(v) ? `https://streamable.com/${v}` : null;
     case 'facebook': return /^\d+$/.test(v) ? `https://www.facebook.com/watch/?v=${v}` : null;
+    case 'ted': return /^[\w-]+$/.test(v) ? `https://www.ted.com/talks/${v}` : null;
+    case 'wistia': return /^[a-z0-9]+$/i.test(v) ? `https://fast.wistia.net/embed/iframe/${v}` : null;
+    case 'vidyard': return /^[\w-]{16,}$/.test(v) ? `https://play.vidyard.com/${v}.html` : null;
+    case 'archive': return /^[^/?#\s]+$/.test(v) ? `https://archive.org/details/${v}` : null;
+    case 'odysee': return /^[^?#\s]+:[^?#\s]+$/.test(v) ? `https://odysee.com/${v}` : null;
+    case 'bluesky': return /^[^/\s]+\/[^/\s]+$/.test(v) ? `https://bsky.app/profile/${v.split('/')[0]}/post/${v.split('/')[1]}` : null;
+    case 'gdrive': return /^[\w-]+$/.test(v) ? `https://drive.google.com/file/d/${v}/view` : null;
     case 'twitch':
       if (/^v\d+$/.test(v)) return `https://www.twitch.tv/videos/${v.slice(1)}`;
       if (v.startsWith('clip:')) return `https://clips.twitch.tv/${encodeURIComponent(v.slice(5))}`;
