@@ -173,3 +173,10 @@ export function sourceVideoUrl(src: { kind?: string; url?: string | null; site?:
   if (!src || src.kind !== 'url') return null;
   return urlFromEmbed(src.site, src.embedId) ?? src.url ?? null;
 }
+
+export function wistiaId(raw: string): string | null {
+  const x = u(raw);
+  if (!x) return null;
+  const m = /\/(?:medias|embed\/iframe|embed\/medias)\/([a-z0-9]+)/i.exec(x.pathname) ?? (/(^|\.)wi\.st$/i.test(x.hostname) ? /\/([a-z0-9]+)/i.exec(x.pathname) : null);
+  return m ? m[1] : null;
+}

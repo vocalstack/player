@@ -7,7 +7,8 @@ import { audioDownloadUrl, audioSealed, backgroundAudioUrl, deliveryAudioUrl } f
 import { FileFollow } from './FileFollow';
 import { EmbedFollow } from './EmbedFollow';
 import { FacebookFollow } from './FacebookFollow';
-import { hasEmbed, loomId, sourceVideoUrl } from '../core/embeds';
+import { WistiaFollow } from './WistiaFollow';
+import { hasEmbed, loomId, sourceVideoUrl, wistiaId } from '../core/embeds';
 import { siteOf } from '../core/sites';
 import { loomSetup } from '../core/loomStream';
 import { displayName, useYtTitle } from '../data/title';
@@ -436,7 +437,9 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const loomVid = embedSrc ? loomId(embedSrc) : null;
   const loomFollow = useMemo(() => (loomVid ? loomSetup(loomVid) : undefined), [loomVid]);
   const fbSrc = embedSrc && siteOf(embedSrc)?.id === 'facebook' ? embedSrc : null;
-  const embedPic = fbSrc ? <FacebookFollow key={fbSrc} url={fbSrc} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
+  const wistia = embedSrc && siteOf(embedSrc)?.id === 'wistia' ? wistiaId(embedSrc) : null;
+  const embedPic = wistia ? <WistiaFollow key={wistia} id={wistia} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
+    : fbSrc ? <FacebookFollow key={fbSrc} url={fbSrc} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
     : loomFollow ? <FileFollow key={loomVid} setup={loomFollow} seekOver={1} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
     : embedSrc ? <EmbedFollow url={embedSrc} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} title={name} onToggle={player.has ? tapPicture : undefined} /> : null;
   const baseTap = player.has ? <div className="txyt vsp-follow"><div aria-hidden="true" className="txyt__tap" onClick={tapPicture} style={{ cursor: 'pointer' }} /><div className={`txyt__paused${!player.playing ? ' txyt__paused--on' : ''}`} aria-hidden="true"><span className="txyt__pausedplay"><PlayGlyph size={44} /></span></div></div> : null;
