@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     lib: { entry: 'src/index.ts', formats: ['es'], fileName: () => 'index.js', cssFileName: 'style' },
-    rollupOptions: { external: ['react', 'react-dom', 'react/jsx-runtime', '@vocalstack/js-sdk'] },
+    rollupOptions: { external: ['react', 'react-dom', 'react/jsx-runtime', '@vocalstack/js-sdk', 'hls.js'] },
     sourcemap: true,
   },
 });

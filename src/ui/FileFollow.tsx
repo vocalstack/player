@@ -1,11 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 
-export function FileFollow({ src, t, playing, seekN, onToggle }: { src: string; t: number; playing: boolean; seekN: number; onToggle?: () => void }) {
+export type FollowSetup = (v: HTMLVideoElement, fail: () => void) => (() => void) | void;
+
+export function FileFollow({ src, setup, t, playing, seekN, onToggle, seekOver = 0.4 }: { src?: string; setup?: FollowSetup; t: number; playing: boolean; seekN: number; onToggle?: () => void; seekOver?: number }) {
   const ref = useRef<HTMLVideoElement>(null);
   const [ready, setReady] = useState(false);
   const [gone, setGone] = useState(false);
   const tRef = useRef(t); tRef.current = t;
-  useEffect(() => { setReady(false); setGone(false); }, [src]);
+  useEffect(() => { setReady(false); setGone(false); }, [src, setup]);
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || !setup) return;
+    return setup(v, () => setGone(true)) ?? undefined;
+  }, [setup]);
   useEffect(() => {
     const v = ref.current;
     if (!v || !ready) return;
@@ -15,18 +22,19 @@ export function FileFollow({ src, t, playing, seekN, onToggle }: { src: string; 
     const v = ref.current;
     if (!v || !ready) return;
     const want = Math.max(0, tRef.current);
-    if (Math.abs(v.currentTime - want) > (playing ? 0.4 : 0.08)) v.currentTime = want;
-  }, [t, seekN, ready, playing]);
+    if (Math.abs(v.currentTime - want) > (playing ? seekOver : 0.08)) v.currentTime = want;
+  }, [t, seekN, ready, playing]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const v = ref.current;
     if (!v || !ready || !playing) return;
     const h = setInterval(() => {
+      if (v.seeking) return;
       const d = v.currentTime - tRef.current;
-      if (Math.abs(d) > 0.4) v.currentTime = Math.max(0, tRef.current);
-      else v.playbackRate = Math.abs(d) > 0.08 ? (d > 0 ? 0.97 : 1.03) : 1;
-    }, 500);
+      if (Math.abs(d) > seekOver) v.currentTime = Math.max(0, tRef.current);
+      else v.playbackRate = Math.abs(d) < 0.03 ? 1 : Math.min(1.1, Math.max(0.9, 1 - 0.5 * d));
+    }, 250);
     return () => { clearInterval(h); v.playbackRate = 1; };
-  }, [ready, playing]);
+  }, [ready, playing, seekOver]);
   if (gone) return null;
   return (
     <video
@@ -39,7 +47,7 @@ export function FileFollow({ src, t, playing, seekN, onToggle }: { src: string; 
       preload="auto"
       disablePictureInPicture
       onLoadedData={() => setReady(true)}
-      onError={() => setGone(true)}
+      onError={() => { if (src) setGone(true); }}
       onClick={onToggle}
       aria-hidden="true"
     />
