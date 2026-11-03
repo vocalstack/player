@@ -81,8 +81,8 @@ export function FacebookFollow({ url, t, playing, seekN, onToggle }: { url: stri
   }, [ready, playing]);
   return (
     <div className="txyt vsp-follow vsp-fb" style={ready ? { background: '#000' } : undefined}>
-      <div ref={box} className="vsp-fb__box" style={{ opacity: ready ? 1 : 0 }} />
-      {ready && <div aria-hidden="true" className="txyt__tap" onClick={onToggle} style={{ cursor: onToggle ? 'pointer' : 'default' }} />}
+      <div ref={box} className={`vsp-fb__box${playing ? ' vsp-fb__box--live' : ''}`} style={{ opacity: ready ? 1 : 0 }} />
+      {ready && !playing && <div aria-hidden="true" className="txyt__tap" onClick={onToggle} style={{ cursor: onToggle ? 'pointer' : 'default' }} />}
       {ready && <div className={`txyt__paused${!playing ? ' txyt__paused--on' : ''}`} aria-hidden="true"><span className="txyt__pausedplay"><PlayGlyph size={44} /></span></div>}
     </div>
   );

@@ -15,14 +15,14 @@ export function EmbedFollow({ url, t, playing, seekN, title, onToggle }: { url: 
         className="vsp-embed"
         src={src}
         title={title}
-        style={{ opacity: ready ? 1 : 0 }}
+        style={{ opacity: ready ? 1 : 0, pointerEvents: playing ? 'auto' : 'none' }}
         onLoad={() => setReady(true)}
         allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
         referrerPolicy="strict-origin-when-cross-origin"
         tabIndex={-1}
         aria-hidden="true"
       />
-      <div aria-hidden="true" className="txyt__tap" onClick={onToggle} style={{ cursor: onToggle ? 'pointer' : 'default' }} />
+      {!playing && <div aria-hidden="true" className="txyt__tap" onClick={onToggle} style={{ cursor: onToggle ? 'pointer' : 'default' }} />}
       {ready && <div className={`txyt__paused${!playing ? ' txyt__paused--on' : ''}`} aria-hidden="true"><span className="txyt__pausedplay"><PlayGlyph size={44} /></span></div>}
     </div>
   );
