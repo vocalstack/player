@@ -66,7 +66,7 @@ export function embedUrl(raw: string, at: EmbedAt): string | null {
     case 'dailymotion': {
       const id = dailymotionId(raw);
       if (!id) return null;
-      const q = new URLSearchParams({ autoplay: String(play), mute: '1', controls: '0', 'queue-enable': '0', 'sharing-enable': '0', 'ui-start-screen-info': '0', start: String(secs(at.t)) });
+      const q = new URLSearchParams({ autoplay: String(play), mute: '1', controls: '0', 'queue-enable': '0', 'sharing-enable': '0', 'ui-start-screen-info': '0', start: String(secs(at.t)), api: 'postMessage' });
       return `https://www.dailymotion.com/embed/video/${id}?${q}`;
     }
     case 'twitch': {
@@ -184,4 +184,11 @@ export function wistiaId(raw: string): string | null {
 export function vidyardId(raw: string): string | null {
   const m = /\/(?:watch\/)?([A-Za-z0-9_-]{16,})(?:\.html)?\/?$/.exec(u(raw)?.pathname ?? '');
   return m ? m[1] : null;
+}
+
+const SIGNALS: Record<string, RegExp> = { dailymotion: /(^|\.)dailymotion\.com$/ };
+
+export function embedSignal(raw: string | null | undefined): RegExp | null {
+  const site = siteOf(raw);
+  return site ? SIGNALS[site.id] ?? null : null;
 }

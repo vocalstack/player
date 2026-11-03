@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
-import { embedUrl } from '../core/embeds';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { embedSignal, embedUrl } from '../core/embeds';
 import { PlayGlyph } from '../ds/Icons';
 
 export function EmbedFollow({ url, t, playing, seekN, title, onToggle }: { url: string; t: number; playing: boolean; seekN: number; title: string; onToggle?: () => void }) {
@@ -7,7 +7,19 @@ export function EmbedFollow({ url, t, playing, seekN, title, onToggle }: { url: 
   const [ready, setReady] = useState(false);
   const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
   const src = useMemo(() => embedUrl(url, { t: tRef.current, play: playing, host }), [url, playing, seekN, host]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (!src) return null;
+  const [failed, setFailed] = useState(false);
+  const heard = useRef(false);
+  useEffect(() => {
+    const sig = embedSignal(url);
+    if (!sig) return;
+    heard.current = false;
+    setFailed(false);
+    const onMsg = (e: MessageEvent) => { try { if (sig.test(new URL(e.origin).hostname)) heard.current = true; } catch { } };
+    window.addEventListener('message', onMsg);
+    const h = window.setTimeout(() => { if (!heard.current) setFailed(true); }, 8000);
+    return () => { window.removeEventListener('message', onMsg); window.clearTimeout(h); };
+  }, [url]);
+  if (!src || failed) return null;
   return (
     <div className="txyt vsp-follow" style={ready ? { background: '#000' } : undefined}>
       <iframe
