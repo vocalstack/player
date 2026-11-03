@@ -36,15 +36,16 @@ export function useLanguageList({ open, onClose, value, onSelect, languages, sea
     [recent, filtered, q],
   );
   const rest = useMemo(() => (recents.length ? filtered.filter((l) => !recents.some((r) => r.code === l.code)) : filtered), [filtered, recents]);
-  const shown = showAll || q ? rest : rest.slice(0, 12);
-  const more = rest.length - shown.length;
-  const row = (l: PickerLanguage, inRecent = false) => {
+  const cut = showAll || q ? rest.length : 12;
+  const shown = rest;
+  const more = rest.length - Math.min(cut, rest.length);
+  const row = (l: PickerLanguage, inRecent = false, extra = false) => {
     const off = !!requireVoice && !l.voice;
     return (
       <button
         key={l.code}
         type="button"
-        className={`vs-picker__row${off ? ' vs-picker__row--off' : ''}`}
+        className={`vs-picker__row${off ? ' vs-picker__row--off' : ''}${extra ? ' vs-picker__row--extra' : ''}`}
         aria-selected={value === l.code}
         onClick={() => { if (off) { setRefused(l.code); return; } onSelect(l.code); if (!keepOpen) onClose(); }}
       >
@@ -96,9 +97,9 @@ export function useLanguageList({ open, onClose, value, onSelect, languages, sea
           <div className="vs-picker__rule" />
         </>
       )}
-      {shown.map((l) => row(l))}
+      {shown.map((l, i) => row(l, false, i >= cut))}
       {more > 0 && (
-        <button type="button" className="vs-picker__more" style={{ background: 'none', border: 0, cursor: 'pointer', width: '100%', textAlign: 'left' }} onClick={() => setShowAll(true)}>
+        <button type="button" className="vs-picker__more vs-picker__more--btn" style={{ background: 'none', border: 0, cursor: 'pointer', width: '100%', textAlign: 'left' }} onClick={() => setShowAll(true)}>
           + {more} MORE LANGUAGES
         </button>
       )}

@@ -234,7 +234,7 @@
 .vsp .vs-picker__label{font-size:15.5px;color:var(--vs-text-primary);font-weight:400}
 .vsp .vs-picker__row[aria-selected="true"] .vs-picker__label{font-weight:600}
 .vsp .vs-picker__native{font-size:11.5px;color:var(--vs-text-muted);margin-top:2px}
-@media (max-height: 520px){.vsp .vs-sheet.vs-sheet--picker{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto minmax(0,1fr);column-gap:14px;align-items:center;width:min(820px,100%);height:calc(100% - 8px);max-height:none;padding-top:10px}
+@container vssheet (max-height: 520px){.vsp .vs-sheet.vs-sheet--picker{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto minmax(0,1fr);column-gap:14px;align-items:center;width:min(820px,100%);height:calc(100% - 8px);max-height:none;padding-top:10px}
 .vsp .vs-sheet--picker .vs-sheet__grip,.vsp .vs-sheet--picker .vs-sheet__note{display:none}
 .vsp .vs-sheet--picker .vs-sheet__head{display:contents}
 .vsp .vs-sheet--picker .vs-sheet__title{grid-column:1;grid-row:1;padding-left:20px}
@@ -814,7 +814,7 @@
 .vsp .gfull--desk .vs-sheet__grip{display:none}
 .vsp .gfull--desk .vs-sheet__header{border-bottom:1px solid var(--vs-border);padding-bottom:12px;margin-bottom:0}
 .vsp .gfull--desk .vs-sheet__body{flex:1;min-height:0;overflow:auto;padding-top:10px}
-@media (max-height: 520px){.vsp .gfull .vs-sheet.vs-sheet--picker,.vsp .gfull.gfull--desk .vs-sheet.vs-sheet--picker{position:static;width:min(100%,820px);height:calc(100% - 8px);max-height:none;border-radius:18px 18px 0 0;padding-bottom:calc(8px + env(safe-area-inset-bottom))}}
+@container vssheet (max-height: 520px){.vsp .gfull .vs-sheet.vs-sheet--picker,.vsp .gfull.gfull--desk .vs-sheet.vs-sheet--picker{position:static;width:min(100%,820px);height:calc(100% - 8px);max-height:none;border-radius:18px 18px 0 0;padding-bottom:calc(8px + env(safe-area-inset-bottom))}}
 .vsp .txyt__tap{position:absolute;inset:0}
 .vsp .txyt__paused{position:absolute;inset:0;z-index:1;display:flex;align-items:center;justify-content:center;background:rgba(5,6,21,.38);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);opacity:0;transition:opacity .25s ease;pointer-events:none}
 .vsp .txyt__paused--on{opacity:1}
@@ -1289,11 +1289,16 @@
 .vsp .vs-sheet__body{margin-top:6px;padding:0 10px}
 .vsp .vs-picker__search{padding:5px 10px;gap:7px}
 .vsp .vs-picker__search input{font-size:13px}
-.vsp .vs-picker__list{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));column-gap:4px}
+.vsp .vs-picker__list{grid-template-columns:repeat(auto-fill,minmax(172px,1fr));column-gap:4px}
+.vsp .vs-picker__slot:empty,.vsp .vs-picker__check:empty{display:none}
+.vsp .vs-picker__list .vs-picker__row--extra{display:flex}
+.vsp .vs-picker__list .vs-picker__more--btn{display:none}
+.vsp .vs-picker__row>span:nth-child(2){flex:1}
 .vsp .vs-picker__row,.vsp .vs-sheet--picker .vs-picker__row{min-height:32px;padding:4px 6px;gap:8px}
 .vsp .vs-picker__row + .vs-picker__row{margin-top:0}
 .vsp .vs-picker__row>span:nth-child(2){display:flex;align-items:baseline;gap:6px;overflow:hidden;white-space:nowrap}
-.vsp .vs-picker__label,.vsp .vs-sheet--picker .vs-picker__label{font-size:13px;overflow:hidden;text-overflow:ellipsis;flex:none;max-width:100%}
+.vsp .vs-picker__label,.vsp .vs-sheet--picker .vs-picker__label{font-size:13px;overflow:hidden;text-overflow:ellipsis;flex:0 0 auto;max-width:100%}
+.vsp .vs-picker__native,.vsp .vs-sheet--picker .vs-picker__native{flex:0 1 auto}
 .vsp .vs-picker__native,.vsp .vs-sheet--picker .vs-picker__native{font-size:10.5px;margin-top:0;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .vsp .vs-picker__flag{font-size:16px;width:20px}
 .vsp .vs-picker__slot{width:14px}
@@ -1305,7 +1310,8 @@
 }
 @container vssheet (max-height:300px){
 .vsp .vs-picker__native,.vsp .vs-sheet--picker .vs-picker__native{display:none}
-.vsp .vs-picker__list{grid-template-columns:repeat(auto-fill,minmax(128px,1fr))}
+.vsp .vs-picker__list{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
 .vsp .vs-picker__row,.vsp .vs-sheet--picker .vs-picker__row{min-height:28px;padding:3px 6px}
 }
 .vsp .vs-side .vs-sheet-scrim{container-type:normal}
+.vsp .vs-picker__row--extra{display:none}
