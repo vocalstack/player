@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { PlayGlyph } from '../ds/Icons';
 
 export type FollowSetup = (v: HTMLVideoElement, fail: () => void) => (() => void) | void;
 
@@ -37,6 +38,7 @@ export function FileFollow({ src, setup, t, playing, seekN, onToggle, seekOver =
   }, [ready, playing, seekOver]);
   if (gone) return null;
   return (
+    <div className="txyt vsp-follow">
     <video
       ref={ref}
       className="vsp-file"
@@ -48,8 +50,10 @@ export function FileFollow({ src, setup, t, playing, seekN, onToggle, seekOver =
       disablePictureInPicture
       onLoadedData={() => setReady(true)}
       onError={() => { if (src) setGone(true); }}
-      onClick={onToggle}
       aria-hidden="true"
     />
+    {ready && <div aria-hidden="true" className="txyt__tap" onClick={onToggle} style={{ cursor: onToggle ? 'pointer' : 'default' }} />}
+    {ready && <div className={`txyt__paused${!playing ? ' txyt__paused--on' : ''}`} aria-hidden="true"><span className="txyt__pausedplay"><PlayGlyph size={44} /></span></div>}
+    </div>
   );
 }
