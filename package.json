@@ -1,6 +1,6 @@
 {
   "name": "@vocalstack/player",
-  "version": "0.1.0-alpha.48",
+  "version": "0.1.0-alpha.49",
   "description": "VocalStack video and transcript player for React: synced transcript, subtitles, spoken translations and background sound, over the public VocalStack API.",
   "license": "MIT",
   "type": "module",
