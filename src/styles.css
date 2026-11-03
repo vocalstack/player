@@ -1315,3 +1315,4 @@
 }
 .vsp .vs-side .vs-sheet-scrim{container-type:normal}
 .vsp .vs-picker__row--extra{display:none}
+.vsp .vsp-file{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:transparent;transition:opacity .3s ease}
