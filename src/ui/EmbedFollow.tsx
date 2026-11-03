@@ -8,6 +8,8 @@ export function EmbedFollow({ url, t, playing, seekN, title }: { url: string; t:
   const src = useMemo(() => embedUrl(url, { t: tRef.current, play: playing, host }), [url, playing, seekN, host]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!src) return null;
   return (
+    <>
+    {ready && <div className="vsp-embed__bg" aria-hidden="true" />}
     <iframe
       key={src}
       className="vsp-embed"
@@ -20,5 +22,6 @@ export function EmbedFollow({ url, t, playing, seekN, title }: { url: string; t:
       tabIndex={-1}
       aria-hidden="true"
     />
+    </>
   );
 }

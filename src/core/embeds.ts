@@ -78,7 +78,7 @@ export function embedUrl(raw: string, at: EmbedAt): string | null {
       return `https://player.twitch.tv/?${q}`;
     }
     case 'facebook':
-      return `https://www.facebook.com/plugins/video.php?${new URLSearchParams({ href: raw, autoplay: String(!!at.play), mute: '1', show_text: 'false' })}`;
+      return `https://www.facebook.com/plugins/video.php?${new URLSearchParams({ href: raw, autoplay: String(!!at.play), mute: '1', show_text: 'false', show_captions: 'false' })}`;
     case 'tiktok': {
       const m = /\/video\/(\d+)/.exec(u(raw)?.pathname ?? '');
       return m ? `https://www.tiktok.com/embed/v2/${m[1]}?${new URLSearchParams({ autoplay: String(play), muted: '1', controls: '0' })}` : null;
