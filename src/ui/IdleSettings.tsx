@@ -83,8 +83,8 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
   );
   const sheets = (
     <>
-      <Sheet open={sheet === 'lang'} onClose={close} title="LANGUAGE" kind="picker" sticky>
-        <GrowBox>{langList}</GrowBox>
+      <Sheet open={sheet === 'lang'} onClose={close} title="LANGUAGE" kind="picker" header={list.search} sticky>
+        <GrowBox>{list.list}</GrowBox>
       </Sheet>
       <Sheet open={sheet === 'settings'} onClose={close} title={{ main: 'SETTINGS', lang: 'LANGUAGE', subs: 'SUBTITLES', audio: 'AUDIO' }[page]} titleNode={page === 'main' ? undefined : back} kind={page === 'main' ? 'settings' : 'settings vs-sheet--page'} sticky>
         <GrowBox>{settingsBody}</GrowBox>

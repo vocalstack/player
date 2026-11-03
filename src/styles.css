@@ -1278,3 +1278,34 @@
 .vsp .vsp-idleroot:has(.vsp-prov) :is(.gfull__btn,.gfull__step,.gfull__play,.gfull__chip,.gfull__brand,.vsp-idle__field){backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 .vsp .vsp-idleroot:has(.vsp-prov) :is(.gfull__btn,.gfull__step,.gfull__chip,.gfull__chip:has(> .gfull__btn)){background-color:rgba(9,10,24,.72)}
 .vsp .vsp-idleroot:has(.vsp-prov) .vsp-idle__field{background:rgba(7,8,22,.86)}
+.vsp .vs-sheet-scrim{container:vssheet/size}
+@container vssheet (max-height:460px){
+.vsp .vs-sheet{max-height:100%;height:100%;padding:8px 0 6px;border-radius:14px 14px 0 0}
+.vsp .vs-sheet.vs-sheet--picker{width:100%;height:100%;padding-top:8px}
+.vsp .vs-sheet__grip{display:none}
+.vsp .vs-sheet__head{padding:0 14px}
+.vsp .vs-sheet--picker .vs-sheet__title{padding-left:14px}
+.vsp .vs-sheet--picker .vs-sheet__done{padding-right:14px}
+.vsp .vs-sheet__body{margin-top:6px;padding:0 10px}
+.vsp .vs-picker__search{padding:5px 10px;gap:7px}
+.vsp .vs-picker__search input{font-size:13px}
+.vsp .vs-picker__list{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));column-gap:4px}
+.vsp .vs-picker__row,.vsp .vs-sheet--picker .vs-picker__row{min-height:32px;padding:4px 6px;gap:8px}
+.vsp .vs-picker__row + .vs-picker__row{margin-top:0}
+.vsp .vs-picker__row>span:nth-child(2){display:flex;align-items:baseline;gap:6px;overflow:hidden;white-space:nowrap}
+.vsp .vs-picker__label,.vsp .vs-sheet--picker .vs-picker__label{font-size:13px;overflow:hidden;text-overflow:ellipsis;flex:none;max-width:100%}
+.vsp .vs-picker__native,.vsp .vs-sheet--picker .vs-picker__native{font-size:10.5px;margin-top:0;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.vsp .vs-picker__flag{font-size:16px;width:20px}
+.vsp .vs-picker__slot{width:14px}
+.vsp .vs-picker__head{padding:6px 6px 2px}
+.vsp .vs-picker__rule{margin:4px 0 2px}
+.vsp .vs-picker__more{padding:8px 6px 4px}
+.vsp .vs-picker__row[data-vs-original]{margin-bottom:5px}
+.vsp .srow{padding-top:6px;padding-bottom:6px}
+}
+@container vssheet (max-height:300px){
+.vsp .vs-picker__native,.vsp .vs-sheet--picker .vs-picker__native{display:none}
+.vsp .vs-picker__list{grid-template-columns:repeat(auto-fill,minmax(128px,1fr))}
+.vsp .vs-picker__row,.vsp .vs-sheet--picker .vs-picker__row{min-height:28px;padding:3px 6px}
+}
+.vsp .vs-side .vs-sheet-scrim{container-type:normal}
