@@ -14,6 +14,8 @@ import { strings } from '../data/i18n';
 import { confClass, fixedSlots, lane, speakerInitial, speakerLabel, speakerLook, type Model, type Row, type Word } from '../core/transcript';
 import { ClipQueue, newMediaElement, readCursor, VoiceNotStarted, type ReadPos, type VoiceClip } from '../core/voiceplayer';
 import { placePosition, snapPosition, type PlayPos } from '../core/playPosition';
+import { voiceWait, VOICE_WAIT_TITLE } from '../core/voiceWait';
+import { useHeld } from './wait';
 import { lineSpeechEnd, spreadWords } from '../core/readalong';
 import { type AvailableVoice, type CastMember, FixBadges, FixPen, rowFixes, FeedBar, NO_VOICE_TIP, feedInset, SpeakerCast, VoiceIdGlyph, VoiceSheetBody, autoCast, castKey, langMeta, namedCount, rowKey, speakerRoster, useArchiveVoice, useFeedBar, useVoiceCatalogue, useDragScroll } from './shared';
 
@@ -1029,8 +1031,13 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const glyph = D.voiceClone;
   const active = on && (!!arch.track || rendering);
   const glyphFg = failed ? 'var(--conf-low)' : active || (side && voicesMine) ? 'var(--brand)' : 'var(--ink-55)';
-  const busy = rendering || (!!vp.preparing && on);
-  const voiceTitle = vp.preparing
+  const waitKind = voiceWait({ on, want, relang, playing: vp.playing, preparing: !!vp.preparing, starting: vp.starting });
+  const [lineHeld] = useHeld(waitKind === 'line', 400);
+  const voiceWaiting = waitKind === 'asked' || (waitKind === 'line' && lineHeld);
+  const busy = rendering || voiceWaiting;
+  const voiceTitle = waitKind === 'asked'
+    ? VOICE_WAIT_TITLE
+    : vp.preparing
     ? `Speaking this line in ${gvPicked?.name ?? 'this voice'}…`
     : rendering
       ? `Preparing this recording in ${gvPicked?.name ?? 'this voice'} — it will play as soon as it is ready`
@@ -1073,10 +1080,9 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const toClone = badge?.(ctx) ?? 0;
   const warns = castWarn ? people.map((p2) => castWarn(p2, ctx)).filter((w): w is string => !!w) : [];
   const voiceBtn = (
-    <button type="button" className="txvoice" aria-label="Voice" aria-pressed={side ? voicesMine : undefined} title={busy || failed ? voiceTitle : undefined} style={{ cursor: 'pointer', background: active || busy || (side && voicesMine) ? 'var(--brand-tint)' : 'var(--fill-06)', boxShadow: side && voicesMine ? 'inset 0 0 0 1.5px var(--brand)' : undefined }} onClick={side ? toggleVoices : openVoices}>
-      {busy
-        ? <span style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid var(--fill-10)', borderTopColor: 'var(--brand)', animation: 'vs-spin .7s linear infinite' }} />
-        : <Icon d={glyph} size={17} sw={1.6} style={{ color: glyphFg }} />}
+    <button type="button" className="txvoice" aria-label="Voice" aria-pressed={side ? voicesMine : undefined} aria-busy={busy || undefined} title={busy || failed ? voiceTitle : undefined} style={{ cursor: 'pointer', background: active || busy || (side && voicesMine) ? 'var(--brand-tint)' : 'var(--fill-06)', boxShadow: side && voicesMine ? 'inset 0 0 0 1.5px var(--brand)' : undefined }} onClick={side ? toggleVoices : openVoices}>
+      <Icon d={glyph} size={17} sw={1.6} style={{ color: glyphFg }} />
+      {busy && <span aria-hidden="true" style={{ position: 'absolute', inset: 0, boxSizing: 'border-box', borderRadius: '50%', border: '2px solid var(--fill-12)', borderTopColor: 'var(--brand)', animation: 'vs-spin .7s linear infinite', pointerEvents: 'none' }} />}
       {warns.length > 0
         ? <span className="txvoice__warn" title={warns.join(' · ')}>!</span>
         : !!toClone && <span className="txvoice__n" title={`${toClone} speaker${toClone === 1 ? '' : 's'} can get a cloned voice`}>{toClone}</span>}
@@ -1125,7 +1131,9 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     ? null
     : failed
         ? `This voice could not be prepared: ${failed}`
-        : null;
+        : voiceWaiting && (want || vp.playing)
+          ? VOICE_WAIT_TITLE
+          : null;
   const noVoiceNote = noVoice && (
     <div className="novoice" title={NO_VOICE_TIP}>
       <Icon d={D.headphonesOff} size={17} sw={1.6} style={{ flex: 'none', color: 'var(--ink-45)' }} />
@@ -1135,7 +1143,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   return {
     barChip: { flag: chipMeta.flag, code: chipMeta.code, label: chipMeta.label, onClick: side || stickyPicker ? toggleChip : openPicker, active: !!((side || stickyPicker) && pickerMine), can: canTranslate },
     sheetsOpen: picker || sheet,
-    on: speaks, player, chip, voiceBtn, sheets, sidePanel, voicesMine, toggleVoices, cloningOn: cloneOn, playTitle, noVoice, noVoiceNote, relang, sampling: preview.sampleId != null, error: preview.error, clearError: () => preview.clearError(), openVoices, openPicker, original, reloadVoices: () => setCatVer((n) => n + 1), voicesVer: catVer, people, gvList, autoOf, savedFor, closeVoices, setSheet,
+    on: speaks, player, chip, voiceBtn, voiceWaiting: busy, sheets, sidePanel, voicesMine, toggleVoices, cloningOn: cloneOn, playTitle, noVoice, noVoiceNote, relang, sampling: preview.sampleId != null, error: preview.error, clearError: () => preview.clearError(), openVoices, openPicker, original, reloadVoices: () => setCatVer((n) => n + 1), voicesVer: catVer, people, gvList, autoOf, savedFor, closeVoices, setSheet,
     selectedSpeaker: selSp, armVoice: preview.arm, resetPreview: preview.reset, armedId: preview.armId, resetCast: () => setCastByLang((m) => ({ ...m, [vLang ?? '']: {} })),
     readLang: typeof pickedLang === 'string' && pickedLang !== srcLang ? pickedLang : null,
     readVoiceKey: forcedVoice || (castKeyStr ?? picked ?? arch.track?.voiceKey ?? ''),
