@@ -180,3 +180,8 @@ export function wistiaId(raw: string): string | null {
   const m = /\/(?:medias|embed\/iframe|embed\/medias)\/([a-z0-9]+)/i.exec(x.pathname) ?? (/(^|\.)wi\.st$/i.test(x.hostname) ? /\/([a-z0-9]+)/i.exec(x.pathname) : null);
   return m ? m[1] : null;
 }
+
+export function vidyardId(raw: string): string | null {
+  const m = /\/(?:watch\/)?([A-Za-z0-9_-]{16,})(?:\.html)?\/?$/.exec(u(raw)?.pathname ?? '');
+  return m ? m[1] : null;
+}

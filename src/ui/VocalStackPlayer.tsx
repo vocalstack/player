@@ -8,7 +8,8 @@ import { FileFollow } from './FileFollow';
 import { EmbedFollow } from './EmbedFollow';
 import { FacebookFollow } from './FacebookFollow';
 import { WistiaFollow } from './WistiaFollow';
-import { hasEmbed, loomId, sourceVideoUrl, wistiaId } from '../core/embeds';
+import { VidyardFollow } from './VidyardFollow';
+import { hasEmbed, loomId, sourceVideoUrl, vidyardId, wistiaId } from '../core/embeds';
 import { siteOf } from '../core/sites';
 import { loomSetup } from '../core/loomStream';
 import { displayName, useYtTitle } from '../data/title';
@@ -438,7 +439,9 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const loomFollow = useMemo(() => (loomVid ? loomSetup(loomVid) : undefined), [loomVid]);
   const fbSrc = embedSrc && siteOf(embedSrc)?.id === 'facebook' ? embedSrc : null;
   const wistia = embedSrc && siteOf(embedSrc)?.id === 'wistia' ? wistiaId(embedSrc) : null;
-  const embedPic = wistia ? <WistiaFollow key={wistia} id={wistia} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
+  const vidyard = embedSrc && siteOf(embedSrc)?.id === 'vidyard' ? vidyardId(embedSrc) : null;
+  const embedPic = vidyard ? <VidyardFollow key={vidyard} uuid={vidyard} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
+    : wistia ? <WistiaFollow key={wistia} id={wistia} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
     : fbSrc ? <FacebookFollow key={fbSrc} url={fbSrc} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
     : loomFollow ? <FileFollow key={loomVid} setup={loomFollow} seekOver={1} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
     : embedSrc ? <EmbedFollow url={embedSrc} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} title={name} onToggle={player.has ? tapPicture : undefined} /> : null;
