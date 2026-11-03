@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { PlayGlyph } from '../ds/Icons';
 
-interface FbPlayer { play(): void; pause(): void; seek(s: number): void; mute(): void; getCurrentPosition(): number }
+interface FbPlayer { play(): void; pause(): void; seek(s: number): void; mute(): void; unmute(): void; setVolume(v: number): void; getCurrentPosition(): number }
 interface FbSdk { init(o: object): void; XFBML: { parse(el?: Element): void }; Event: { subscribe(e: string, cb: (m: { type: string; id: string; instance: FbPlayer }) => void): void; unsubscribe(e: string, cb: unknown): void } }
 type W = Window & { FB?: FbSdk; fbAsyncInit?: () => void };
 
@@ -50,7 +50,7 @@ export function FacebookFollow({ url, t, playing, seekN, onToggle }: { url: stri
     const onReady = (m: { type: string; id: string; instance: FbPlayer }) => {
       if (!live || m.type !== 'video' || m.id !== id) return;
       player.current = m.instance;
-      try { m.instance.mute(); m.instance.seek(Math.max(0, tRef.current)); } catch { }
+      try { m.instance.setVolume(0); m.instance.unmute(); m.instance.setVolume(0); m.instance.seek(Math.max(0, tRef.current)); } catch { }
       setReady(true);
     };
     void loadSdk().then((f) => {
@@ -64,7 +64,7 @@ export function FacebookFollow({ url, t, playing, seekN, onToggle }: { url: stri
   useEffect(() => {
     const p = player.current;
     if (!p || !ready) return;
-    try { if (playing) p.play(); else p.pause(); } catch { }
+    try { if (playing) { p.setVolume(0); p.play(); } else p.pause(); } catch { }
   }, [playing, ready]);
   useEffect(() => {
     const p = player.current;

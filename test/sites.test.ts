@@ -14,3 +14,10 @@ test('links map to their site', () => {
   assert.equal(siteOf('https://notloom.com/x'), null);
   assert.equal(hostOfUrl('https://www.Loom.com/share/x'), 'loom.com');
 });
+
+test('the newer sites map too', () => {
+  assert.equal(siteOf('https://www.ted.com/talks/candace_parker_how_to_break_down_barriers')?.id, 'ted');
+  assert.equal(siteOf('https://drive.google.com/file/d/x/view')?.id, 'gdrive');
+  assert.equal(siteOf('https://bsky.app/profile/a/post/b')?.id, 'bluesky');
+  assert.equal(siteOf('https://docs.google.com/x'), null);
+});
