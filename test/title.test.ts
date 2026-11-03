@@ -20,3 +20,12 @@ test('the title comes from the name, then the source, then YouTube, then the hos
 test('a link id used as a name gives way to the real title', () => {
   assert.equal(displayName({ name: '29a5fc11a57846f5ab5a81ef1e24e16d', sourceName: 'How to Handle High Level B2C', id }), 'How to Handle High Level B2C');
 });
+
+test('media links carry the media token', async () => {
+  const { deliveryAudioUrl, audioDownloadUrl, backgroundAudioUrl } = await import('../src/core/audio.ts');
+  for (const u of [deliveryAudioUrl('https://a', 'r', { media: 'm1', accessToken: 't' }), audioDownloadUrl('https://a', 'r', 'source', { media: 'm1' }), backgroundAudioUrl('https://a', 'r', { media: 'm1' })]) {
+    assert.match(u, /[?&]media=m1(&|$)/);
+    assert.doesNotMatch(u, /access_token/);
+  }
+  assert.match(audioDownloadUrl('https://a', 'r', 'video', { accessToken: 't' }), /access_token=t/);
+});

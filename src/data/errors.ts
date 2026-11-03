@@ -1,7 +1,7 @@
 import { VocalStackError } from '@vocalstack/js-sdk';
 import { reportError } from '../core/audio';
 
-export interface ErrorLike { message: string; code?: string; status?: number; details?: any }
+export interface ErrorLike { message: string; code?: string; status?: number; details?: any; requestId?: string }
 
 const THEIRS = new Set([
   'invalid_audio', 'invalid_options', 'invalid_token', 'invalid_body', 'session_expired', 'forbidden',
@@ -33,10 +33,11 @@ export function describe(e: unknown): ErrorLike {
   const status: number | undefined = typeof any?.status === 'number' ? any.status : undefined;
   const details = any?.details;
   if (code || (status && status >= 400)) {
-    if (code && THEIRS.has(code) && typeof any?.message === 'string') return { message: any.message, code, status, details };
-    if (code === 'unavailable' && status === undefined) return { message: OFFLINE, code, details };
-    if (status === 0) return { message: typeof any?.message === 'string' ? any.message : OFFLINE, code, status, details };
-    return { message: (code && OURS[code]) || GENERIC, code, status, details };
+    const rid = typeof any?.requestId === 'string' && any.requestId ? { requestId: any.requestId as string } : {};
+    if (code && THEIRS.has(code) && typeof any?.message === 'string') return { message: any.message, code, status, details, ...rid };
+    if (code === 'unavailable' && status === undefined) return { message: OFFLINE, code, details, ...rid };
+    if (status === 0) return { message: typeof any?.message === 'string' ? any.message : OFFLINE, code, status, details, ...rid };
+    return { message: (code && OURS[code]) || GENERIC, code, status, details, ...rid };
   }
   const name: string = any?.name ?? '';
   if (name === 'TypeError' && /fetch|network|load failed/i.test(String(any?.message ?? ''))) {

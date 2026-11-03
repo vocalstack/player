@@ -145,17 +145,27 @@ export function FeedBar({ thumbRef }: { thumbRef: React.RefObject<HTMLDivElement
 export function Toast({ error, onClose }: { error: ErrorLike | null; onClose: () => void }) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
+  const [hover, setHover] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copiedT = useRef<number>();
+  useEffect(() => { setCopied(false); setHover(false); window.clearTimeout(copiedT.current); }, [error]);
+  useEffect(() => () => window.clearTimeout(copiedT.current), []);
   useEffect(() => {
-    if (!error) return;
-    const t = setTimeout(() => closeRef.current(), 8000);
+    if (!error || hover || copied) return;
+    const t = setTimeout(() => closeRef.current(), 10500);
     return () => clearTimeout(t);
-  }, [error]);
+  }, [error, hover, copied]);
   if (!error) return null;
+  const copy = () => {
+    const text = error.requestId ? `${error.message}\nRequest id: ${error.requestId}` : error.message;
+    void navigator.clipboard?.writeText(text).then(() => { setCopied(true); window.clearTimeout(copiedT.current); copiedT.current = window.setTimeout(() => setCopied(false), 1800); }, () => {});
+  };
   const credit = error.code === 'insufficient_credit' || error.code === 'quota_exceeded' || error.status === 402;
   return (
-    <div className="toast" role="alert">
+    <div className="toast" role="alert" onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}>
       <Icon d={D.warn} size={16} style={{ color: 'var(--conf-low)', flex: 'none' }} />
       <span style={{ flex: 1 }}>{error.message}{credit && <> <a href="https://app.vocalstack.com/billing" target="_blank" rel="noopener" className="dev-link" style={{ fontSize: 'inherit', fontWeight: 600, whiteSpace: 'nowrap' }}>Add credit</a></>}</span>
+      <button type="button" onClick={copy} aria-label={copied ? 'Copied' : 'Copy error'} title={copied ? 'Copied' : 'Copy error'}><Icon d={copied ? D.check : D.copy} size={14} /></button>
       <button type="button" onClick={onClose} aria-label="Dismiss"><Icon d={D.close} size={14} /></button>
     </div>
   );

@@ -97,7 +97,7 @@ export function useApi(o: ApiOptions): PlayerApi {
 }
 
 export function withMedia(api: PlayerApi, media: string | null): PlayerApi {
-  return media ? { ...api, cred: { media } } : api;
+  return media ? { ...api, cred: { ...api.cred, media } } : api;
 }
 
 export async function loadSource(api: PlayerApi, id: string): Promise<PlayerSource> {

@@ -206,7 +206,8 @@ export async function audioSealed(url: string): Promise<boolean> {
 
 export function deliveryAudioUrl(apiOrigin: string, recordingId: string, cred: MediaCred = {}): string {
   const q = new URLSearchParams({ kind: 'delivery', format: deliveryFormat() });
-  if (cred.accessToken) q.set('access_token', cred.accessToken);
+  if (cred.media) q.set('media', cred.media);
+  else if (cred.accessToken) q.set('access_token', cred.accessToken);
   if (cred.listenerToken) q.set('listenerToken', cred.listenerToken);
   if (cred.shareCode) q.set('shareCode', cred.shareCode);
   return `${apiOrigin}/v1/recordings/${recordingId}/audio?${q}`;
@@ -214,7 +215,8 @@ export function deliveryAudioUrl(apiOrigin: string, recordingId: string, cred: M
 
 export function backgroundAudioUrl(apiOrigin: string, recordingId: string, cred: MediaCred = {}, kind: 'background' | 'speech' = 'background'): string {
   const q = new URLSearchParams({ kind, format: deliveryFormat() });
-  if (cred.accessToken) q.set('access_token', cred.accessToken);
+  if (cred.media) q.set('media', cred.media);
+  else if (cred.accessToken) q.set('access_token', cred.accessToken);
   if (cred.listenerToken) q.set('listenerToken', cred.listenerToken);
   if (cred.shareCode) q.set('shareCode', cred.shareCode);
   return `${apiOrigin}/v1/recordings/${recordingId}/audio?${q}`;
@@ -223,7 +225,8 @@ export function backgroundAudioUrl(apiOrigin: string, recordingId: string, cred:
 export function audioDownloadUrl(apiOrigin: string, recordingId: string, kind: 'source' | 'delivery' | 'video', cred: MediaCred = {}): string {
   const q = new URLSearchParams({ kind });
   if (kind === 'delivery') q.set('format', 'mp3');
-  if (cred.accessToken) q.set('access_token', cred.accessToken);
+  if (cred.media) q.set('media', cred.media);
+  else if (cred.accessToken) q.set('access_token', cred.accessToken);
   if (cred.listenerToken) q.set('listenerToken', cred.listenerToken);
   if (cred.shareCode) q.set('shareCode', cred.shareCode);
   return `${apiOrigin}/v1/recordings/${recordingId}/audio?${q}`;
@@ -240,7 +243,8 @@ export function voiceTrackDownloadUrl(apiOrigin: string, recordingId: string, la
 function voiceTrackUrlAs(apiOrigin: string, recordingId: string, lang: string, voiceKey: string, format: 'ogg' | 'caf' | 'mp3', cred: MediaCred): string {
   const q = new URLSearchParams({ kind: 'voice', lang, format });
   if (voiceKey) q.set('voice', voiceKey);
-  if (cred.accessToken) q.set('access_token', cred.accessToken);
+  if (cred.media) q.set('media', cred.media);
+  else if (cred.accessToken) q.set('access_token', cred.accessToken);
   if (cred.listenerToken) q.set('listenerToken', cred.listenerToken);
   if (cred.shareCode) q.set('shareCode', cred.shareCode);
   return `${apiOrigin}/v1/recordings/${recordingId}/audio?${q}`;
