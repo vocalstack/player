@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { GrowBox, Sheet, Switch, Toggle } from '../ds/Controls';
 import { D, Icon } from '../ds/Icons';
 import { useLanguageList } from '../ds/LanguagePicker';
@@ -18,6 +18,8 @@ export interface IdlePrefs {
   muted: boolean;
 }
 
+const HINT_CODES = ['es', 'fr', 'ro', 'ja', 'pt'];
+
 export const IDLE_DEFAULTS: IdlePrefs = { lang: null, subtitles: true, speakerLabels: false, wordHighlight: true, translateAudio: true, voices: 'cloned', removeBackground: false, muted: false };
 
 type Page = 'main' | 'lang' | 'subs' | 'audio';
@@ -33,9 +35,46 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
   const list = useLanguageList({ open: sheet === 'lang' || (sheet === 'settings' && page === 'lang'), onClose: () => (sheet === 'lang' ? setSheet(null) : setPage('main')), value: prefs.lang, onSelect: pick, languages, none: 'As spoken', pinned: prefs.lang ? [prefs.lang] : [], recent, keepOpen: true });
   const close = () => { setSheet(null); setPage('main'); };
   const flag = prefs.lang ? <span style={{ fontSize: 19, lineHeight: 1 }}>{meta.flag}</span> : <Icon d={D.langAuto} size={19} sw={1.7} />;
+  const [hint, setHint] = useState(() => { try { return sessionStorage.getItem('vsp.langHint') !== 'false'; } catch { return true; } });
+  const dropHint = () => { setHint(false); try { sessionStorage.setItem('vsp.langHint', 'false'); } catch { } };
+  const hintLangs = useMemo(() => HINT_CODES.map((c) => languages.find((l) => l.code === c)).filter((l): l is (typeof languages)[number] => !!l), [languages]);
+  const tipRef = useRef<HTMLSpanElement>(null);
+  const [roomy, setRoomy] = useState(false);
+  useEffect(() => {
+    const root = tipRef.current?.closest('.gfull') ?? tipRef.current?.closest('.vsp');
+    if (!root) return;
+    const ro = new ResizeObserver(() => setRoomy(root.clientWidth >= 520 && root.clientHeight >= 300));
+    ro.observe(root);
+    return () => ro.disconnect();
+  }, []);
+  const hintOn = roomy && hint && !prefs.lang && sheet == null && hintLangs.length > 0;
+  const [hintIdx, setHintIdx] = useState(0);
+  useEffect(() => {
+    if (!hintOn) return;
+    const id = setInterval(() => setHintIdx((i) => i + 1), 1700);
+    return () => clearInterval(id);
+  }, [hintOn]);
+  const hintAt = hintLangs[hintIdx % Math.max(1, hintLangs.length)];
+  const openLang = () => { dropHint(); setPage('main'); setSheet('lang'); };
+  const bubble = hintOn && hintAt ? (
+    <div className="vsp-langhint" onClick={(e) => e.stopPropagation()}>
+      <button type="button" className="vsp-langhint__pick" onClick={openLang} aria-label="Choose a language">
+        <Icon d={D.language} size={16} sw={1.5} style={{ color: 'var(--brand)', flex: 'none' }} />
+        <span key={hintIdx} className="vsp-langhint__lang" style={{ animation: `vs-swap-${hintIdx % 2 ? 'a' : 'b'} .4s cubic-bezier(.2,.8,.2,1) both` }}>
+          <span className="vsp-langhint__flag">{hintAt.flag}</span>
+          <span className="vsp-langhint__name">{hintAt.native}</span>
+        </span>
+        <span className="vsp-langhint__dots">{hintLangs.map((o, i) => <span key={o.code} className={i === hintIdx % hintLangs.length ? 'is-on' : undefined} />)}</span>
+        <span className="vsp-langhint__count">100+</span>
+      </button>
+      <button type="button" className="vsp-langhint__close" aria-label="Dismiss" onClick={dropHint}><Icon d={D.close} size={14} sw={1.6} /></button>
+      <span className="vsp-langhint__arrow" />
+    </div>
+  ) : null;
   const chip = (
-    <span className="vsp-btip" data-tip={`Language: ${prefs.lang ? meta.label : 'As spoken'}`} data-open={sheet === 'lang' ? '' : undefined}>
-      <button type="button" className="gfull__btn" aria-label={`Language: ${prefs.lang ? meta.label : 'As spoken'}`} onClick={(e) => { e.stopPropagation(); setPage('main'); setSheet((s) => (s === 'lang' ? null : 'lang')); }}>{flag}</button>
+    <span ref={tipRef} className="vsp-btip" data-hint={bubble ? '' : undefined} data-tip={`Language: ${prefs.lang ? meta.label : 'As spoken'}`} data-open={sheet === 'lang' ? '' : undefined}>
+      <button type="button" className="gfull__btn" aria-label={`Language: ${prefs.lang ? meta.label : 'As spoken'}`} onClick={(e) => { e.stopPropagation(); dropHint(); setPage('main'); setSheet((s) => (s === 'lang' ? null : 'lang')); }}>{flag}</button>
+      {bubble}
     </span>
   );
   const chev = <Icon d={D.chevronRight} size={17} sw={1.6} style={{ flex: 'none', color: 'var(--ink-45)' }} />;
