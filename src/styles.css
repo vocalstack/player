@@ -1383,3 +1383,10 @@
 .vsp .vsp-end2__replay:hover{background:rgba(255,255,255,.14);color:#fff}
 @container (max-height:230px){.vsp .vsp-end2__note,.vsp .vsp-end2__mark{display:none}}
 .vsp .vsp-end2__mark{display:flex;line-height:0}
+.vsp .vsp-btip{position:relative;display:inline-flex}
+.vsp .vsp-btip::after,.vsp .vsp-btip::before{position:absolute;left:50%;opacity:0;pointer-events:none;transition:opacity .12s ease,transform .12s ease;z-index:70}
+.vsp .vsp-btip::after{content:attr(data-tip);bottom:calc(100% + 10px);transform:translate(-50%,4px);padding:6px 10px;border-radius:8px;background:rgba(10,11,28,.94);color:#eef0f8;font:500 12px/1.2 var(--vs-font-sans);white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.35)}
+.vsp .vsp-btip::before{content:'';bottom:calc(100% + 5px);width:10px;height:10px;margin-left:-5px;background:rgba(10,11,28,.94);transform:translateY(4px) rotate(45deg);border-radius:2px}
+@media (hover:hover){.vsp .vsp-btip:not([data-open]):hover::after{opacity:1;transform:translate(-50%,0)}.vsp .vsp-btip:not([data-open]):hover::before{opacity:1;transform:translateY(0) rotate(45deg)}}
+.vsp .vsp-btip:not([data-open]):has(:focus-visible)::after{opacity:1;transform:translate(-50%,0)}
+.vsp .vsp-btip:not([data-open]):has(:focus-visible)::before{opacity:1;transform:translateY(0) rotate(45deg)}

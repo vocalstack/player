@@ -34,7 +34,9 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
   const close = () => { setSheet(null); setPage('main'); };
   const flag = prefs.lang ? <span style={{ fontSize: 19, lineHeight: 1 }}>{meta.flag}</span> : <Icon d={D.langAuto} size={19} sw={1.7} />;
   const chip = (
-    <button type="button" className="gfull__btn" aria-label={`Language: ${prefs.lang ? meta.label : 'As spoken'}`} title={prefs.lang ? meta.label : 'As spoken'} onClick={(e) => { e.stopPropagation(); setPage('main'); setSheet((s) => (s === 'lang' ? null : 'lang')); }}>{flag}</button>
+    <span className="vsp-btip" data-tip={`Language: ${prefs.lang ? meta.label : 'As spoken'}`} data-open={sheet === 'lang' ? '' : undefined}>
+      <button type="button" className="gfull__btn" aria-label={`Language: ${prefs.lang ? meta.label : 'As spoken'}`} onClick={(e) => { e.stopPropagation(); setPage('main'); setSheet((s) => (s === 'lang' ? null : 'lang')); }}>{flag}</button>
+    </span>
   );
   const chev = <Icon d={D.chevronRight} size={17} sw={1.6} style={{ flex: 'none', color: 'var(--ink-45)' }} />;
   const back = (
