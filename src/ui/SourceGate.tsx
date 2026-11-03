@@ -6,6 +6,7 @@ import { FullVideo, type PlayerPos, type PlayerTransport } from './full';
 import { useDesk } from './useDesk';
 import { useIdleControls, type IdlePrefs } from './IdleSettings';
 import { shareLink } from './shared';
+import { ProviderGrid } from './Providers';
 
 export interface IdleState { prefs: IdlePrefs; set: (p: Partial<IdlePrefs>) => void; shareUrl?: string }
 
@@ -67,7 +68,7 @@ function Backdrop({ poster, src }: { poster: string | null; src: string | null }
   const img = poster ?? (yt ? `https://i.ytimg.com/vi/${yt}/hqdefault.jpg` : null);
   if (img) return <div className="vsp-idle__pic" style={{ backgroundImage: `url(${img})` }} />;
   if (src && isMedia(src)) return <video className="vsp-idle__pic vsp-idle__frame" src={`${src}#t=1`} muted playsInline preload="metadata" aria-hidden="true" />;
-  return <div className="vsp-idle__pic vsp-idle__pic--brand" />;
+  return <><div className="vsp-idle__pic vsp-idle__pic--brand" /><ProviderGrid /></>;
 }
 
 const NOW: PlayerPos = { live: false, atEdge: false, edgeFrac: null, pct: 0, atLabel: '0:00', labelAt: () => '0:00', endLabel: '0:00', onSeek: () => {} };

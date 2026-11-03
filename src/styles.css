@@ -1261,3 +1261,15 @@
 .vsp .vsp-idle__err{display:inline-flex;align-items:center;gap:8px;max-width:min(92cqw,460px);padding:8px 14px;border-radius:999px;background:rgba(5,6,21,.72);color:#f3c2b8;font-size:clamp(12px,2.2cqw,14px);line-height:1.35;text-align:left}
 .vsp .gfull.gfull--mini .gfull__sub,.vsp .gfull.gfull--mini .gfull__frame--land .gfull__sub{bottom:48px}
 .vsp .gfull.gfull--mini.gfull--calm .gfull__sub,.vsp .gfull.gfull--mini.gfull--calm .gfull__frame--land .gfull__sub{bottom:6px}
+.vsp .vsp-prov{position:absolute;inset:0;overflow:hidden;pointer-events:none;container-type:size;opacity:.62;-webkit-mask-image:radial-gradient(ellipse 44% 38% at 50% 46%,transparent 0%,rgba(0,0,0,.25) 45%,#000 100%);mask-image:radial-gradient(ellipse 44% 38% at 50% 46%,transparent 0%,rgba(0,0,0,.25) 45%,#000 100%)}
+.vsp .vsp-prov::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,6,21,.55),transparent 22%,transparent 72%,rgba(5,6,21,.7))}
+.vsp .vsp-prov__plane{--s:clamp(48px,15cqmin,92px);--g:clamp(10px,3cqmin,18px);position:absolute;left:50%;top:50%;display:flex;flex-direction:column;gap:var(--g);transform:translate(-50%,-50%) rotate(-10deg)}
+.vsp .vsp-prov__row{display:flex;width:max-content;animation:vsp-prov-drift 90s linear infinite;will-change:transform}
+.vsp .vsp-prov__row--rev{animation-direction:reverse}
+.vsp .vsp-prov__row:nth-child(even){margin-left:calc(var(--s) * -.55)}
+.vsp .vsp-prov__tile{flex:none;width:var(--s);height:var(--s);margin-right:var(--g);border-radius:24%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:calc(var(--s) * .07);color:var(--tint);background:linear-gradient(155deg,rgba(255,255,255,.13),rgba(255,255,255,.035) 60%),rgba(9,10,28,.35);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1),inset 0 1px 0 rgba(255,255,255,.12),0 10px 28px rgba(0,0,0,.28)}
+.vsp .vsp-prov__tile svg{flex:none;width:42%;height:42%;filter:drop-shadow(0 0 10px color-mix(in srgb,var(--tint) 45%,transparent))}
+.vsp .vsp-prov__name{font-family:var(--vs-font-sans);font-size:calc(var(--s) * .125);font-weight:600;letter-spacing:.01em;line-height:1;color:rgba(238,240,248,.62);white-space:nowrap}
+@container (max-height:220px){.vsp .vsp-prov__name{display:none}}
+@keyframes vsp-prov-drift{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.vsp .vsp-prov__row{animation:none}}
