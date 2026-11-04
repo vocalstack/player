@@ -14,4 +14,4 @@ export { useBackgroundBed, useSeparatedTrack, bedNote, trackPlan, REMOVE_BG_LABE
 export { snapPosition, placePosition, type PlayPos } from './core/playPosition';
 export { SITES, siteOf, siteById, hostOfUrl, type Site, type SiteId } from './core/sites';
 export { SiteIcon } from './ui/SiteIcon';
-export { hasEmbed, sourceVideoUrl } from './core/embeds';
+export { hasEmbed, linkVideoFile, sourceVideoUrl } from './core/embeds';

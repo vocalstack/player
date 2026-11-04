@@ -177,6 +177,14 @@ export function sourceVideoUrl(src: { kind?: string; url?: string | null; site?:
   return urlFromEmbed(src.site, src.embedId) ?? src.url ?? null;
 }
 
+const FILE_HOSTS = /^(upload\.wikimedia\.org|archive\.org|[\w-]+\.us\.archive\.org)$/i;
+
+export function linkVideoFile(raw: string | null | undefined): string | null {
+  const v = raw?.trim();
+  const x = v && /^https:\/\//i.test(v) ? u(v) : null;
+  return x && FILE_HOSTS.test(x.hostname) && /\.(webm|mp4|m4v|mov|ogv|mkv)$/i.test(x.pathname) ? v! : null;
+}
+
 export function wistiaId(raw: string): string | null {
   const x = u(raw);
   if (!x) return null;

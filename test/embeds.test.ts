@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { embedUrl, loomId, vimeoIds, dailymotionId, twitchTarget } from '../src/core/embeds.ts';
+import { embedUrl, linkVideoFile, loomId, vimeoIds, dailymotionId, twitchTarget } from '../src/core/embeds.ts';
 
 test('embed ids come out of site links', () => {
   assert.equal(loomId('https://www.loom.com/share/29a5fc11a57846f5ab5a81ef1e24e16d'), '29a5fc11a57846f5ab5a81ef1e24e16d');
@@ -65,4 +65,16 @@ test('more site embeds', async () => {
   assert.match(embedUrl('https://odysee.com/@Mantega:1/First-day-in-SF:1', { t: 5, play: true })!, /odysee\.com\/\$\/embed\/@Mantega:1\/First-day-in-SF:1/);
   assert.match(embedUrl('https://fast.wistia.net/embed/iframe/abc123xyz', { t: 0, play: false })!, /fast\.wistia\.net\/embed\/iframe\/abc123xyz/);
   assert.equal(urlFromEmbed('ted', 'some_talk'), 'https://www.ted.com/talks/some_talk');
+});
+
+test('a video file on a public host is played from that host', () => {
+  const w = 'https://upload.wikimedia.org/wikipedia/commons/transcoded/4/4a/Die_Geschichte_des_Geldes.webm/Die_Geschichte_des_Geldes.webm.480p.vp9.webm';
+  assert.equal(linkVideoFile(w), w);
+  assert.equal(linkVideoFile('https://archive.org/download/talk/talk.mp4'), 'https://archive.org/download/talk/talk.mp4');
+  assert.equal(linkVideoFile('https://ia800300.us.archive.org/1/items/talk/talk.ogv'), 'https://ia800300.us.archive.org/1/items/talk/talk.ogv');
+  assert.equal(linkVideoFile('https://commons.wikimedia.org/wiki/File:Die_Geschichte_des_Geldes.webm'), null);
+  assert.equal(linkVideoFile('https://upload.wikimedia.org/wikipedia/commons/a/a1/Talk.mp3'), null);
+  assert.equal(linkVideoFile('https://example.com/talk.mp4'), null);
+  assert.equal(linkVideoFile('http://upload.wikimedia.org/x/talk.webm'), null);
+  assert.equal(linkVideoFile(null), null);
 });
