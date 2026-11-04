@@ -1183,6 +1183,22 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   };
 }
 
+function hitParts(text: string, terms: string[]): React.ReactNode {
+  if (!terms.length) return text;
+  const low = text.toLowerCase();
+  const on = new Array<boolean>(text.length).fill(false);
+  for (const n of terms) for (let k = low.indexOf(n); k >= 0; k = low.indexOf(n, k + 1)) on.fill(true, k, k + n.length);
+  if (!on.includes(true)) return text;
+  const out: React.ReactNode[] = [];
+  let a = 0;
+  for (let b = 1; b <= text.length; b++) {
+    if (b < text.length && on[b] === on[a]) continue;
+    out.push(on[a] ? <mark key={a} className="txhit">{text.slice(a, b)}</mark> : text.slice(a, b));
+    a = b;
+  }
+  return out;
+}
+
 export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord, onFix, fixMode, fixingId, marks = true, fixBadges = true, tail, tailFg, running, desk, feedRef, listener, showLabels, find, findOpen, lang, warm, onVisible, wordHl = true }: { model: Model; rows: Row[]; player: TxPlayer; fixed?: Set<string>; applied?: Correction[]; onFixOpen?: (r: Row, hist: boolean) => void; onWord?: (r: Row, w: Word) => void; onFix?: (r: Row) => void; fixMode?: boolean; fixingId?: string | null; marks?: boolean; fixBadges?: boolean; tail: string; tailFg: string; running?: boolean; desk: boolean; feedRef: React.RefObject<HTMLDivElement>; listener?: boolean; showLabels: boolean; find?: string; findOpen?: boolean; lang?: string | null ; warm?: boolean; onVisible?: (ids: number[]) => void; wordHl?: boolean }) {
   const { playing, engaged, t, idx, seekN, wordSync, clipPos } = player;
   useDragScroll(true, feedRef);
@@ -1333,16 +1349,15 @@ export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord
                 const fx = !tr && !listener && (!!fixed?.has(key) || !!w.script);
                 const dash = !tr && !listener && marks && !!c && !fx;
                 const half = dash ? (c === 'low' ? 'var(--conf-low-half)' : 'var(--conf-mid-half)') : null;
-                const hit = hitTerms.length > 0 && hitTerms.some((n) => w.text.toLowerCase().includes(n));
-                const fg = hit || fx ? 'var(--brand)' : ahead ? 'var(--ink-40)' : half ?? 'var(--ink-96)';
+                const fg = fx ? 'var(--brand)' : ahead ? 'var(--ink-40)' : half ?? 'var(--ink-96)';
                 return (
                   <span key={key + j}>
                     <span
-                      className={`txw${hit ? ' w--hit' : ''}`}
+                      className="txw"
                       title={onWord && !tr ? (fixMode ? 'Correct this word' : on ? (playing && player.seekWord ? 'Play from this word' : 'Play from this line') : 'Play from this line') : on ? '' : 'Play from this line'}
                       onClick={onWord && !tr ? (e) => { e.stopPropagation(); if (fixMode) { onWord(r, w); return; } if (playing && on) { player.seekWord?.(w); return; } player.playRow(i); } : undefined}
                       style={{ color: fg, opacity: ahead ? 0.45 : 1, fontWeight: 300, cursor: onWord && !tr ? (fixMode || !on || !playing || player.seekWord ? 'pointer' : 'default') : on ? 'default' : 'pointer', textShadow: at ? '0 0 2px currentColor, 0 0 4px currentColor' : 'none', textDecorationLine: dash || fx ? 'underline' : 'none', textDecorationStyle: fx ? 'solid' : 'dotted', textDecorationColor: fx ? 'var(--brand)' : half ?? 'currentColor', textDecorationThickness: dash || fx ? '1.5px' : undefined, textUnderlineOffset: dash || fx ? '3px' : undefined }}
-                    >{w.text}</span>
+                    >{hitParts(w.text, hitTerms)}</span>
                     <span style={{ whiteSpace: 'pre-wrap' }}> </span>
                   </span>
                 );

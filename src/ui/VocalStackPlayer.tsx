@@ -95,6 +95,8 @@ export interface VocalStackPlayerProps {
   settings?: PlayerSettings;
   initial?: PlayerSettings;
   onSettingsChange?: (s: Required<PlayerSettings>) => void;
+  find?: string;
+  onFindChange?: (q: string) => void;
   controls?: PlayerControls;
   autoplay?: boolean;
   startAt?: number | null;
@@ -228,8 +230,11 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const [error, setError] = useState<ErrorLike | null>(props.loadError);
   useEffect(() => { if (props.loadError) setError(props.loadError); }, [props.loadError]);
   const [tab, setTab] = useState<PubTab | 'none'>('none');
-  const [find, setFind] = useState(false);
-  const [findQ, setFindQ] = useState('');
+  const [find, setFind] = useState(!!props.find);
+  const [findQ, setFindQ] = useState(props.find ?? '');
+  const onFindChange = useRef(props.onFindChange); onFindChange.current = props.onFindChange;
+  const findSeen = useRef(findQ);
+  useEffect(() => { const q = find ? findQ : ''; if (q === findSeen.current) return; findSeen.current = q; onFindChange.current?.(q); }, [find, findQ]);
   const [flash, doFlash] = useFlash();
   const [live, setLive] = useState<TxProgress | null>(null);
   const [mode, setMode] = useState<'read' | 'listen'>(locked ? 'listen' : 'read');
