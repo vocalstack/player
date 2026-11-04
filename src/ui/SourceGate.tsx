@@ -71,6 +71,7 @@ function Backdrop({ poster, src }: { poster: string | null; src: string | null }
   const yt = src && siteOf(src)?.id === 'youtube' ? ytIdOf(src) : null;
   const img = poster ?? (yt ? `https://i.ytimg.com/vi/${yt}/hqdefault.jpg` : null);
   if (img) return <div className="vsp-idle__pic" style={{ backgroundImage: `url(${img})` }} />;
+  if (src && siteOf(src)?.id === 'facebook') return <iframe className="vsp-idle__pic vsp-idle__fb" src={`https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(src)}&autoplay=false&mute=true&show_text=false&width=560&height=315`} title="" tabIndex={-1} aria-hidden="true" loading="lazy" />;
   if (src && isMedia(src)) return <video className="vsp-idle__pic vsp-idle__frame" src={`${src}#t=1`} muted playsInline preload="metadata" aria-hidden="true" />;
   return <><div className="vsp-idle__pic vsp-idle__pic--brand" /><ProviderGrid /></>;
 }
