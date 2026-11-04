@@ -127,6 +127,7 @@ export function useSource(api: PlayerApi, id: string): { source: PlayerSource | 
   const [error, setError] = useState<ErrorLike | null>(null);
   const [n, setN] = useState(0);
   useEffect(() => {
+    if (!id) { setSource(null); setGone(false); setError(null); return; }
     let alive = true;
     loadSource(api, id)
       .then((s) => { if (alive) { setSource(s); setGone(false); setError(null); } })
