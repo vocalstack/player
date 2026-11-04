@@ -16,15 +16,45 @@ export interface IdlePrefs {
   voices: 'cloned' | 'synthetic';
   removeBackground: boolean;
   muted: boolean;
+  spoken: string | null;
+  speakers: 'auto' | 'on' | 'off';
+}
+
+export const CLONE_CONSENT_KEY = 'vsp.cloneConsent';
+export const hasCloneConsent = () => { try { return sessionStorage.getItem(CLONE_CONSENT_KEY) === '1'; } catch { return false; } };
+export const grantCloneConsent = () => { try { sessionStorage.setItem(CLONE_CONSENT_KEY, '1'); } catch { } };
+
+export function CloneConsent({ onYes, onNo }: { onYes: () => void; onNo: () => void }) {
+  return (
+    <div className="gfull__consent" role="dialog" aria-modal="true" aria-labelledby="vsp-consent-t" onClick={(e) => { e.stopPropagation(); onNo(); }} onPointerDown={(e) => e.stopPropagation()}>
+      <div className="gfull__consentcard" onClick={(e) => e.stopPropagation()}>
+        <div id="vsp-consent-t" className="gfull__consenthead"><Icon d={D.voiceClone} size={18} sw={1.6} />Use cloned voices?</div>
+        <p>A cloned voice reads each speaker's own words, translated into your language, in a copy of that speaker's voice. It never says anything they didn't say.</p>
+        <p>Only turn it on if the people speaking agreed to have their voices cloned.</p>
+        <div className="gfull__consentbtns">
+          <button type="button" className="gfull__consentno" onClick={onNo}>Not now</button>
+          <button type="button" className="gfull__consentyes" autoFocus onClick={onYes}>They agreed, use cloned voices</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function CloneToggle({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <button type="button" role="switch" aria-checked={on} className={`gfull__clone${on ? ' gfull__clone--on' : ''}`} onClick={(e) => { e.stopPropagation(); onChange(!on); }}>
+      <Icon d={D.voiceClone} size={15} sw={1.6} /><span>Voice cloning</span><span className="gfull__clonesw" aria-hidden="true"><i /></span>
+    </button>
+  );
 }
 
 const HINT_CODES = ['es', 'fr', 'ro', 'ja', 'pt'];
 
-export const IDLE_DEFAULTS: IdlePrefs = { lang: null, subtitles: true, speakerLabels: false, wordHighlight: true, translateAudio: true, voices: 'cloned', removeBackground: false, muted: false };
+export const IDLE_DEFAULTS: IdlePrefs = { lang: null, subtitles: true, speakerLabels: false, wordHighlight: true, translateAudio: true, voices: 'synthetic', removeBackground: false, muted: false, spoken: null, speakers: 'off' };
 
-type Page = 'main' | 'lang' | 'subs' | 'audio';
+type Page = 'main' | 'lang' | 'subs' | 'audio' | 'tx' | 'spoken';
 
-export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) => void) {
+export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) => void, pre = false) {
   const langs = useLanguages();
   const [recent, pushRecent] = useRecentLangs();
   const [sheet, setSheet] = useState<'settings' | 'lang' | null>(null);
@@ -34,6 +64,19 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
   const pick = (c: string | null) => { set({ lang: c }); pushRecent(c); };
   const list = useLanguageList({ open: sheet === 'lang' || (sheet === 'settings' && page === 'lang'), onClose: () => (sheet === 'lang' ? setSheet(null) : setPage('main')), value: prefs.lang, onSelect: pick, languages, none: 'As spoken', pinned: prefs.lang ? [prefs.lang] : [], recent, keepOpen: true });
   const close = () => { setSheet(null); setPage('main'); };
+  const spokenLangs = useMemo(() => pickerLanguages(langs, 'transcription'), [langs]);
+  const spokenMeta = langMeta(langs, prefs.spoken);
+  const spokenList = useLanguageList({ open: sheet === 'settings' && page === 'spoken', onClose: () => setPage('tx'), value: prefs.spoken, onSelect: (c: string | null) => { set({ spoken: c }); setPage('tx'); }, languages: spokenLangs, none: 'Auto detect', pinned: prefs.spoken ? [prefs.spoken] : [], recent: [], keepOpen: true });
+  const [asking, setAsking] = useState(false);
+  const setVoices = (v: 'cloned' | 'synthetic') => {
+    if (v === 'synthetic') { set({ voices: 'synthetic' }); return; }
+    if (hasCloneConsent()) set({ voices: 'cloned', ...(prefs.speakers === 'off' ? { speakers: 'auto' as const } : null) });
+    else setAsking(true);
+  };
+  const grant = () => { grantCloneConsent(); setAsking(false); set({ voices: 'cloned', ...(prefs.speakers === 'off' ? { speakers: 'auto' as const } : null) }); };
+  const setSpeakers = (v: 'auto' | 'on' | 'off') => set({ speakers: v, ...(v === 'off' && prefs.voices === 'cloned' ? { voices: 'synthetic' as const } : null) });
+  const cloning = prefs.voices === 'cloned' && hasCloneConsent();
+  const txSummary = [cloning ? 'Cloned voices' : 'Synthetic voices', prefs.spoken ? spokenMeta.label : 'Auto detect', prefs.speakers === 'off' ? 'No speaker labels' : prefs.speakers === 'on' ? 'Speaker labels' : 'Speaker labels when needed'].join(' · ');
   const flag = prefs.lang ? <span style={{ fontSize: 19, lineHeight: 1 }}>{meta.flag}</span> : <Icon d={D.langAuto} size={19} sw={1.7} />;
   const [hint, setHint] = useState(() => { try { return sessionStorage.getItem('vsp.langHint') !== 'false'; } catch { return true; } });
   const dropHint = () => { setHint(false); try { sessionStorage.setItem('vsp.langHint', 'false'); } catch { } };
@@ -94,7 +137,22 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
       {list.list}
     </div>
   );
-  const settingsBody = page === 'lang' ? langList : page === 'subs' ? (
+  const spokenPicker = (
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 1, padding: '4px 14px 10px', background: 'var(--vs-surface-raised)' }}>{spokenList.search}</div>
+      {spokenList.list}
+    </div>
+  );
+  const txBody = (
+    <div style={body} className="vsp-txopts">
+      {row('Voice cloning', cloning ? 'Every speaker sounds like themselves in every language' : 'Listeners hear a generic synthetic voice', <Switch<'synthetic' | 'cloned'> value={cloning ? 'cloned' : 'synthetic'} onChange={setVoices} size="sm" options={[{ value: 'synthetic', label: 'Synthetic' }, { value: 'cloned', label: 'Cloned' }]} />)}
+      <div className="sdiv" />
+      {row('Spoken language', prefs.spoken ? `Everything is heard as ${spokenMeta.label}` : 'Each segment gets its own detected language', <Switch<'auto' | 'custom'> value={prefs.spoken ? 'custom' : 'auto'} onChange={(v) => (v === 'auto' ? set({ spoken: null }) : setPage('spoken'))} size="sm" options={[{ value: 'auto', label: 'Auto detect' }, { value: 'custom', label: prefs.spoken ? `${spokenMeta.flag} ${spokenMeta.label}` : 'Custom' }]} />)}
+      <div className="sdiv" />
+      {row('Speaker labels', prefs.speakers === 'off' ? 'The transcript is plain text' : prefs.speakers === 'on' ? 'Each line is labelled with its speaker' : 'Labelled only when more than one person speaks', <Switch<'auto' | 'on' | 'off'> value={prefs.speakers} onChange={setSpeakers} size="sm" options={[{ value: 'auto', label: 'When needed' }, { value: 'on', label: 'On' }, { value: 'off', label: 'Off' }]} />)}
+    </div>
+  );
+  const settingsBody = page === 'tx' ? txBody : page === 'spoken' ? spokenPicker : page === 'lang' ? langList : page === 'subs' ? (
     <div style={body}>
       {row('Show subtitles', 'Captions over the video', <Toggle checked={prefs.subtitles} onChange={(v) => set({ subtitles: v })} label="Show subtitles" />)}
       {row('Show speaker labels', 'Who is speaking, before each line', <Toggle checked={prefs.speakerLabels} onChange={(v) => set({ speakerLabels: v })} label="Show speaker labels" />)}
@@ -103,11 +161,17 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
   ) : page === 'audio' ? (
     <div style={body}>
       {row('Translate audio', prefs.lang ? 'Hear the translation read aloud instead of the original speech' : 'Pick a language to hear the translation read aloud', <Toggle checked={prefs.translateAudio && !!prefs.lang} onChange={(v) => set({ translateAudio: v })} label="Translate audio" disabled={!prefs.lang} />)}
-      {row('Voices', prefs.voices === 'cloned' ? 'Each speaker in their own cloned voice, where they agreed to it' : 'Synthetic voices matched to each speaker', <Switch<'synthetic' | 'cloned'> value={prefs.voices} onChange={(v) => set({ voices: v })} size="sm" options={[{ value: 'synthetic', label: 'Synthetic' }, { value: 'cloned', label: 'Cloned' }]} />)}
+      {row('Voices', cloning ? 'Each speaker in their own cloned voice, where they agreed to it' : 'Synthetic voices matched to each speaker', <Switch<'synthetic' | 'cloned'> value={cloning ? 'cloned' : 'synthetic'} onChange={setVoices} size="sm" options={[{ value: 'synthetic', label: 'Synthetic' }, { value: 'cloned', label: 'Cloned' }]} />)}
       {row(REMOVE_BG_LABEL, "Takes out everything that isn't speech: music, ambience and noise.", <Toggle checked={prefs.removeBackground} onChange={(v) => set({ removeBackground: v })} label={REMOVE_BG_LABEL} />)}
     </div>
   ) : (
     <div style={body}>
+      {pre && <>
+        <div className="srow srow--tap" role="button" onClick={() => setPage('tx')}>
+          <div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">Transcription</div><div className="srow__s">{txSummary}</div></div>{chev}
+        </div>
+        <div className="sdiv" />
+      </>}
       <div className="srow srow--tap" role="button" onClick={() => setPage('lang')}>
         <div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">Language</div><div className="srow__s">{prefs.lang ? `Translated to ${meta.label}` : 'Original language'}</div></div>
         <span style={{ fontSize: 18, lineHeight: 1 }}>{prefs.lang ? meta.flag : null}</span>{chev}
@@ -118,7 +182,7 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
       </div>
       <div className="sdiv" />
       <div className="srow srow--tap" role="button" onClick={() => setPage('audio')}>
-        <div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">Audio</div><div className="srow__s">{prefs.lang && prefs.translateAudio ? `Translated, ${prefs.voices === 'cloned' ? 'cloned voices' : 'synthetic voices'}` : prefs.removeBackground ? 'Original speech, background removed' : 'Original sound'}</div></div>{chev}
+        <div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">Audio</div><div className="srow__s">{prefs.lang && prefs.translateAudio ? `Translated, ${cloning ? 'cloned voices' : 'synthetic voices'}` : prefs.removeBackground ? 'Original speech, background removed' : 'Original sound'}</div></div>{chev}
       </div>
     </div>
   );
@@ -127,7 +191,7 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
       <Sheet open={sheet === 'lang'} onClose={close} title="LANGUAGE" kind="picker" header={list.search} sticky>
         <GrowBox>{list.list}</GrowBox>
       </Sheet>
-      <Sheet open={sheet === 'settings'} onClose={close} title={{ main: 'SETTINGS', lang: 'LANGUAGE', subs: 'SUBTITLES', audio: 'AUDIO' }[page]} titleNode={page === 'main' ? undefined : back} kind={page === 'main' ? 'settings' : 'settings vs-sheet--page'} sticky>
+      <Sheet open={sheet === 'settings'} onClose={close} title={{ main: 'SETTINGS', lang: 'LANGUAGE', subs: 'SUBTITLES', audio: 'AUDIO', tx: 'TRANSCRIPTION', spoken: 'SPOKEN LANGUAGE' }[page]} titleNode={page === 'main' ? undefined : page === 'spoken' ? <span className="vs-sheet__title" style={{ position: 'relative' }}>{' '}<button type="button" onClick={() => setPage('tx')} aria-label="Back" className="vsp-idlesheet__back"><Icon d={D.chevronLeft} size={18} sw={1.8} />Back</button></span> : back} kind={page === 'main' ? 'settings' : 'settings vs-sheet--page'} sticky>
         <GrowBox>{settingsBody}</GrowBox>
       </Sheet>
     </>
@@ -137,5 +201,9 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
     sheets,
     sheetOpen: sheet != null,
     openSettings: () => { setPage('main'); setSheet((s) => (s === 'settings' ? null : 'settings')); },
+    openTx: () => { setPage('tx'); setSheet('settings'); },
+    txSummary,
+    cloneToggle: pre ? <CloneToggle on={cloning} onChange={(on) => setVoices(on ? 'cloned' : 'synthetic')} /> : null,
+    modal: asking ? <CloneConsent onYes={grant} onNo={() => setAsking(false)} /> : null,
   };
 }

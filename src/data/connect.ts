@@ -11,7 +11,7 @@ function nonce(): string {
   return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-export function openPopup(appUrl: string | undefined, ask: { url?: string; transcription?: string; ask?: boolean; connect?: boolean }, onStatus?: (s: PopupStatus) => void): Promise<Started | 'connected' | null> {
+export function openPopup(appUrl: string | undefined, ask: { url?: string; transcription?: string; ask?: boolean; connect?: boolean; tx?: { voices: 'cloned' | 'synthetic'; spoken: string | null; speakers: 'auto' | 'on' | 'off' } }, onStatus?: (s: PopupStatus) => void): Promise<Started | 'connected' | null> {
   const app = new URL(appUrl ?? DEFAULT_APP);
   const n = nonce();
   const u = new URL(PATH, app);
@@ -19,6 +19,12 @@ export function openPopup(appUrl: string | undefined, ask: { url?: string; trans
   if (ask.transcription) u.searchParams.set('transcription', ask.transcription);
   if (ask.ask) u.searchParams.set('ask', '1');
   if (ask.connect) u.searchParams.set('connect', '1');
+  if (ask.url && ask.tx) {
+    u.searchParams.set('voices', ask.tx.voices);
+    if (ask.tx.voices === 'cloned') u.searchParams.set('consent', '1');
+    if (ask.tx.spoken) u.searchParams.set('spoken', ask.tx.spoken);
+    u.searchParams.set('labels', ask.tx.speakers);
+  }
   u.searchParams.set('origin', window.location.origin);
   u.searchParams.set('nonce', n);
   const w = 480, h = 640;

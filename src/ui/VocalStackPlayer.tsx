@@ -33,7 +33,7 @@ import { EndCard, type EndCardOptions } from './EndCard';
 import type { Started } from '../data/connect';
 import { useDesk } from './useDesk';
 import { ErrorGate, SourceGate, StartCard, useConnect, type IdleState } from './SourceGate';
-import { IDLE_DEFAULTS, type IdlePrefs } from './IdleSettings';
+import { CloneConsent, IDLE_DEFAULTS, grantCloneConsent, hasCloneConsent, type IdlePrefs } from './IdleSettings';
 import { useLookup } from '../data/lookup';
 
 export interface PlayerSettings {
@@ -155,7 +155,7 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
   const [idlePrefs, setIdlePrefs] = useState<IdlePrefs>(() => ({ ...IDLE_DEFAULTS, ...Object.fromEntries(Object.entries({ ...(props.initial ?? {}), ...(props.settings ?? {}) }).filter(([, v]) => v !== undefined)) } as IdlePrefs));
   const [touched, setTouched] = useState<Partial<IdlePrefs>>({});
   const idle: IdleState = { prefs: idlePrefs, set: (p) => { setIdlePrefs((x) => ({ ...x, ...p })); setTouched((x) => ({ ...x, ...p })); }, shareUrl: props.shareUrl?.(null) };
-  const { muted: idleMuted, ...idleChosen } = touched;
+  const { muted: idleMuted, spoken: _spoken, speakers: _speakers, ...idleChosen } = touched;
   useEffect(() => { setTyped(null); }, [props.id, props.src]);
   const gateSrc = props.src ?? typed;
   const gate = !cur.id && !!gateSrc && (typed != null || found !== undefined);
@@ -225,11 +225,11 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const [ccOn, setCcOn] = useState(init.cc);
   const [speakOn, setSpeakOn] = useState(init.translateAudio);
   const [cloneOn, setCloneOn] = useState(init.clonedVoices);
-  const [consent, setConsent] = useState(() => { try { return sessionStorage.getItem('vsp.cloneConsent') === '1'; } catch { return false; } });
+  const [consent, setConsent] = useState(hasCloneConsent);
   const [askConsent, setAskConsent] = useState(false);
   const cloning = cloneOn && consent;
   const wantClone = (on: boolean) => { if (!on) { setCloneOn(false); return; } if (consent) setCloneOn(true); else setAskConsent(true); };
-  const grantClone = () => { setConsent(true); try { sessionStorage.setItem('vsp.cloneConsent', '1'); } catch { } setCloneOn(true); setAskConsent(false); };
+  const grantClone = () => { setConsent(true); grantCloneConsent(); setCloneOn(true); setAskConsent(false); };
   const [removeBg, setRemoveBg] = useState(init.removeBackground);
   const fixed = props.settings;
   useEffect(() => { if (fixed?.lang !== undefined) setTxLang(fixed.lang); }, [fixed?.lang]);
@@ -674,20 +674,8 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   );
 
   const fullEl = full && watching && (!!ytId || locked) && (
-    <FullVideo topLeft={speakOn ? <button type="button" role="switch" aria-checked={cloning} className={`gfull__clone${cloning ? ' gfull__clone--on' : ''}`} onClick={(e) => { e.stopPropagation(); wantClone(!cloning); }}><Icon d={D.voiceClone} size={15} sw={1.6} /><span>Voice cloning</span><span className="gfull__clonesw" aria-hidden="true"><i /></span></button> : undefined}
-      modal={askConsent ? (
-        <div className="gfull__consent" role="dialog" aria-modal="true" aria-labelledby="vsp-consent-t" onClick={(e) => { e.stopPropagation(); setAskConsent(false); }} onPointerDown={(e) => e.stopPropagation()}>
-          <div className="gfull__consentcard" onClick={(e) => e.stopPropagation()}>
-            <div id="vsp-consent-t" className="gfull__consenthead"><Icon d={D.voiceClone} size={18} sw={1.6} />Use cloned voices?</div>
-            <p>A cloned voice reads each speaker's own words, translated into your language, in a copy of that speaker's voice. It never says anything they didn't say.</p>
-            <p>Only turn it on if the people speaking agreed to have their voices cloned.</p>
-            <div className="gfull__consentbtns">
-              <button type="button" className="gfull__consentno" onClick={() => setAskConsent(false)}>Not now</button>
-              <button type="button" className="gfull__consentyes" autoFocus onClick={grantClone}>They agreed, use cloned voices</button>
-            </div>
-          </div>
-        </div>
-      ) : undefined}
+    <FullVideo
+      modal={askConsent ? <CloneConsent onYes={grantClone} onNo={() => setAskConsent(false)} /> : undefined}
       page={(props.layout ?? 'embed') === 'page'} picture={picture} title={name} desk={desk} pos={pos} mute={{ muted: player.muted, onToggle: toggleSound }} cc={ctl.subtitles ? { on: ccOn, onToggle: () => setCcOn((v) => !v) } : undefined} noFull={!ctl.fullscreen} ad={adOn} wait={waitState && !softWait ? <PlayerWait state={waitState} line={voiceHolds ? subWords.map((w) => w.t + w.sp).join('') : null} onRetry={waitRetry} onOriginal={waitOriginal} /> : player.edgeWait ? `Transcribing ${Math.round(pct)}% — it plays on as more is written` : null} pct={running ? Math.round(pct) : null}
       sub={ccOn && subRow ? { who: subLook ? speakerLabel(model, subRow.speaker) : null, color: subLook ? subLook.fg ?? `var(--lane-${subLook.lane})` : '#fff', words: subWords, cursor: spokenWordOf(player, player.idx, subLine) } : null}
       chip={chipFor(desk ? glassChip : { ...glassChip, width: 64, padding: '0 6px' }, desk ? undefined : 'sm')} transport={transport}

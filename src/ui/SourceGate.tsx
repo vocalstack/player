@@ -5,7 +5,7 @@ import { siteOf } from '../core/sites';
 import { openPopup, rememberConnected, wasConnected, type PopupStatus, type Started } from '../data/connect';
 import { FullVideo, type PlayerPos, type PlayerTransport } from './full';
 import { useDesk } from './useDesk';
-import { useIdleControls, type IdlePrefs } from './IdleSettings';
+import { hasCloneConsent, useIdleControls, type IdlePrefs } from './IdleSettings';
 import { shareLink } from './shared';
 import { shareCodeOf } from '../core/share';
 import { ProviderGrid } from './Providers';
@@ -27,13 +27,15 @@ export function hostOf(src: string): string {
   try { return new URL(src).hostname.replace(/^www\./, ''); } catch { return src; }
 }
 
+export interface TxChoice { voices: 'cloned' | 'synthetic'; spoken: string | null; speakers: 'auto' | 'on' | 'off' }
+
 export interface Connect {
   busy: boolean;
   status: PopupStatus | null;
   err: string | null;
   connected: boolean;
   connect: () => void;
-  start: (url: string, ask: boolean) => void;
+  start: (url: string, ask: boolean, opts?: TxChoice) => void;
   clear: () => void;
 }
 
@@ -58,7 +60,7 @@ export function useConnect(appUrl: string | undefined, onReady: (s: Started) => 
       .finally(() => { setBusy(false); setStatus(null); });
   }, [appUrl, busy, onReady]);
   const connect = useCallback(() => run({ connect: true }), [run]);
-  const start = useCallback((url: string, ask: boolean) => run({ url, ask }), [run]);
+  const start = useCallback((url: string, ask: boolean, opts?: TxChoice) => run({ url, ask, ...(opts ? { tx: opts } : null) }), [run]);
   const clear = useCallback(() => setErr(null), []);
   return { busy, status, err, connected, connect, start, clear };
 }
@@ -78,8 +80,8 @@ function Backdrop({ poster, src }: { poster: string | null; src: string | null }
 
 const NOW: PlayerPos = { live: false, atEdge: false, edgeFrac: null, pct: 0, atLabel: '0:00', labelAt: () => '0:00', endLabel: '0:00', onSeek: () => {} };
 
-function IdlePlayer({ idle, poster, src, title, page, onAct, children }: { idle: IdleState; poster: string | null; src: string | null; title: string; page: boolean; onAct: () => void; children: ReactNode }) {
-  const ctl = useIdleControls(idle.prefs, idle.set);
+function IdlePlayer({ idle, poster, src, title, page, onAct, children, pre = false }: { idle: IdleState; poster: string | null; src: string | null; title: string; page: boolean; onAct: () => void; children: ReactNode | ((ctl: ReturnType<typeof useIdleControls>) => ReactNode); pre?: boolean }) {
+  const ctl = useIdleControls(idle.prefs, idle.set, pre);
   const desk = useDesk();
   const box = useRef<HTMLDivElement>(null);
   const [small, setSmall] = useState(false);
@@ -96,8 +98,8 @@ function IdlePlayer({ idle, poster, src, title, page, onAct, children }: { idle:
   const transport: PlayerTransport = { prevOn: false, nextOn: false, onPrev: () => {}, onNext: () => {}, playing: false, playable: true, playTitle: 'Connect to play', onPlay: onAct };
   return (
     <div ref={box} className={`vsp-idleroot${small ? ' vsp-idleroot--small' : ''}`}>
-      <FullVideo page={page} picture={<Backdrop poster={poster} src={src} />} title={title} desk={desk} pos={NOW} sub={null} mute={{ muted: idle.prefs.muted, onToggle: () => idle.set({ muted: !idle.prefs.muted }) }} cc={{ on: idle.prefs.subtitles, onToggle: () => idle.set({ subtitles: !idle.prefs.subtitles }) }} chip={ctl.chip} transport={transport} picker={ctl.sheets} sheet={null} voices={null} voicesBtn={null} sheetOpen={ctl.sheetOpen} onSettings={ctl.openSettings} onShare={() => shareLink(idle.shareUrl ?? window.location.href, title)} copied={null} onTouch={() => {}} />
-      {!ctl.sheetOpen && <div className="vsp-idle" data-theme="dark"><div className="vsp-idle__box">{children}</div></div>}
+      <FullVideo topLeft={ctl.cloneToggle} modal={ctl.modal} page={page} picture={<Backdrop poster={poster} src={src} />} title={title} desk={desk} pos={NOW} sub={null} mute={{ muted: idle.prefs.muted, onToggle: () => idle.set({ muted: !idle.prefs.muted }) }} cc={{ on: idle.prefs.subtitles, onToggle: () => idle.set({ subtitles: !idle.prefs.subtitles }) }} chip={ctl.chip} transport={transport} picker={ctl.sheets} sheet={null} voices={null} voicesBtn={null} sheetOpen={ctl.sheetOpen} onSettings={ctl.openSettings} onShare={() => shareLink(idle.shareUrl ?? window.location.href, title)} copied={null} onTouch={() => {}} />
+      {!ctl.sheetOpen && <div className="vsp-idle" data-theme="dark"><div className="vsp-idle__box">{typeof children === 'function' ? children(ctl) : children}</div></div>}
     </div>
   );
 }
@@ -116,12 +118,16 @@ function ConnectButton({ connect, onClick, label }: { connect: Connect; onClick:
 }
 
 export function SourceGate({ idle, src, ask, connect, page, poster = null, onClear }: { idle: IdleState; src: string; ask: boolean; connect: Connect; page: boolean; poster?: string | null; onClear?: () => void }) {
-  const go = () => connect.start(src, ask);
+  const p = idle.prefs;
+  const go = () => connect.start(src, ask, { voices: p.voices === 'cloned' && hasCloneConsent() ? 'cloned' : 'synthetic', spoken: p.spoken, speakers: p.speakers });
   return (
-    <IdlePlayer idle={idle} poster={poster} src={src} title={hostOf(src)} page={page} onAct={go}>
+    <IdlePlayer idle={idle} poster={poster} src={src} title={hostOf(src)} page={page} onAct={go} pre>
+      {(ctl) => <>
       <ConnectButton connect={connect} onClick={go} label={connect.connected ? 'Play with VocalStack' : 'Connect to VocalStack'} />
+      {!connect.busy && <button type="button" className="vsp-idle__opts" onClick={(e) => { e.stopPropagation(); ctl.openTx(); }}>{ctl.txSummary}<span>Change</span></button>}
       {!connect.busy && <div className="vsp-idle__note">{connect.connected ? `Plays ${hostOf(src)} with subtitles and spoken translations.` : `Connect to play ${hostOf(src)} with subtitles and spoken translations.`}</div>}
       {onClear && !connect.busy && <button type="button" className="vsp-idle__other" onClick={onClear}>Choose another video</button>}
+      </>}
     </IdlePlayer>
   );
 }
