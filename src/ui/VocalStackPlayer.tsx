@@ -2,7 +2,6 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { Card, GrowBox, LanguageChip, Sheet, Switch, Toggle } from '../ds/Controls';
 import { D, Icon, Logo, PlayGlyph, Spinner } from '../ds/Icons';
 import { mediaKind } from '../core/voiceplayer';
-import { useLanguageList } from '../ds/LanguagePicker';
 import { audioDownloadUrl, audioSealed, backgroundAudioUrl, deliveryAudioUrl } from '../core/audio';
 import { FileFollow } from './FileFollow';
 import { EmbedFollow } from './EmbedFollow';
@@ -242,8 +241,8 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const [settings, setSettings] = useState(false);
   const subLangRef = useRef<string | null>(null);
   const trSeen = useRef(new Map<string, string>());
-  const [page, setPageRaw] = useState<'main' | 'subs' | 'lang' | 'audio' | 'export'>('main');
-  const setPage = (next: 'main' | 'subs' | 'lang' | 'audio' | 'export') => {
+  const [page, setPageRaw] = useState<'main' | 'subs' | 'audio' | 'export'>('main');
+  const setPage = (next: 'main' | 'subs' | 'audio' | 'export') => {
     const el = document.querySelector<HTMLElement>('.vs-sheet--settings');
     const scrim = el?.parentElement;
     if (el && scrim && page === 'main' && next !== 'main') scrim.style.setProperty('--vs-sheet-top', `${Math.round(el.getBoundingClientRect().top - scrim.getBoundingClientRect().top)}px`);
@@ -489,7 +488,6 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const hushBtn = <button type="button" className="gfull__toastx" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); setHushed(hushKey); }}><Icon d={D.close} size={12} sw={2} /></button>;
   const softNote = !softWait || !waitState ? null : waitState.kind === 'translating' ? `Translating into ${waitLangName || 'the new language'}…` : `Preparing the ${waitLangName || 'translated'} voice…`;
   const voiceHolds = !softWait && (waitState?.kind === 'voice' || waitState?.kind === 'starting');
-  const langPage = useLanguageList({ ...voice.langList, keepOpen: true, open: page === 'lang', onClose: () => setPage('main') });
   const plan = trackPlan(removeBg, voice.on);
   const bedUrl = locked && plan.bed && canDownload && !!recordingId && (!running || !!audioUrl) ? backgroundAudioUrl(api.origin, recordingId, api.cred) : null;
   const bed = useBackgroundBed(bedUrl, { t: pictureT(player, rows), playing: player.playing && !voiceHolds && !(player.timed && !!player.preparing), muted: player.muted });
@@ -649,17 +647,12 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     </span>
   );
   const chev = <Icon d={D.chevronRight} size={17} sw={1.6} style={{ flex: 'none', color: 'var(--ink-45)' }} />;
-  const sheetTitle = { main: 'SETTINGS', lang: 'LANGUAGE', subs: 'SUBTITLES', audio: 'AUDIO', export: 'EXPORT' }[page];
+  const sheetTitle = { main: 'SETTINGS', subs: 'SUBTITLES', audio: 'AUDIO', export: 'EXPORT' }[page];
   const pageBody: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 2, paddingBottom: 14 };
   const settingsSheet = locked ? (
     <Sheet open={settings} onClose={() => setSettings(false)} title={sheetTitle} titleNode={page === 'main' ? undefined : subsBack} doneLabel={t.done} kind={page === 'main' ? 'settings' : 'settings vs-sheet--page'} sticky>
       <GrowBox>
-      {page === 'lang' ? (
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <div className="vsp-sheetsearch" style={{ position: 'sticky', top: 0, zIndex: 1, padding: '4px 14px 10px' }}>{langPage.search}</div>
-          {langPage.list}
-        </div>
-      ) : page === 'subs' ? (
+      {page === 'subs' ? (
         <div style={pageBody}>
           <div className="srow">
             <div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">Show subtitles</div><div className="srow__s">Captions over the video</div></div>
@@ -700,7 +693,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
         <div style={pageBody}>
           {[
             meta.can && ctl.language && (
-              <div key="lang" className="srow srow--tap" role="button" onClick={() => setPage('lang')}>
+              <div key="lang" className="srow srow--tap" role="button" onClick={() => { setSettings(false); meta.onClick(); }}>
                 <div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">Language</div><div className="srow__s">{askLang ? `Translated to ${meta.label ?? askLang.toUpperCase()}` : 'Original language'}</div></div>
                 <span style={{ fontSize: 18, lineHeight: 1 }}>{meta.flag}</span>
                 {chev}
@@ -815,7 +808,9 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const [endDismissed, setEndDismissed] = useState(false);
   const atEnd = !!fullEl && !holding && (videoLed ? !!player.ended : !player.playing && player.dur > 0 && player.t >= player.dur - 0.5);
   useEffect(() => { if (!atEnd) setEndDismissed(false); }, [atEnd]);
-  const endCard = props.endCard !== false && atEnd && !endDismissed && (
+  const endShown = props.endCard !== false && atEnd && !endDismissed;
+  useEffect(() => { if (endShown) { setSettings(false); voice.closePicker(); } }, [endShown]); // eslint-disable-line react-hooks/exhaustive-deps
+  const endCard = endShown && (
     <EndCard options={{ appUrl: props.appUrl, ...(props.endCard || {}) }} onStarted={props.onStarted} onClose={() => setEndDismissed(true)} onReplay={() => { setEndDismissed(true); autoplayDone.current = true; if (player.seekFrac) player.seekFrac(0); else player.seekRow(0); if (!player.playing) player.toggle(); }} />
   );
   const endPill = props.endCard !== false && atEnd && endDismissed && (

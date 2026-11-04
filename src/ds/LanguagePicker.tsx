@@ -12,9 +12,9 @@ export interface PickerLanguage {
   live?: boolean;
 }
 
-export interface LanguageListProps { value: string | null; onSelect: (code: string | null) => void; languages: PickerLanguage[]; searchPlaceholder?: string; none?: string; pinned?: string[]; recent?: string[]; requireVoice?: boolean; keepOpen?: boolean; busy?: string | null }
+export interface LanguageListProps { value: string | null; onSelect: (code: string | null) => void; languages: PickerLanguage[]; searchPlaceholder?: string; none?: string; noneNote?: string; pinned?: string[]; recent?: string[]; requireVoice?: boolean; keepOpen?: boolean; busy?: string | null }
 
-export function useLanguageList({ open, onClose, value, onSelect, languages, searchPlaceholder = 'Search languages', none, pinned = [], recent = [], requireVoice, keepOpen, busy }: LanguageListProps & { open: boolean; onClose: () => void }) {
+export function useLanguageList({ open, onClose, value, onSelect, languages, searchPlaceholder = 'Search languages', none, noneNote = 'As spoken · no translation', pinned = [], recent = [], requireVoice, keepOpen, busy }: LanguageListProps & { open: boolean; onClose: () => void }) {
   const [q, setQ] = useState('');
   const [showAll, setShowAll] = useState(false);
   const [refused, setRefused] = useState<string | null>(null);
@@ -83,7 +83,7 @@ export function useLanguageList({ open, onClose, value, onSelect, languages, sea
           <span className="vs-picker__flag"><Icon d={D.mic} size={19} sw={1.6} style={{ color: 'var(--vs-text-muted)' }} /></span>
           <span style={{ flex: 1, minWidth: 0 }}>
             <div className="vs-picker__label">{none}</div>
-            <div className="vs-picker__native">As spoken · no translation</div>
+            <div className="vs-picker__native">{noneNote}</div>
           </span>
           <span className="vs-picker__slot" />
           <span className="vs-picker__slot" />

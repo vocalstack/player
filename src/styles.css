@@ -1446,8 +1446,6 @@
 .vsp .vsp-txopts .srow{flex-wrap:wrap;row-gap:10px}
 .vsp .vsp-txopts .srow>div:first-child{min-width:min(100%,200px)}
 .vsp .vsp-txopts .srow>:last-child{margin-left:auto}
-.vsp .vsp-sheetsearch{background:var(--vs-surface-raised)}
-.vsp .gfull .vsp-sheetsearch,.vsp .vsp-idleroot .vsp-sheetsearch{background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}
 .vsp .txyt__pausedplay:has(> .txyt__spin){background:none;box-shadow:none}
 .vsp .txyt__spin{width:48%;height:48%;border-width:4px;border-color:rgba(255,255,255,.22);border-top-color:#fff;filter:drop-shadow(0 2px 8px rgba(0,0,0,.45))}
 .vsp .gfull__toast--warn{color:#f3c2b8}
@@ -1455,6 +1453,8 @@
 .vsp .vsp-failed .txyt__paused,.vsp .vsp-failed .txyt__tap{display:none}
 .vsp:has(.vsp-end) :is(.txyt__paused,.vsp-poster,.gfull__toast,.gfull__sub,.gfull__prog,.gfull__top,.gfull__topl,.ghead,.vsp-langhint){visibility:hidden}
 .vsp .vsp-end.vsp-end--v2{background:rgba(0,0,0,.62);backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2)}
+.vsp:has(.vsp-end) :is(.gfull__pausedinfo,.gfull__sharecard,.txyt__pausedplay,.vs-sheet-scrim,.vs-side,.gfull__consent){visibility:hidden}
+.vsp .gfull:has(~ .vsp-end){filter:blur(22px) brightness(.6) saturate(1.15);pointer-events:none}
 .vsp .txyt iframe{color-scheme:normal}
 .vsp .livevid>.vsp-pics>.txyt,.vsp .gfull__frame>.vsp-pics>.txyt{position:absolute;inset:0;aspect-ratio:auto;border-radius:0;isolation:isolate}
 .vsp .txyt iframe.vsp-vimeo{inset:0;top:0;height:100%}

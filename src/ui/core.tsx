@@ -5,7 +5,7 @@ import { D, Icon, PlayGlyph, Spinner } from '../ds/Icons';
 import { isNotCaptured } from '../core/noAudio';
 import { pickerLanguages, useRecentLangs } from '../data/prefs';
 import { useVoicePreview } from '../data/voicePreview';
-import { LanguagePicker, type LanguageListProps } from '../ds/LanguagePicker';
+import { LanguagePicker } from '../ds/LanguagePicker';
 import { explainAudioError, mediaErrorText, reportMediaError, type MediaCred } from '../core/audio';
 import { clock } from '../core/format';
 import { describe, useAsync, type ErrorLike } from '../data/transcript';
@@ -1180,7 +1180,6 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     clips: arch.clips,
     setNear: arch.setNear,
     closePicker: () => { if (pickerMine) closePicker(); },
-    langList: { value: original ? null : lang, onSelect: selectLang, languages: trLangs, searchPlaceholder: t.search, none: 'Original', pinned: (original ? srcLang : lang) ? [(original ? srcLang : lang)!] : [], recent } satisfies LanguageListProps,
   };
 }
 

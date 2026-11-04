@@ -52,21 +52,22 @@ const HINT_CODES = ['es', 'fr', 'ro', 'ja', 'pt'];
 
 export const IDLE_DEFAULTS: IdlePrefs = { lang: null, subtitles: true, speakerLabels: false, wordHighlight: true, translateAudio: true, voices: 'synthetic', removeBackground: false, muted: false, spoken: null, speakers: 'off' };
 
-type Page = 'main' | 'lang' | 'subs' | 'audio' | 'tx' | 'spoken';
+type Page = 'main' | 'subs' | 'audio' | 'tx';
 
 export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) => void, pre = false) {
   const langs = useLanguages();
   const [recent, pushRecent] = useRecentLangs();
-  const [sheet, setSheet] = useState<'settings' | 'lang' | null>(null);
+  const [sheet, setSheet] = useState<'settings' | 'lang' | 'spoken' | null>(null);
   const [page, setPage] = useState<Page>('main');
   const meta = langMeta(langs, prefs.lang);
   const languages = useMemo(() => pickerLanguages(langs, 'translation'), [langs]);
   const pick = (c: string | null) => { set({ lang: c }); pushRecent(c); };
-  const list = useLanguageList({ open: sheet === 'lang' || (sheet === 'settings' && page === 'lang'), onClose: () => (sheet === 'lang' ? setSheet(null) : setPage('main')), value: prefs.lang, onSelect: pick, languages, none: 'As spoken', pinned: prefs.lang ? [prefs.lang] : [], recent, keepOpen: sheet !== 'lang' });
+  const list = useLanguageList({ open: sheet === 'lang', onClose: () => setSheet(null), value: prefs.lang, onSelect: pick, languages, none: 'As spoken', pinned: prefs.lang ? [prefs.lang] : [], recent });
   const close = () => { setSheet(null); setPage('main'); };
-  const spokenLangs = useMemo(() => pickerLanguages(langs, 'transcription'), [langs]);
+  const spokenLangs = useMemo(() => pickerLanguages(langs, 'transcription').map((l) => ({ ...l, voice: false })), [langs]);
   const spokenMeta = langMeta(langs, prefs.spoken);
-  const spokenList = useLanguageList({ open: sheet === 'settings' && page === 'spoken', onClose: () => setPage('tx'), value: prefs.spoken, onSelect: (c: string | null) => { set({ spoken: c }); setPage('tx'); }, languages: spokenLangs, none: 'Auto detect', pinned: prefs.spoken ? [prefs.spoken] : [], recent: [], keepOpen: true });
+  const backToTx = () => { setPage('tx'); setSheet('settings'); };
+  const spokenList = useLanguageList({ open: sheet === 'spoken', onClose: backToTx, value: prefs.spoken, onSelect: (c: string | null) => set({ spoken: c }), languages: spokenLangs, none: 'Auto detect', noneNote: 'Each segment gets its own detected language', pinned: prefs.spoken ? [prefs.spoken] : [], recent: [] });
   const setVoices = (v: 'cloned' | 'synthetic') => {
     if (v === 'synthetic') { set({ voices: 'synthetic' }); return; }
     if (hasCloneConsent()) set({ voices: 'cloned', ...(prefs.speakers === 'off' ? { speakers: 'auto' as const } : null) });
@@ -131,28 +132,16 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
   const row = (title: string, sub: string, ctl: React.ReactNode) => (
     <div className="srow"><div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">{title}</div><div className="srow__s">{sub}</div></div>{ctl}</div>
   );
-  const langList = (
-    <div style={{ display: 'flex', flexDirection: 'column' }}>
-      <div className="vsp-sheetsearch" style={{ position: 'sticky', top: 0, zIndex: 1, padding: '4px 14px 10px' }}>{list.search}</div>
-      {list.list}
-    </div>
-  );
-  const spokenPicker = (
-    <div style={{ display: 'flex', flexDirection: 'column' }}>
-      <div className="vsp-sheetsearch" style={{ position: 'sticky', top: 0, zIndex: 1, padding: '4px 14px 10px' }}>{spokenList.search}</div>
-      {spokenList.list}
-    </div>
-  );
   const txBody = (
     <div style={body} className="vsp-txopts">
       {row('Voice cloning', cloning ? 'Every speaker sounds like themselves in every language' : 'Listeners hear a generic synthetic voice', <Switch<'synthetic' | 'cloned'> value={cloning ? 'cloned' : 'synthetic'} onChange={setVoices} size="sm" options={[{ value: 'synthetic', label: 'Synthetic' }, { value: 'cloned', label: 'Cloned' }]} />)}
       <div className="sdiv" />
-      {row('Spoken language', prefs.spoken ? `Everything is heard as ${spokenMeta.label}` : 'Each segment gets its own detected language', <Switch<'auto' | 'custom'> value={prefs.spoken ? 'custom' : 'auto'} onChange={(v) => (v === 'auto' ? set({ spoken: null }) : setPage('spoken'))} size="sm" options={[{ value: 'auto', label: 'Auto detect' }, { value: 'custom', label: prefs.spoken ? `${spokenMeta.flag} ${spokenMeta.label}` : 'Custom' }]} />)}
+      {row('Spoken language', prefs.spoken ? `Everything is heard as ${spokenMeta.label}` : 'Each segment gets its own detected language', <Switch<'auto' | 'custom'> value={prefs.spoken ? 'custom' : 'auto'} onChange={(v) => (v === 'auto' ? set({ spoken: null }) : setSheet('spoken'))} size="sm" options={[{ value: 'auto', label: 'Auto detect' }, { value: 'custom', label: prefs.spoken ? `${spokenMeta.flag} ${spokenMeta.label}` : 'Custom' }]} />)}
       <div className="sdiv" />
       {row('Speaker labels', prefs.speakers === 'off' ? 'The transcript is plain text' : prefs.speakers === 'on' ? 'Each line is labelled with its speaker' : 'Labelled only when more than one person speaks', <Switch<'auto' | 'on' | 'off'> value={prefs.speakers} onChange={setSpeakers} size="sm" options={[{ value: 'auto', label: 'When needed' }, { value: 'on', label: 'On' }, { value: 'off', label: 'Off' }]} />)}
     </div>
   );
-  const settingsBody = page === 'tx' ? txBody : page === 'spoken' ? spokenPicker : page === 'lang' ? langList : page === 'subs' ? (
+  const settingsBody = page === 'tx' ? txBody : page === 'subs' ? (
     <div style={body}>
       {row('Show subtitles', 'Captions over the video', <Toggle checked={prefs.subtitles} onChange={(v) => set({ subtitles: v })} label="Show subtitles" />)}
       {row('Show speaker labels', 'Who is speaking, before each line', <Toggle checked={prefs.speakerLabels} onChange={(v) => set({ speakerLabels: v })} label="Show speaker labels" />)}
@@ -172,7 +161,7 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
         </div>
         <div className="sdiv" />
       </>}
-      <div className="srow srow--tap" role="button" onClick={() => setPage('lang')}>
+      <div className="srow srow--tap" role="button" onClick={openLang}>
         <div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">Language</div><div className="srow__s">{prefs.lang ? `Translated to ${meta.label}` : 'Original language'}</div></div>
         <span style={{ fontSize: 18, lineHeight: 1 }}>{prefs.lang ? meta.flag : null}</span>{chev}
       </div>
@@ -191,7 +180,10 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
       <Sheet open={sheet === 'lang'} onClose={close} title="LANGUAGE" kind="picker" header={list.search} sticky>
         <GrowBox>{list.list}</GrowBox>
       </Sheet>
-      <Sheet open={sheet === 'settings'} onClose={close} title={{ main: 'SETTINGS', lang: 'LANGUAGE', subs: 'SUBTITLES', audio: 'AUDIO', tx: 'TRANSCRIPTION', spoken: 'SPOKEN LANGUAGE' }[page]} titleNode={page === 'main' ? undefined : page === 'spoken' ? <span className="vs-sheet__title" style={{ position: 'relative' }}>{' '}<button type="button" onClick={() => setPage('tx')} aria-label="Back" className="vsp-idlesheet__back"><Icon d={D.chevronLeft} size={18} sw={1.8} />Back</button></span> : back} kind={page === 'main' ? 'settings' : 'settings vs-sheet--page'} sticky>
+      <Sheet open={sheet === 'spoken'} onClose={backToTx} title="SPOKEN LANGUAGE" kind="picker" header={spokenList.search} sticky>
+        <GrowBox>{spokenList.list}</GrowBox>
+      </Sheet>
+      <Sheet open={sheet === 'settings'} onClose={close} title={{ main: 'SETTINGS', subs: 'SUBTITLES', audio: 'AUDIO', tx: 'TRANSCRIPTION' }[page]} titleNode={page === 'main' ? undefined : back} kind={page === 'main' ? 'settings' : 'settings vs-sheet--page'} sticky>
         <GrowBox>{settingsBody}</GrowBox>
       </Sheet>
     </>
