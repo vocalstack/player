@@ -59,7 +59,7 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
   const bubble = hintOn && hintAt ? (
     <div className="vsp-langhint" onClick={(e) => e.stopPropagation()}>
       <button type="button" className="vsp-langhint__pick" onClick={openLang} aria-label="Choose a language">
-        <Icon d={D.language} size={16} sw={1.5} style={{ color: 'var(--brand)', flex: 'none' }} />
+        <Icon d={D.language} size={16} sw={1.5} style={{ color: 'rgba(255,255,255,.85)', flex: 'none' }} />
         <span key={hintIdx} className="vsp-langhint__lang" style={{ animation: `vs-swap-${hintIdx % 2 ? 'a' : 'b'} .4s cubic-bezier(.2,.8,.2,1) both` }}>
           <span className="vsp-langhint__flag">{hintAt.flag}</span>
           <span className="vsp-langhint__name">{hintAt.native}</span>

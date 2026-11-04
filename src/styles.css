@@ -1388,20 +1388,20 @@
 .vsp .vsp-end2__mark{display:flex;line-height:0}
 .vsp .vsp-btip{position:relative;display:inline-flex}
 .vsp .vsp-btip::after,.vsp .vsp-btip::before{position:absolute;left:50%;opacity:0;pointer-events:none;transition:opacity .12s ease,transform .12s ease;z-index:70}
-.vsp .vsp-btip::after{content:attr(data-tip);bottom:calc(100% + 10px);transform:translate(-50%,4px);padding:6px 10px;border-radius:8px;background:rgba(10,11,28,.94);color:#eef0f8;font:500 12px/1.2 var(--vs-font-sans);white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.35)}
-.vsp .vsp-btip::before{content:'';bottom:calc(100% + 5px);width:10px;height:10px;margin-left:-5px;background:rgba(10,11,28,.94);transform:translateY(4px) rotate(45deg);border-radius:2px}
+.vsp .vsp-btip::after{content:attr(data-tip);bottom:calc(100% + 10px);transform:translate(-50%,4px);padding:6px 10px;border-radius:8px;background:rgba(0,0,0,.82);color:#eef0f8;font:500 12px/1.2 var(--vs-font-sans);white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.35)}
+.vsp .vsp-btip::before{content:'';bottom:calc(100% + 5px);width:10px;height:10px;margin-left:-5px;background:rgba(0,0,0,.82);transform:translateY(4px) rotate(45deg);border-radius:2px}
 @media (hover:hover){.vsp .vsp-btip:not([data-open]):not([data-hint]):hover::after{opacity:1;transform:translate(-50%,0)}.vsp .vsp-btip:not([data-open]):not([data-hint]):hover::before{opacity:1;transform:translateY(0) rotate(45deg)}}
 .vsp .vsp-btip:not([data-open]):not([data-hint]):has(:focus-visible)::after{opacity:1;transform:translate(-50%,0)}
 .vsp .vsp-btip:not([data-open]):not([data-hint]):has(:focus-visible)::before{opacity:1;transform:translateY(0) rotate(45deg)}
-.vsp .vsp-langhint{position:absolute;right:-6px;bottom:calc(100% + 12px);z-index:65;display:flex;align-items:center;gap:4px;padding:5px 5px 5px 10px;border:1px solid var(--vs-border-brand);border-radius:16px;background:var(--vs-surface-raised);box-shadow:var(--vs-shadow-tooltip);font-family:var(--vs-font-sans);white-space:nowrap;animation:vs-swap-a .35s cubic-bezier(.2,.8,.2,1) both}
+.vsp .vsp-langhint{position:absolute;right:-6px;bottom:calc(100% + 12px);z-index:65;display:flex;align-items:center;gap:4px;padding:5px 5px 5px 10px;border:1px solid rgba(255,255,255,.14);border-radius:16px;background:rgba(0,0,0,.72);-webkit-backdrop-filter:blur(24px) saturate(150%);backdrop-filter:blur(24px) saturate(150%);box-shadow:0 10px 30px rgba(0,0,0,.45);font-family:var(--vs-font-sans);white-space:nowrap;animation:vs-swap-a .35s cubic-bezier(.2,.8,.2,1) both}
 .vsp .vsp-langhint__pick{display:flex;align-items:center;gap:9px;padding:4px 8px 4px 0;border:0;background:none;color:inherit;font:inherit;cursor:pointer}
 .vsp .vsp-langhint__lang{display:flex;align-items:center;gap:8px;min-width:120px;height:22px}
 .vsp .vsp-langhint__flag{font-size:17px;line-height:22px}
 .vsp .vsp-langhint__name{font-size:14px;font-weight:600;line-height:22px;color:var(--vs-ink-96);letter-spacing:-.1px}
 .vsp .vsp-langhint__dots{display:flex;gap:3px}
 .vsp .vsp-langhint__dots>span{width:4px;height:4px;border-radius:50%;background:var(--ink-28,rgba(255,255,255,.28))}
-.vsp .vsp-langhint__dots>span.is-on{background:var(--brand)}
-.vsp .vsp-langhint__count{font:600 10.5px var(--vs-font-mono);color:var(--brand);padding:3px 6px;border-radius:6px;background:var(--brand-soft)}
+.vsp .vsp-langhint__dots>span.is-on{background:#fff}
+.vsp .vsp-langhint__count{font:600 10.5px var(--vs-font-mono);color:rgba(255,255,255,.9);padding:3px 6px;border-radius:6px;background:rgba(255,255,255,.12)}
 .vsp .vsp-langhint__close{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:0;border-radius:9px;background:var(--fill-05,rgba(255,255,255,.06));color:var(--vs-ink-82);cursor:pointer}
-.vsp .vsp-langhint__arrow{position:absolute;right:20px;bottom:-6px;width:11px;height:11px;background:var(--vs-surface-raised);border-right:1px solid var(--vs-border-brand);border-bottom:1px solid var(--vs-border-brand);border-radius:0 0 2px 0;transform:rotate(45deg)}
+.vsp .vsp-langhint__arrow{position:absolute;right:20px;bottom:-6px;width:11px;height:11px;background:rgba(0,0,0,.72);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);clip-path:polygon(100% 0,100% 100%,0 100%);border-right:1px solid rgba(255,255,255,.14);border-bottom:1px solid rgba(255,255,255,.14);border-radius:0 0 2px 0;transform:rotate(45deg)}
 @media (pointer:coarse),(max-width:820px){.vsp input:not([type=checkbox]):not([type=radio]):not([type=range]),.vsp textarea,.vsp select{font-size:16px!important}}
