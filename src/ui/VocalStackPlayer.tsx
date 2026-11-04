@@ -362,6 +362,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     }
   }, [voiceLate, onVoice, voice.on, videoLed]); // eslint-disable-line react-hooks/exhaustive-deps
   const player = videoLed ? yt.player : voice.on && onVoice && !voiceLate ? voice.player : srcPlayer;
+  const handing = voice.on && !videoLed && voiceLate === onVoice;
   useEffect(() => { if (player.playing) wantPlay.current = true; }, [player.playing]);
   useEffect(() => {
     if (videoLed) return;
@@ -435,15 +436,16 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const [soundTip, setSoundTip] = useState(false);
   const [adOn, setAdOn] = useState(false);
   useEffect(() => {
-    if (!locked || autoplayed.current || !playable || !full || holding || props.autoplay === false || (recLive && rows.length === 0)) return;
+    if (!locked || autoplayed.current || !playable || !full || holding || handing || props.autoplay === false || (recLive && rows.length === 0)) return;
     autoplayed.current = true;
+    wantPlay.current = true;
     toLive();
     const tryPlay = (n: number) => { if (playerRef.current.playing || autoplayDone.current) return; playerRef.current.toggle(); if (n > 0) setTimeout(() => tryPlay(n - 1), 1500); };
     const muted = () => { if (!playerRef.current.muted) playerRef.current.toggleMute(); setSoundTip(true); tryPlay(3); };
     const p = playerRef.current;
     if (!p.autoplay || props.startMuted) { muted(); return; }
     void p.autoplay().then((sound) => { if (sound === false) setSoundTip(true); else if (sound == null && !autoplayDone.current) muted(); });
-  }, [locked, playable, full, holding, recLive && rows.length > 0, props.autoplay]);
+  }, [locked, playable, full, holding, handing, recLive && rows.length > 0, props.autoplay]);
   const unmutedNow = useRef(false);
   const soundOn = () => { if (!soundTip) return; setSoundTip(false); unmutedNow.current = true; setTimeout(() => { unmutedNow.current = false; }, 500); if (playerRef.current.muted) playerRef.current.toggleMute(); };
   const toggleSound = () => { if (unmutedNow.current) { unmutedNow.current = false; return; } setSoundTip(false); playerRef.current.toggleMute(); };
