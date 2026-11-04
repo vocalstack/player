@@ -30,9 +30,10 @@ import { MuteButton, NO_SEEK, PAUSE_D, PLAY_D, PUB_SIDE, TxFind, TxLines, YtFoll
 import { FullVideo, ListenerHeader, MiniPlayer, browserFull, modeOptions, setFullTarget, type PlayerPos, type PlayerTransport } from './full';
 import { PlayerWait, playerWaitOf, useHeld } from './wait';
 import { EndCard, type EndCardOptions } from './EndCard';
-import type { Started } from '../data/connect';
+import { rememberCode, rememberedCode, type Started } from '../data/connect';
+import { shareCodeOf } from '../core/share';
 import { useDesk } from './useDesk';
-import { ErrorGate, SourceGate, StartCard, useConnect, type IdleState } from './SourceGate';
+import { ErrorGate, SourceGate, StartCard, txChoiceOf, useConnect, type IdleState } from './SourceGate';
 import { CloneConsent, IDLE_DEFAULTS, grantCloneConsent, hasCloneConsent, type IdlePrefs } from './IdleSettings';
 import { useLookup } from '../data/lookup';
 
@@ -143,6 +144,7 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
   }), []);
   const loadRef = useRef<(link: string, opts?: { poster?: string | null }) => void>(() => {});
   const clearRef = useRef<() => void>(() => {});
+  const autoRef = useRef<(link: string) => void>(() => {});
   const [cur, setCur] = useState<{ id: string; token: TokenSource | null | undefined; listen?: Listen | null }>({ id: props.id ?? '', token: props.token });
   useEffect(() => { setCur({ id: props.id ?? '', token: props.token }); }, [props.id, props.token, props.src]);
   const found = useLookup(props.src ?? null, props.token ?? null, props.baseUrl ?? null);
@@ -150,7 +152,7 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
   const [typed, setTyped] = useState<string | null>(null);
   const [typedPoster, setTypedPoster] = useState<string | null>(null);
   const pickTyped = useCallback((l: string | null, poster: string | null = null) => { setTypedPoster(poster); setTyped(l); }, []);
-  loadRef.current = (link: string, opts?: { poster?: string | null }) => { const l = link.trim(); if (!l) return; setCur({ id: '', token: props.token }); pickTyped(l, opts?.poster ?? null); };
+  loadRef.current = (link: string, opts?: { poster?: string | null }) => { const l = link.trim(); if (!l) return; setCur({ id: '', token: props.token }); pickTyped(l, opts?.poster ?? null); autoRef.current(l); };
   clearRef.current = () => { setCur({ id: '', token: props.token }); pickTyped(null); };
   const [idlePrefs, setIdlePrefs] = useState<IdlePrefs>(() => ({ ...IDLE_DEFAULTS, ...Object.fromEntries(Object.entries({ ...(props.initial ?? {}), ...(props.settings ?? {}) }).filter(([, v]) => v !== undefined)) } as IdlePrefs));
   const [touched, setTouched] = useState<Partial<IdlePrefs>>({});
@@ -158,9 +160,25 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
   const { muted: idleMuted, spoken: _spoken, speakers: _speakers, ...idleChosen } = touched;
   useEffect(() => { setTyped(null); }, [props.id, props.src]);
   const gateSrc = props.src ?? typed;
-  const gate = !cur.id && !!gateSrc && (typed != null || found !== undefined);
+  const [codeFor, setCodeFor] = useState<string | null>(null);
+  const gate = !cur.id && !!gateSrc && codeFor === gateSrc && (typed != null || found !== undefined);
   const empty = !cur.id && !props.src && !typed;
   const base = useApi({ id: cur.id, token: cur.token, baseUrl: props.baseUrl, listen: cur.listen });
+  useEffect(() => {
+    if (cur.id || !gateSrc) { setCodeFor(null); return; }
+    const own = shareCodeOf(gateSrc);
+    const kept = own ? null : rememberedCode(gateSrc);
+    const code = own ?? kept;
+    if (!code) { setCodeFor(gateSrc); return; }
+    let live = true;
+    setCodeFor(null);
+    base.client.shareLinks.open(code).then(() => { if (live) setCur({ id: code, token: null }); }).catch(() => {
+      if (!live) return;
+      if (kept) rememberCode(gateSrc, null);
+      setCodeFor(gateSrc);
+    });
+    return () => { live = false; };
+  }, [gateSrc, cur.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const { source, gone, error, reload } = useSource(base, cur.id);
   const media = useMediaToken(base, source?.recording.id ?? null);
   const api = useMemo(() => withMedia(base, media), [base, media]);
@@ -169,8 +187,14 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
   const desk = useDesk(props.desk);
   const embed = (props.layout ?? 'embed') === 'embed';
   const appUrl = props.appUrl ?? (props.endCard ? props.endCard.appUrl : undefined);
-  const onReady = useCallback((st: Started) => setCur({ id: st.transcriptionId, token: null, listen: { transcriptionId: st.transcriptionId, recordingId: st.recordingId, token: st.token } }), []);
+  const srcRef = useRef<string | null>(null);
+  srcRef.current = gateSrc ?? null;
+  const onReady = useCallback((st: Started) => {
+    if (st.shareCode && srcRef.current) rememberCode(srcRef.current, st.shareCode);
+    setCur({ id: st.transcriptionId, token: null, listen: { transcriptionId: st.transcriptionId, recordingId: st.recordingId, token: st.token } });
+  }, []);
   const connect = useConnect(appUrl, onReady);
+  autoRef.current = (l: string) => { if (connect.connected && !connect.busy && !shareCodeOf(l) && !rememberedCode(l)) connect.start(l, true, txChoiceOf(idlePrefs)); };
   const clearErr = connect.clear;
   useEffect(() => { clearErr(); }, [props.id, props.src, typed, cur.id, clearErr]);
   const root = useRef<HTMLDivElement>(null);

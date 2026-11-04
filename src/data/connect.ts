@@ -1,7 +1,7 @@
 export const DEFAULT_APP = 'https://app.vocalstack.com';
 const PATH = '/connect/transcribe';
 
-export interface Started { transcriptionId: string; recordingId: string; token: string; expiresAt: string | null }
+export interface Started { transcriptionId: string; recordingId: string; token: string; expiresAt: string | null; shareCode?: string | null }
 
 export type PopupStatus = 'signing-in' | 'consent' | 'looking' | 'confirm' | 'checking' | 'starting';
 
@@ -42,7 +42,7 @@ export function openPopup(appUrl: string | undefined, ask: { url?: string; trans
       if (d.type === 'vocalstack:hello') { pop.postMessage({ source: 'vocalstack', type: 'vocalstack:hello-ack', nonce: n }, app.origin); return; }
       if (d.type === 'vocalstack:status') { onStatus?.(d.status); return; }
       if (d.type === 'vocalstack:started' || d.type === 'vocalstack:token' || d.type === 'vocalstack:found') {
-        finish(() => resolve({ transcriptionId: String(d.transcriptionId), recordingId: String(d.recordingId), token: String(d.token), expiresAt: d.expiresAt ?? null }));
+        finish(() => resolve({ transcriptionId: String(d.transcriptionId), recordingId: String(d.recordingId), token: String(d.token), expiresAt: d.expiresAt ?? null, shareCode: typeof d.shareCode === 'string' && d.shareCode ? d.shareCode : null }));
         return;
       }
       if (d.type === 'vocalstack:connected') { finish(() => resolve('connected')); return; }
@@ -67,4 +67,38 @@ export function wasConnected(appUrl: string | undefined): boolean {
 
 export function rememberConnected(appUrl: string | undefined): void {
   try { localStorage.setItem(CONNECTED, new URL(appUrl ?? DEFAULT_APP).origin); } catch { }
+}
+
+const LINKS = 'vsp.linkCodes';
+
+function linkKey(link: string): string {
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(link) ? link : `https://${link}`);
+    const yt = /(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com)$/i.test(u.hostname)
+      ? (u.hostname.toLowerCase().endsWith('youtu.be') ? u.pathname.slice(1) : u.searchParams.get('v') ?? /\/(?:shorts|embed|live)\/([\w-]{11})/.exec(u.pathname)?.[1] ?? '')
+      : '';
+    if (yt) return `yt:${yt.slice(0, 11)}`;
+    u.hash = '';
+    return `${u.hostname.toLowerCase().replace(/^www\./, '')}${u.pathname.replace(/\/+$/, '')}${u.search}`;
+  } catch {
+    return link.trim();
+  }
+}
+
+function readLinks(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(LINKS) ?? '{}') ?? {}; } catch { return {}; }
+}
+
+export function rememberedCode(link: string): string | null {
+  return readLinks()[linkKey(link)] ?? null;
+}
+
+export function rememberCode(link: string, code: string | null): void {
+  try {
+    const all = readLinks();
+    if (code) all[linkKey(link)] = code; else delete all[linkKey(link)];
+    const keys = Object.keys(all);
+    for (const k of keys.slice(0, Math.max(0, keys.length - 200))) delete all[k];
+    localStorage.setItem(LINKS, JSON.stringify(all));
+  } catch { }
 }

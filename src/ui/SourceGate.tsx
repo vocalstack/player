@@ -29,6 +29,10 @@ export function hostOf(src: string): string {
 
 export interface TxChoice { voices: 'cloned' | 'synthetic'; spoken: string | null; speakers: 'auto' | 'on' | 'off' }
 
+export function txChoiceOf(p: IdlePrefs): TxChoice {
+  return { voices: p.voices === 'cloned' && hasCloneConsent() ? 'cloned' : 'synthetic', spoken: p.spoken, speakers: p.speakers };
+}
+
 export interface Connect {
   busy: boolean;
   status: PopupStatus | null;
@@ -119,7 +123,7 @@ function ConnectButton({ connect, onClick, label }: { connect: Connect; onClick:
 
 export function SourceGate({ idle, src, ask, connect, page, poster = null, onClear }: { idle: IdleState; src: string; ask: boolean; connect: Connect; page: boolean; poster?: string | null; onClear?: () => void }) {
   const p = idle.prefs;
-  const go = () => connect.start(src, ask, { voices: p.voices === 'cloned' && hasCloneConsent() ? 'cloned' : 'synthetic', spoken: p.spoken, speakers: p.speakers });
+  const go = () => connect.start(src, ask, txChoiceOf(p));
   return (
     <IdlePlayer idle={idle} poster={poster} src={src} title={hostOf(src)} page={page} onAct={go} pre>
       {(ctl) => <>
