@@ -167,15 +167,22 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
     if (cur.id || !gateSrc) { setCodeFor(null); return; }
     const own = shareCodeOf(gateSrc);
     const kept = own ? null : rememberedCode(gateSrc);
-    const code = own ?? kept;
-    if (!code) { setCodeFor(gateSrc); return; }
     let live = true;
     setCodeFor(null);
-    base.client.shareLinks.open(code).then(() => { if (live) setCur({ id: code, token: null }); }).catch(() => {
+    const published = (): Promise<string | null> => fetch(`${base.origin}/v1/shares?${new URLSearchParams({ url: gateSrc, site: window.location.origin })}`)
+      .then((r) => (r.ok ? r.json() : null)).then((d: { code?: string } | null) => d?.code ?? null).catch(() => null);
+    const tryCode = (code: string) => base.client.shareLinks.open(code).then(() => true, () => false);
+    void (async () => {
+      if (own && await tryCode(own)) { if (live) setCur({ id: own, token: null }); return; }
+      if (kept) {
+        if (await tryCode(kept)) { if (live) setCur({ id: kept, token: null }); return; }
+        rememberCode(gateSrc, null);
+      }
+      const found = own ? null : await published();
       if (!live) return;
-      if (kept) rememberCode(gateSrc, null);
+      if (found) { rememberCode(gateSrc, found); setCur({ id: found, token: null }); return; }
       setCodeFor(gateSrc);
-    });
+    })();
     return () => { live = false; };
   }, [gateSrc, cur.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const { source, gone, error, reload } = useSource(base, cur.id);
