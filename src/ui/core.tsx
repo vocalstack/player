@@ -1434,10 +1434,11 @@ export function useFindPull(feedRef: React.RefObject<HTMLDivElement>, rows: Row[
   const [seek, setSeek] = useState(0);
   const at = matchAt(rows, matches, curId);
   const rowIdx = at >= 0 ? matches[at] : -1;
+  const any = matches.length > 0;
   useEffect(() => {
-    setCurId(matches.length ? rows[matches[0]].id : null);
-    if (matches.length) setSeek((n) => n + 1);
-  }, [needle]); // eslint-disable-line react-hooks/exhaustive-deps
+    setCurId(any ? rows[matches[0]].id : null);
+    if (any) setSeek((n) => n + 1);
+  }, [needle, any]); // eslint-disable-line react-hooks/exhaustive-deps
   const step = useCallback((dir: 1 | -1) => {
     const next = stepMatch(at, matches.length, dir);
     if (next < 0) return;

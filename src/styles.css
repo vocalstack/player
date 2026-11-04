@@ -44,7 +44,7 @@
   --ink-96:#eaecfa;--ink-80:rgba(234,236,250,.8);--ink-90:rgba(234,236,250,.9);--ink-70:rgba(234,236,250,.7);--ink-68:rgba(234,236,250,.68);--ink-62:rgba(234,236,250,.62);--ink-60:rgba(234,236,250,.6);--ink-55:rgba(234,236,250,.55);--ink-52:rgba(234,236,250,.52);
   --ink-50:rgba(234,236,250,.5);--ink-45:rgba(234,236,250,.45);--ink-42:rgba(234,236,250,.42);--ink-40:rgba(234,236,250,.4);--ink-38:rgba(234,236,250,.38);--ink-35:rgba(234,236,250,.35);--ink-32:rgba(234,236,250,.32);--ink-30:rgba(234,236,250,.3);--ink-28:rgba(234,236,250,.28);--ink-22:rgba(234,236,250,.22);
   --hair:rgba(255,255,255,.055);--fill-02:rgba(255,255,255,.02);--fill-03:rgba(255,255,255,.03);--fill-04:rgba(255,255,255,.04);--fill-05:rgba(255,255,255,.05);--fill-06:rgba(255,255,255,.06);--fill-07:rgba(255,255,255,.07);--fill-08:rgba(255,255,255,.08);--fill-09:rgba(255,255,255,.09);--fill-10:rgba(255,255,255,.1);--fill-12:rgba(255,255,255,.12);--fill-13:rgba(255,255,255,.13);--fill-14:rgba(255,255,255,.14);--fill-16:rgba(255,255,255,.16);--fill-18:rgba(255,255,255,.18);--fill-20:rgba(255,255,255,.2);--fill-80:rgba(255,255,255,.8);
-  --find-bg:rgba(255,200,90,.2);--find-fg:#ffd88a;
+  --find-bg:rgba(85,171,229,.28);--find-fg:#fff;
   --brand:#55abe5;--brand-ink:#131326;--brand-tint:rgba(85,171,229,.12);--brand-soft:rgba(85,171,229,.16);--brand-line:rgba(85,171,229,.34);--brand-line-strong:rgba(85,171,229,.45);--brand-14:rgba(85,171,229,.14);--brand-26:rgba(85,171,229,.26);--brand-50:rgba(85,171,229,.5);
   --live:#f78472;--live-soft:rgba(247,132,114,.16);--ready:#34d399;--ready-soft:rgba(52,211,153,.16);--conf-mid:#f0b429;--conf-low:#e8695e;--conf-low-ink:#1b0f0e;--conf-mid-soft:rgba(240,180,41,.14);--conf-low-soft:rgba(232,105,94,.14);
   --conf-mid-half:color-mix(in oklab,#f0b429 50%,rgba(234,236,250,.96));--conf-low-half:color-mix(in oklab,#e8695e 50%,rgba(234,236,250,.96));--script-half:color-mix(in oklab,#55abe5 50%,rgba(234,236,250,.96));
@@ -72,7 +72,7 @@
   --ink-96:#050615;--ink-80:rgba(5,6,21,.86);--ink-90:rgba(5,6,21,.92);--ink-70:rgba(5,6,21,.72);--ink-68:rgba(5,6,21,.7);--ink-62:rgba(5,6,21,.64);--ink-60:rgba(5,6,21,.62);--ink-55:rgba(5,6,21,.58);--ink-52:rgba(5,6,21,.56);
   --ink-50:rgba(5,6,21,.55);--ink-45:rgba(5,6,21,.5);--ink-42:rgba(5,6,21,.48);--ink-40:rgba(5,6,21,.46);--ink-38:rgba(5,6,21,.44);--ink-35:rgba(5,6,21,.42);--ink-32:rgba(5,6,21,.4);--ink-30:rgba(5,6,21,.38);--ink-28:rgba(5,6,21,.36);--ink-22:rgba(5,6,21,.3);
   --hair:rgba(0,0,0,.08);--fill-02:rgba(0,0,0,.015);--fill-03:rgba(0,0,0,.025);--fill-04:rgba(0,0,0,.03);--fill-05:rgba(0,0,0,.04);--fill-06:rgba(0,0,0,.05);--fill-07:rgba(0,0,0,.07);--fill-08:rgba(0,0,0,.06);--fill-09:rgba(0,0,0,.07);--fill-10:rgba(0,0,0,.08);--fill-12:rgba(0,0,0,.09);--fill-13:rgba(0,0,0,.1);--fill-14:rgba(0,0,0,.11);--fill-16:rgba(0,0,0,.125);--fill-18:rgba(0,0,0,.14);--fill-20:rgba(0,0,0,.16);--fill-80:rgba(5,6,21,.55);
-  --find-bg:rgba(240,165,20,.26);--find-fg:#7a4600;
+  --find-bg:rgba(41,104,163,.16);--find-fg:#050615;
   --brand:#2968a3;--brand-ink:#ffffff;--brand-tint:rgba(41,104,163,.08);--brand-soft:rgba(41,104,163,.12);--brand-line:rgba(41,104,163,.28);--brand-line-strong:rgba(41,104,163,.4);--brand-14:rgba(41,104,163,.1);--brand-26:rgba(41,104,163,.2);--brand-50:rgba(41,104,163,.4);
   --live:#b92913;--live-soft:rgba(236,92,70,.14);--ready:#047857;--ready-soft:rgba(4,120,87,.12);--conf-mid:#8a5a00;--conf-low:#b92913;--conf-low-ink:#ffffff;--conf-mid-soft:rgba(138,90,0,.12);--conf-low-soft:rgba(185,41,19,.1);
   --conf-mid-half:#8a5a00;--conf-low-half:#b92913;--script-half:#2968a3;
@@ -924,7 +924,7 @@
 .vsp .txfeed--desk .txline__text{line-height:1.5}
 .vsp .txline--warm .txline__text span{color:transparent;-webkit-text-fill-color:transparent;background:var(--fill-10);border-radius:99px;text-shadow:none;text-decoration:none}
 .vsp .txw{border-radius:3px;padding:0 1px;white-space:pre-wrap;text-decoration-thickness:1.5px;text-underline-offset:3px;transition:color .12s linear,text-shadow .12s linear}
-.vsp .txhit{background:var(--find-bg);box-shadow:0 0 0 1.5px var(--find-bg);border-radius:3px;color:var(--find-fg);font:inherit;padding:0;margin:0;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.vsp .txhit{background:var(--find-bg);box-shadow:0 0 0 3px var(--find-bg);border-radius:4px;color:var(--find-fg);font:inherit;padding:0;margin:0;-webkit-box-decoration-break:clone;box-decoration-break:clone}
 .vsp .txfollow{position:sticky;height:0;display:flex;justify-content:center;z-index:15}
 .vsp .txfollow--up{top:28px;align-items:flex-start}
 .vsp .txfollow--down{bottom:12px;align-items:flex-end}
