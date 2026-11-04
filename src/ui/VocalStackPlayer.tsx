@@ -350,6 +350,11 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   }, [voiceLate, onVoice, voice.on, videoLed]); // eslint-disable-line react-hooks/exhaustive-deps
   const player = videoLed ? yt.player : voice.on && onVoice && !voiceLate ? voice.player : srcPlayer;
   useEffect(() => { if (player.playing) wantPlay.current = true; }, [player.playing]);
+  useEffect(() => {
+    if (videoLed) return;
+    if (player !== srcPlayer && srcPlayer.playing) srcPlayer.pause();
+    if (player !== voice.player && voice.player.playing) voice.player.pause();
+  });
   useEffect(() => { if (!voiceLate) return; const id = rows[rowAt]?.sentenceId; if (id != null) voice.nearRow(id); }, [voiceLate, rowAt]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (videoLed) { voice.player.pause(); return; } (voice.on ? srcPlayer : voice.player).pause(); }, [voice.on, videoLed]); // eslint-disable-line react-hooks/exhaustive-deps
   const followLines = useMemo(() => rows.filter((r) => r.sentenceId != null).map((r, i, a) => ({ sid: r.sentenceId as number, start: r.start, end: a[i + 1]?.start ?? lineEnd(r, r.start, r.start + 4) })), [rows]);
