@@ -33,7 +33,7 @@ import { EndCard, type EndCardOptions } from './EndCard';
 import { rememberCode, rememberedCode, type Started } from '../data/connect';
 import { shareCodeOf } from '../core/share';
 import { useDesk } from './useDesk';
-import { ErrorGate, SourceGate, StartCard, txChoiceOf, useConnect, type IdleState } from './SourceGate';
+import { ErrorGate, SourceGate, StartCard, useConnect, type IdleState } from './SourceGate';
 import { CloneConsent, IDLE_DEFAULTS, grantCloneConsent, hasCloneConsent, type IdlePrefs } from './IdleSettings';
 import { useLookup } from '../data/lookup';
 
@@ -144,7 +144,6 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
   }), []);
   const loadRef = useRef<(link: string, opts?: { poster?: string | null }) => void>(() => {});
   const clearRef = useRef<() => void>(() => {});
-  const autoRef = useRef<(link: string) => void>(() => {});
   const [cur, setCur] = useState<{ id: string; token: TokenSource | null | undefined; listen?: Listen | null }>({ id: props.id ?? '', token: props.token });
   useEffect(() => { setCur({ id: props.id ?? '', token: props.token }); }, [props.id, props.token, props.src]);
   const found = useLookup(props.src ?? null, props.token ?? null, props.baseUrl ?? null);
@@ -152,7 +151,7 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
   const [typed, setTyped] = useState<string | null>(null);
   const [typedPoster, setTypedPoster] = useState<string | null>(null);
   const pickTyped = useCallback((l: string | null, poster: string | null = null) => { setTypedPoster(poster); setTyped(l); }, []);
-  loadRef.current = (link: string, opts?: { poster?: string | null }) => { const l = link.trim(); if (!l) return; setCur({ id: '', token: props.token }); pickTyped(l, opts?.poster ?? null); autoRef.current(l); };
+  loadRef.current = (link: string, opts?: { poster?: string | null }) => { const l = link.trim(); if (!l) return; setCur({ id: '', token: props.token }); pickTyped(l, opts?.poster ?? null); };
   clearRef.current = () => { setCur({ id: '', token: props.token }); pickTyped(null); };
   const [idlePrefs, setIdlePrefs] = useState<IdlePrefs>(() => ({ ...IDLE_DEFAULTS, ...Object.fromEntries(Object.entries({ ...(props.initial ?? {}), ...(props.settings ?? {}) }).filter(([, v]) => v !== undefined)) } as IdlePrefs));
   const [touched, setTouched] = useState<Partial<IdlePrefs>>({});
@@ -194,7 +193,6 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
     setCur({ id: st.transcriptionId, token: null, listen: { transcriptionId: st.transcriptionId, recordingId: st.recordingId, token: st.token } });
   }, []);
   const connect = useConnect(appUrl, onReady);
-  autoRef.current = (l: string) => { if (connect.connected && !connect.busy && !shareCodeOf(l) && !rememberedCode(l)) connect.start(l, true, txChoiceOf(idlePrefs)); };
   const clearErr = connect.clear;
   useEffect(() => { clearErr(); }, [props.id, props.src, typed, cur.id, clearErr]);
   const root = useRef<HTMLDivElement>(null);
