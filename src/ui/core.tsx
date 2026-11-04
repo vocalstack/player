@@ -869,10 +869,10 @@ function useTxVoicePlayer(clips: VoiceClip[], rows: Row[], lenS: number | null, 
 }
 
 export const NO_SEEK = () => {};
-const TX_PICKER_NOTE = 'The language this recording is read aloud in.';
+const TX_PICKER_NOTE = 'The transcript and its voice switch to this language.';
 
 const TX_SIDE = { title: 'TRANSCRIPT LANGUAGE', note: 'The transcript and its voice switch to this language.' };
-export const PUB_SIDE = { title: 'READ IN', note: 'The transcript and its voice switch to this language.' };
+export const PUB_SIDE = { title: 'LANGUAGE', note: 'The transcript and its voice switch to this language.' };
 
 
 export interface VoiceSheetCtx {
@@ -1074,7 +1074,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
               ? gvPicked.name
               : t.vcNoVoice + meta.label;
   const pickerEl = (
-      <LanguagePicker open={picker} onClose={closePicker} keepOpen={!!side && !fromVoices} value={original ? null : lang} onSelect={selectLang} languages={trLangs} title={side?.title ?? 'SPOKEN LANGUAGE'} note={side?.note ?? TX_PICKER_NOTE} searchPlaceholder={t.search} none="Original" pinned={(original ? srcLang : lang) ? [(original ? srcLang : lang)!] : []} recent={recent} requireVoice={fromVoices} sticky={stickyPicker} busy={pickerBusy} />
+      <LanguagePicker open={picker} onClose={closePicker} keepOpen={!!side && !fromVoices} value={original ? null : lang} onSelect={selectLang} languages={trLangs} title={side?.title ?? 'LANGUAGE'} note={side?.note ?? TX_PICKER_NOTE} searchPlaceholder={t.search} none="Original" pinned={(original ? srcLang : lang) ? [(original ? srcLang : lang)!] : []} recent={recent} requireVoice={fromVoices} sticky={stickyPicker} busy={pickerBusy} />
   );
   const savedClones = useMemo(() => gvList.filter((v) => v.cloned && !v.auto), [gvList]);
   const savedFor = (sp: CastMember) => (sp.voiceId ? savedClones.find((v) => v.id === `clone:${sp.voiceId}`) ?? null : null);

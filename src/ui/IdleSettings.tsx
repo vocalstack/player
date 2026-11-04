@@ -62,7 +62,7 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
   const meta = langMeta(langs, prefs.lang);
   const languages = useMemo(() => pickerLanguages(langs, 'translation'), [langs]);
   const pick = (c: string | null) => { set({ lang: c }); pushRecent(c); };
-  const list = useLanguageList({ open: sheet === 'lang', onClose: () => setSheet(null), value: prefs.lang, onSelect: pick, languages, none: 'As spoken', pinned: prefs.lang ? [prefs.lang] : [], recent });
+  const list = useLanguageList({ open: sheet === 'lang', onClose: () => setSheet(null), value: prefs.lang, onSelect: pick, languages, none: 'Original', pinned: prefs.lang ? [prefs.lang] : [], recent });
   const close = () => { setSheet(null); setPage('main'); };
   const spokenLangs = useMemo(() => pickerLanguages(langs, 'transcription').map((l) => ({ ...l, voice: false })), [langs]);
   const spokenMeta = langMeta(langs, prefs.spoken);
@@ -116,8 +116,8 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
     </div>
   ) : null;
   const chip = (
-    <span ref={tipRef} className="vsp-btip" data-hint={bubble ? '' : undefined} data-tip={`Language: ${prefs.lang ? meta.label : 'As spoken'}`} data-open={sheet === 'lang' ? '' : undefined}>
-      <button type="button" className="gfull__btn" aria-label={`Language: ${prefs.lang ? meta.label : 'As spoken'}`} onClick={(e) => { e.stopPropagation(); dropHint(); setPage('main'); setSheet((s) => (s === 'lang' ? null : 'lang')); }}>{flag}</button>
+    <span ref={tipRef} className="vsp-btip" data-hint={bubble ? '' : undefined} data-tip={`Language: ${meta.label}`} data-open={sheet === 'lang' ? '' : undefined}>
+      <button type="button" className="gfull__btn" aria-label={`Language: ${meta.label}`} onClick={(e) => { e.stopPropagation(); dropHint(); setPage('main'); setSheet((s) => (s === 'lang' ? null : 'lang')); }}>{flag}</button>
       {bubble}
     </span>
   );

@@ -753,7 +753,7 @@ const ORIGINAL_FLAG = (
 
 export function langMeta(langs: LanguageLists | null, code: string | null) {
   const l = code ? langs?.languages.find((x) => x.code === code) : null;
-  return { flag: code ? (l?.flag ?? '\u{1F310}') : ORIGINAL_FLAG, code: code ? code.toUpperCase() : '', label: l?.native ?? 'As spoken', name: l?.name ?? 'Original' };
+  return { flag: code ? (l?.flag ?? '\u{1F310}') : ORIGINAL_FLAG, code: code ? code.toUpperCase() : '', label: l?.native ?? 'Original', name: l?.name ?? 'Original' };
 }
 
 export const PLAIN_CHIP: React.CSSProperties = { background: 'transparent', minHeight: 38, height: 38, width: 'auto' };

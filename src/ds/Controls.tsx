@@ -125,7 +125,7 @@ export function IconButton({ children, onClick, label, size, variant, bordered =
 export function LanguageChip({ flag, code, label, onClick, variant, block, bordered = true, size, style, flagOnly }: { flag: ReactNode; code: string; label?: string; onClick?: () => void; variant?: 'primary'; block?: boolean; bordered?: boolean; size?: 'sm'; style?: React.CSSProperties; flagOnly?: boolean }) {
   if (flagOnly) {
     return (
-      <button type="button" className="mutebtn vs-flagbtn" onClick={onClick} aria-label={label ? (code ? `${label} (${code})` : label) : code || 'Language'} title={label ?? code} style={style}>
+      <button type="button" className="mutebtn vs-flagbtn" onClick={onClick} aria-label={`Language: ${label ? (code ? `${label} (${code})` : label) : code}`} title={`Language: ${label ?? code}`} style={style}>
         <span style={{ fontSize: 20, lineHeight: 1, display: 'flex' }}>{flag}</span>
       </button>
     );
