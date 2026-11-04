@@ -9,3 +9,8 @@ export function shareCodeOf(raw: string): string | null {
     return null;
   }
 }
+
+export function playIdOf(id: string | null | undefined, withToken: boolean): string {
+  const v = id?.trim() ?? '';
+  return v && !withToken ? shareCodeOf(v) ?? v : v;
+}

@@ -35,7 +35,7 @@ import { FullVideo, ListenerHeader, MiniPlayer, browserFull, modeOptions, setFul
 import { PlayerWait, playerWaitOf, useHeld } from './wait';
 import { EndCard, type EndCardOptions } from './EndCard';
 import { rememberCode, rememberedCode, type Started } from '../data/connect';
-import { shareCodeOf } from '../core/share';
+import { playIdOf, shareCodeOf } from '../core/share';
 import { useDesk } from './useDesk';
 import { ErrorGate, SourceGate, StartCard, useConnect, type IdleState } from './SourceGate';
 import { CloneConsent, IDLE_DEFAULTS, grantCloneConsent, hasCloneConsent, type IdlePrefs } from './IdleSettings';
@@ -149,8 +149,8 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
   }), []);
   const loadRef = useRef<(link: string, opts?: { poster?: string | null }) => void>(() => {});
   const clearRef = useRef<() => void>(() => {});
-  const [cur, setCur] = useState<{ id: string; token: TokenSource | null | undefined; listen?: Listen | null }>({ id: props.id ?? '', token: props.token });
-  useEffect(() => { setCur({ id: props.id ?? '', token: props.token }); }, [props.id, props.token, props.src]);
+  const [cur, setCur] = useState<{ id: string; token: TokenSource | null | undefined; listen?: Listen | null }>({ id: playIdOf(props.id, !!props.token), token: props.token });
+  useEffect(() => { setCur({ id: playIdOf(props.id, !!props.token), token: props.token }); }, [props.id, props.token, props.src]);
   const found = useLookup(props.src ?? null, props.token ?? null, props.baseUrl ?? null);
   useEffect(() => { if (found?.id) setCur({ id: found.id, token: props.token }); }, [found?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [typed, setTyped] = useState<string | null>(null);
@@ -174,8 +174,6 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
     const kept = own ? null : rememberedCode(gateSrc);
     let live = true;
     setCodeFor(null);
-    const published = (): Promise<string | null> => fetch(`${base.origin}/v1/shares?${new URLSearchParams({ url: gateSrc, site: window.location.origin })}`)
-      .then((r) => (r.ok ? r.json() : null)).then((d: { code?: string } | null) => d?.code ?? null).catch(() => null);
     const tryCode = (code: string) => base.client.shareLinks.open(code).then(() => true, () => false);
     void (async () => {
       if (own && await tryCode(own)) { if (live) setCur({ id: own, token: null }); return; }
@@ -183,10 +181,7 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
         if (await tryCode(kept)) { if (live) setCur({ id: kept, token: null }); return; }
         rememberCode(gateSrc, null);
       }
-      const found = own ? null : await published();
-      if (!live) return;
-      if (found) { rememberCode(gateSrc, found); setCur({ id: found, token: null }); return; }
-      setCodeFor(gateSrc);
+      if (live) setCodeFor(gateSrc);
     })();
     return () => { live = false; };
   }, [gateSrc, cur.id]); // eslint-disable-line react-hooks/exhaustive-deps
