@@ -61,8 +61,8 @@ export function WistiaFollow({ id, t, playing, seekN, onToggle }: { id: string; 
   const src = `https://fast.wistia.net/embed/iframe/${encodeURIComponent(id)}?${new URLSearchParams({ muted: 'true', playbar: 'false', controlsVisibleOnLoad: 'false', playButton: 'false', smallPlayButton: 'false', volumeControl: 'false', fullscreenButton: 'false', settingsControl: 'false', endVideoBehavior: 'reset' })}`;
   return (
     <div className="txyt vsp-follow" style={ready ? { background: '#000' } : undefined}>
-      <iframe src={src} className="wistia_embed vsp-embed" name="wistia_embed" title="Video" allow="autoplay; fullscreen" style={{ opacity: ready ? 1 : 0, pointerEvents: playing ? 'auto' : 'none' }} tabIndex={-1} aria-hidden="true" />
-      {!playing && <div aria-hidden="true" className="txyt__tap" onClick={onToggle} style={{ cursor: onToggle ? 'pointer' : 'default' }} />}
+      <iframe src={src} className="wistia_embed vsp-embed" name="wistia_embed" title="Video" allow="autoplay; fullscreen" style={{ opacity: ready ? 1 : 0, pointerEvents: 'none' }} tabIndex={-1} aria-hidden="true" />
+      {<div aria-hidden="true" className="txyt__tap" onClick={onToggle} style={{ cursor: onToggle ? 'pointer' : 'default' }} />}
       {ready && <div className={`txyt__paused${!playing ? ' txyt__paused--on' : ''}`} aria-hidden="true"><span className="txyt__pausedplay"><PlayGlyph size={44} /></span></div>}
     </div>
   );

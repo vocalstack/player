@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { PlayGlyph } from '../ds/Icons';
 
-interface FbPlayer { play(): void; pause(): void; seek(s: number): void; mute(): void; unmute(): void; setVolume(v: number): void; getCurrentPosition(): number }
+interface FbPlayer { play(): void; pause(): void; seek(s: number): void; mute(): void; unmute(): void; setVolume(v: number): void; getCurrentPosition(): number; subscribe?(e: string, cb: () => void): { release?: (e?: string) => void } | void }
 interface FbSdk { init(o: object): void; XFBML: { parse(el?: Element): void }; Event: { subscribe(e: string, cb: (m: { type: string; id: string; instance: FbPlayer }) => void): void; unsubscribe(e: string, cb: unknown): void } }
 type W = Window & { FB?: FbSdk; fbAsyncInit?: () => void };
 
@@ -30,6 +30,7 @@ export function FacebookFollow({ url, t, playing, seekN, onToggle }: { url: stri
   const box = useRef<HTMLDivElement>(null);
   const player = useRef<FbPlayer | null>(null);
   const tRef = useRef(t); tRef.current = t;
+  const playRef = useRef(playing); playRef.current = playing;
   const [ready, setReady] = useState(false);
   const [id] = useState(() => `vsp-fb-${++seq}`);
   useEffect(() => {
@@ -50,6 +51,7 @@ export function FacebookFollow({ url, t, playing, seekN, onToggle }: { url: stri
     const onReady = (m: { type: string; id: string; instance: FbPlayer }) => {
       if (!live || m.type !== 'video' || m.id !== id) return;
       player.current = m.instance;
+      try { m.instance.subscribe?.('paused', () => { if (playRef.current) { try { m.instance.play(); } catch { } } }); } catch { }
       try { m.instance.setVolume(0); m.instance.unmute(); m.instance.setVolume(0); m.instance.seek(Math.max(0, tRef.current)); } catch { }
       setReady(true);
     };
@@ -82,7 +84,7 @@ export function FacebookFollow({ url, t, playing, seekN, onToggle }: { url: stri
   return (
     <div className="txyt vsp-follow vsp-fb" style={ready ? { background: '#000' } : undefined}>
       <div ref={box} className={`vsp-fb__box${playing ? ' vsp-fb__box--live' : ''}`} style={{ opacity: ready ? 1 : 0 }} />
-      {ready && !playing && <div aria-hidden="true" className="txyt__tap" onClick={onToggle} style={{ cursor: onToggle ? 'pointer' : 'default' }} />}
+      {ready && <div aria-hidden="true" className="txyt__tap" onClick={onToggle} style={{ cursor: onToggle ? 'pointer' : 'default' }} />}
       {ready && <div className={`txyt__paused${!playing ? ' txyt__paused--on' : ''}`} aria-hidden="true"><span className="txyt__pausedplay"><PlayGlyph size={44} /></span></div>}
     </div>
   );

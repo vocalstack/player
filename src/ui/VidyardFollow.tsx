@@ -69,7 +69,7 @@ export function VidyardFollow({ uuid, t, playing, seekN, onToggle }: { uuid: str
   return (
     <div className="txyt vsp-follow" style={ready ? { background: '#000' } : undefined}>
       <div ref={box} className={`vsp-fb__box${playing ? ' vsp-fb__box--live' : ''}`} style={{ opacity: ready ? 1 : 0 }} />
-      {!playing && <div aria-hidden="true" className="txyt__tap" onClick={onToggle} style={{ cursor: onToggle ? 'pointer' : 'default' }} />}
+      {<div aria-hidden="true" className="txyt__tap" onClick={onToggle} style={{ cursor: onToggle ? 'pointer' : 'default' }} />}
       {ready && <div className={`txyt__paused${!playing ? ' txyt__paused--on' : ''}`} aria-hidden="true"><span className="txyt__pausedplay"><PlayGlyph size={44} /></span></div>}
     </div>
   );
