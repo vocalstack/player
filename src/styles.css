@@ -450,10 +450,10 @@
 .vsp .searchbar--float .count{font-size:10px}
 .vsp .searchbar--live{height:42px}
 .vsp .searchbar input{font-size:14px;letter-spacing:0}
-.vsp .searchbar__x{flex:none;display:flex;cursor:pointer;background:none;border:0;padding:0;color:var(--ink-45)}
-.vsp .searchbar__x:hover{opacity:.7}
+.vsp .searchbar__x{flex:none;display:flex;cursor:pointer;background:none;border:0;padding:6px;margin:-6px -2px;border-radius:8px;color:var(--ink-45)}
+.vsp .searchbar__x:not(:disabled):hover{background:var(--fill-08);color:var(--ink-80)}
 .vsp .searchbar__x:disabled{opacity:.3;cursor:default}
-.vsp .searchbar__step{margin-right:-3px}
+.vsp .searchbar__step+.searchbar__x:not(.searchbar__step){margin-left:14px}
 .vsp .nsgrid .vs-card{padding:16px}
 .vsp .srow{display:flex;align-items:center;gap:12px;padding:14px;border-radius:12px}
 .vsp .srow--tap{cursor:pointer}
