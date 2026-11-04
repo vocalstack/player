@@ -1335,7 +1335,7 @@ export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord
         const on = playing && i === idx;
         const held = engaged && i === idx;
         const fixing = !!fixingId && fixingId === r.id;
-        const dim = !engaged || i <= idx || fixing ? 1 : 0.38;
+        const dim = needle && !r.text.toLowerCase().includes(needle) && !(lang && r.translations[lang]?.toLowerCase().includes(needle)) ? 0.22 : !engaged || i <= idx || fixing ? 1 : 0.38;
         const tapRow = listener ? () => player.playRow(i)
           : fixMode && onFix ? () => { if (playing && !on) player.seekRow(i); onFix(r); }
           : playing && on ? undefined : () => player.playRow(i);
