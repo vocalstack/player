@@ -36,7 +36,7 @@ export function Video() {
 | `baseUrl` | `https://api.vocalstack.com` | |
 | `onSource`, `onProgress`, `onError` | | Called with the loaded transcription, the transcription progress (0-100, `null` when done), and errors. |
 | `onPlayback` | | Called about ten times a second while anything changes, with `{ t, dur, playing, idx, seekN, lang }`: the time in seconds, the length, whether it plays, the index of the current line, a counter that grows on every seek, and the language shown. |
-| `ref` | | A `PlayerHandle`: `seek(t)`, `play()`, `pause()`, `toggle()`. |
+| `ref` | | A `PlayerHandle`: `seek(t)`, `play()`, `pause()`, `toggle()`, `toggleMute()`, and `load(link)`, which opens a video link (or a share link) in the player as if the viewer had pasted it. |
 | `compact` | `false` | Small controls at any width, and no title, summary or share card when paused. For a player inside a side column or card. |
 | `poster` | | An image shown behind the player before a video is chosen or before the visitor connects. |
 

@@ -72,6 +72,7 @@ export interface PlayerHandle {
   pause: () => void;
   toggle: () => void;
   toggleMute: () => void;
+  load: (link: string) => void;
 }
 
 const PLAYBACK_MS = 100;
@@ -129,19 +130,22 @@ function initialOf(p: VocalStackPlayerProps): Init {
 }
 
 export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: VocalStackPlayerProps, ref: Ref<PlayerHandle>) {
-  const handle = useRef<PlayerHandle | null>(null);
+  const handle = useRef<Omit<PlayerHandle, 'load'> | null>(null);
   useImperativeHandle(ref, () => ({
     seek: (t) => handle.current?.seek(t),
     play: () => handle.current?.play(),
     toggleMute: () => handle.current?.toggleMute(),
     pause: () => handle.current?.pause(),
     toggle: () => handle.current?.toggle(),
+    load: (link: string) => loadRef.current(link),
   }), []);
+  const loadRef = useRef<(link: string) => void>(() => {});
   const [cur, setCur] = useState<{ id: string; token: TokenSource | null | undefined; listen?: Listen | null }>({ id: props.id ?? '', token: props.token });
   useEffect(() => { setCur({ id: props.id ?? '', token: props.token }); }, [props.id, props.token, props.src]);
   const found = useLookup(props.src ?? null, props.token ?? null, props.baseUrl ?? null);
   useEffect(() => { if (found?.id) setCur({ id: found.id, token: props.token }); }, [found?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [typed, setTyped] = useState<string | null>(null);
+  loadRef.current = (link: string) => { const l = link.trim(); if (!l) return; setCur({ id: '', token: props.token }); setTyped(l); };
   const [idlePrefs, setIdlePrefs] = useState<IdlePrefs>(() => ({ ...IDLE_DEFAULTS, ...Object.fromEntries(Object.entries({ ...(props.initial ?? {}), ...(props.settings ?? {}) }).filter(([, v]) => v !== undefined)) } as IdlePrefs));
   const [touched, setTouched] = useState<Partial<IdlePrefs>>({});
   const idle: IdleState = { prefs: idlePrefs, set: (p) => { setIdlePrefs((x) => ({ ...x, ...p })); setTouched((x) => ({ ...x, ...p })); }, shareUrl: props.shareUrl?.(null) };
@@ -178,7 +182,7 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
 
 type PubTab = 'summary' | 'export';
 
-function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handle: { current: PlayerHandle | null }; api: PlayerApi; shared: LoadedSource | null; gone: boolean; loadError: ErrorLike | null; reread: () => void; desk: boolean; dark: boolean; onStarted: (s: Started) => void }) {
+function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handle: { current: Omit<PlayerHandle, 'load'> | null }; api: PlayerApi; shared: LoadedSource | null; gone: boolean; loadError: ErrorLike | null; reread: () => void; desk: boolean; dark: boolean; onStarted: (s: Started) => void }) {
   const { api, shared, gone, desk, dark } = props;
   const code = props.id ?? "";
   const init = useMemo(() => initialOf(props), []); // eslint-disable-line react-hooks/exhaustive-deps
