@@ -34,6 +34,7 @@ export interface Connect {
   connected: boolean;
   connect: () => void;
   start: (url: string, ask: boolean) => void;
+  clear: () => void;
 }
 
 export function useConnect(appUrl: string | undefined, onReady: (s: Started) => void): Connect {
@@ -58,7 +59,8 @@ export function useConnect(appUrl: string | undefined, onReady: (s: Started) => 
   }, [appUrl, busy, onReady]);
   const connect = useCallback(() => run({ connect: true }), [run]);
   const start = useCallback((url: string, ask: boolean) => run({ url, ask }), [run]);
-  return { busy, status, err, connected, connect, start };
+  const clear = useCallback(() => setErr(null), []);
+  return { busy, status, err, connected, connect, start, clear };
 }
 
 function isMedia(src: string): boolean {

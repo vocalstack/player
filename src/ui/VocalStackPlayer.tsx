@@ -165,6 +165,8 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
   const appUrl = props.appUrl ?? (props.endCard ? props.endCard.appUrl : undefined);
   const onReady = useCallback((st: Started) => setCur({ id: st.transcriptionId, token: null, listen: { transcriptionId: st.transcriptionId, recordingId: st.recordingId, token: st.token } }), []);
   const connect = useConnect(appUrl, onReady);
+  const clearErr = connect.clear;
+  useEffect(() => { clearErr(); }, [props.id, props.src, typed, cur.id, clearErr]);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
     setFullTarget(embed ? root.current : null);
