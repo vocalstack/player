@@ -803,12 +803,14 @@
 .vsp .gmini .gfull__step,.vsp .gmini .gfull__btn{width:28px;height:28px}
 .vsp .gmini .gfull__play{width:32px;height:32px}
 .vsp .gmini .gfull__chip{margin-left:0}
-.vsp .gfull .vs-sheet-scrim{z-index:3;background:rgba(5,6,21,.45)}
+.vsp .gfull .vs-sheet-scrim{z-index:3;background:rgba(0,0,0,.35)}
+.vsp .gfull .vs-sheet,.vsp .vsp-idleroot .vs-sheet{background:rgba(0,0,0,.72);border-color:rgba(255,255,255,.1);-webkit-backdrop-filter:blur(24px) saturate(150%);backdrop-filter:blur(24px) saturate(150%)}
+.vsp .gfull .vs-picker__search,.vsp .vsp-idleroot .vs-picker__search{background:rgba(255,255,255,.08)}
 .vsp .gfull .vs-sheet{align-self:center;width:min(100%,420px);max-height:85%;border-radius:18px 18px 0 0}
 .vsp .gfull.gfull--desk .vs-sheet-scrim{background:none}
 .vsp .gfull__voices{display:contents}
 .vsp .gfull.gfull--desk .gfull__voices .vs-sheet{width:380px}
-.vsp .gfull.gfull--desk .vs-sheet{position:absolute;right:24px;bottom:80px;width:360px;max-height:calc(100% - 180px);border-radius:16px;border:1px solid var(--vs-border);padding-top:16px;padding-bottom:0;box-shadow:0 12px 40px rgba(5,6,21,.5);animation:none}
+.vsp .gfull.gfull--desk .vs-sheet{position:absolute;right:24px;bottom:80px;width:360px;max-height:calc(100% - 180px);border-radius:16px;border:1px solid var(--vs-border);padding-top:16px;padding-bottom:0;box-shadow:0 12px 40px rgba(0,0,0,.5);animation:none}
 .vsp .gfull.gfull--desk .vs-sheet.vs-sheet--settings{top:80px;bottom:auto}
 .vsp .gfull.gfull--desk .vs-sheet.vs-sheet--settings.vs-sheet--page{top:80px;bottom:auto;margin:0;height:auto;max-height:calc(100% - 160px)}
 .vsp .gfull:not(.gfull--desk) .vs-sheet.vs-sheet--settings.vs-sheet--page{margin-top:var(--vs-sheet-top,auto);margin-bottom:auto;max-height:calc(100% - var(--vs-sheet-top,0px))}
@@ -1402,3 +1404,4 @@
 .vsp .vsp-langhint__count{font:600 10.5px var(--vs-font-mono);color:var(--brand);padding:3px 6px;border-radius:6px;background:var(--brand-soft)}
 .vsp .vsp-langhint__close{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:0;border-radius:9px;background:var(--fill-05,rgba(255,255,255,.06));color:var(--vs-ink-82);cursor:pointer}
 .vsp .vsp-langhint__arrow{position:absolute;right:20px;bottom:-6px;width:11px;height:11px;background:var(--vs-surface-raised);border-right:1px solid var(--vs-border-brand);border-bottom:1px solid var(--vs-border-brand);border-radius:0 0 2px 0;transform:rotate(45deg)}
+@media (pointer:coarse),(max-width:820px){.vsp input:not([type=checkbox]):not([type=radio]):not([type=range]),.vsp textarea,.vsp select{font-size:16px!important}}
