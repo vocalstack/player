@@ -1357,6 +1357,9 @@
 .vsp .vsp-embed{background:#000}
 .vsp .vsp-thumbpic{position:absolute;inset:0;background:#000 center/contain no-repeat}
 .vsp .vsp-fb__box--live iframe{pointer-events:none}
+.vsp .txyt .vsp-fb__box .fb-video{position:absolute;left:50%;top:50%;max-width:none;max-height:none;transform-origin:50% 50%}
+.vsp .txyt .vsp-fb__box .fb-video>span{display:block;position:relative;max-width:none;max-height:none}
+.vsp .txyt .vsp-fb__box iframe{position:absolute;inset:0;top:0;left:0}
 .vsp .vsp-end{background:rgba(5,6,21,.38);backdrop-filter:blur(8px) saturate(1.1);-webkit-backdrop-filter:blur(8px) saturate(1.1)}
 .vsp .vsp-end__card{width:min(100%,440px);gap:12px;padding:24px 24px 20px;border-radius:22px;background:rgba(16,17,38,.55);backdrop-filter:blur(26px) saturate(1.5);-webkit-backdrop-filter:blur(26px) saturate(1.5);box-shadow:0 30px 80px rgba(0,0,0,.45)}
 .vsp .vsp-end__title{font-size:18px;font-weight:600;letter-spacing:-.25px}
