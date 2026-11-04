@@ -304,7 +304,7 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
     bind: (c) => { cmdRef.current = c; if (!c) readyRef.current = false; },
     onInfo: (i) => {
       if (i.ready && !readyRef.current) { readyRef.current = true; if (pending.current) { pending.current = false; send(lead.muted ? 'mute' : 'unMute'); send('playVideo'); } }
-      if (typeof i.state === 'number') { stateRef.current = i.state; setState(i.state); }
+      if (typeof i.state === 'number') { stateRef.current = i.state; setState(i.state); if (i.state === 1 && !wantPlay.current && !held.current && performance.now() - pausedAt.current < 6000) send('pauseVideo'); }
       if (typeof i.muted === 'boolean') ytMuted.current = i.muted;
       if (typeof i.t === 'number') {
         const at = i.t - offset.current;
@@ -349,6 +349,9 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
     setT(s); setSeekN((n) => n + 1);
   };
   const wantPlay = useRef(false);
+  const [want, setWantState] = useState(false);
+  const pausedAt = useRef(-1e9);
+  const setWant = (v: boolean) => { wantPlay.current = v; setWantState(v); };
   const playRetry = useRef<number | undefined>(undefined);
   const nudgePlay = (n: number) => {
     window.clearTimeout(playRetry.current);
@@ -359,11 +362,11 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
     }, 1200);
   };
   useEffect(() => () => window.clearTimeout(playRetry.current), []);
-  const play = () => { wantPlay.current = true; if (!chosen.current && mutedRef.current) soundUp(); if (!readyRef.current) { pending.current = true; return; } send('playVideo'); nudgePlay(3); };
-  const pause = () => { wantPlay.current = false; window.clearTimeout(playRetry.current); pending.current = false; setWait(false); send('pauseVideo'); };
+  const play = () => { setWant(true); if (!chosen.current && mutedRef.current) soundUp(); if (!readyRef.current) { pending.current = true; return; } send('playVideo'); nudgePlay(3); };
+  const pause = () => { setWant(false); pausedAt.current = performance.now(); window.clearTimeout(playRetry.current); pending.current = false; setWait(false); send('pauseVideo'); };
   const toggle = () => {
-    if (!readyRef.current) { if (!chosen.current && mutedRef.current) soundUp(); wantPlay.current = true; pending.current = true; return; }
-    if (playing) { pause(); return; }
+    if (wantPlay.current || playing) { pause(); return; }
+    if (!readyRef.current) { if (!chosen.current && mutedRef.current) soundUp(); setWant(true); pending.current = true; return; }
     if (edgeWaitRef.current) { setWait(false); return; }
     if (t >= dur - 0.25) seek(0);
     play();
@@ -379,6 +382,7 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
     const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
     const until = async (ok: () => boolean, ms: number) => { for (let i = 0; i < ms / 250 && !ok(); i++) await wait(250); return ok(); };
     if (!await until(() => readyRef.current, 10000)) return null;
+    setWant(true);
     setMute(true);
     for (let i = 0; i < 5 && stateRef.current !== 1; i++) { send('playVideo'); await until(() => stateRef.current === 1, 1500); }
     if (stateRef.current !== 1) return null;
@@ -401,7 +405,7 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
     prev: () => seekRow(idx - 1), next: () => seekRow(idx + 1),
     hold: () => { if (playing) { send('pauseVideo'); held.current = true; } },
     release: () => { if (held.current) { held.current = false; play(); } },
-    error: null, clearError: () => {}, has: true, edgeWait, wordSync: true,
+    error: null, clearError: () => {}, has: true, edgeWait, wordSync: true, preparing: want && state !== 1 && !edgeWait,
     pause,
     setVolume: (v: number) => send('setVolume', [Math.round(v * 100)]),
   };
