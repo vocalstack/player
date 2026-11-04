@@ -89,7 +89,9 @@ function SeekRow({ pos, interactive, axis = 'x' }: { pos: PlayerPos; interactive
           <i style={{ left: `${shown}%`, transition: drag != null ? 'none' : undefined }} />
         </div>
       </div>
-      <span className="gfull__t gfull__end" style={{ color: pos.live ? '#ec634d' : 'rgba(234,236,250,.6)' }}>{pos.endLabel}</span>
+      {pos.live
+        ? <button type="button" className={`gfull__liveb${pos.atEdge ? '' : ' gfull__liveb--behind'}`} title={pos.atEdge ? 'Live' : 'Go to live'} aria-label={pos.atEdge ? 'Live' : 'Go to live'} onClick={(e) => { e.stopPropagation(); if (!pos.atEdge) pos.onSeek(pos.edgeFrac ?? 1); }}><i />{pos.endLabel}</button>
+        : <span className="gfull__t gfull__end" style={{ color: 'rgba(234,236,250,.6)' }}>{pos.endLabel}</span>}
     </>
   );
 }
