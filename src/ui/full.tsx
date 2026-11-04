@@ -85,7 +85,7 @@ function SeekRow({ pos, interactive, axis = 'x' }: { pos: PlayerPos; interactive
         onPointerUp={interactive ? up : undefined} onPointerCancel={interactive ? () => setDrag(null) : undefined}>
         <div className={`gfull__track${pos.readyFrac != null ? ' gfull__track--part' : ''}`}>
           {pos.readyFrac != null && <div className="gfull__ready" style={{ width: `${Math.min(100, pos.readyFrac * 100)}%` }} />}
-          <div style={{ width: `${shown}%`, background: (drag == null ? pos.atEdge : pos.edgeFrac != null && drag >= pos.edgeFrac) ? '#ec634d' : '#55abe5', transition: drag != null ? 'none' : undefined }} />
+          <div style={{ width: `${shown}%`, background: pos.live ? '#ec634d' : '#55abe5', transition: drag != null ? 'none' : undefined }} />
           <i style={{ left: `${shown}%`, transition: drag != null ? 'none' : undefined }} />
         </div>
       </div>
