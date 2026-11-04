@@ -136,7 +136,7 @@ function GlassTransport({ t, mini }: { t: PlayerTransport; mini?: boolean }) {
 }
 
 function GlassBrand({ live, mini, desk, pct, mark }: { live: boolean; mini?: boolean; desk?: boolean; pct?: number | null; mark?: boolean }) {
-  return <div className={`gfull__brand${mark ? ' gfull__brand--mark' : ''}`}><a href={SITE} target="_blank" rel="noopener" style={{ display: 'block', lineHeight: 0 }} aria-label="VocalStack" title="VocalStack">{mark ? <Mark dark size={22} /> : <Logo dark link={false} height={mini ? 11 : desk ? 18 : 15} />}</a>{live && <span className="gfull__live"><i />LIVE</span>}{pct != null && <span className="gfull__txpct" title="Still being transcribed: it plays as far as it is written">{`TRANSCRIBING ${pct}%`}</span>}</div>;
+  return <div className={`gfull__brand${mark ? ' gfull__brand--mark' : ''}`}><a href={SITE} target="_blank" rel="noopener" style={{ display: 'block', lineHeight: 0 }} aria-label="VocalStack" title="VocalStack">{mark ? <Mark dark size={22} /> : <Logo dark link={false} height={mini ? 11 : desk ? 18 : 15} />}</a>{pct != null && <span className="gfull__txpct" title="Still being transcribed: it plays as far as it is written">{`TRANSCRIBING ${pct}%`}</span>}</div>;
 }
 
 function VoicesButton({ v, size }: { v: VoicesBtn; size: number }) {
