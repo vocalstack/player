@@ -503,7 +503,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     const id = setTimeout(() => setStarting(null), 12_000);
     return () => clearTimeout(id);
   }, [starting, player.playing]);
-  const transport: PlayerTransport = { prevOn: player.idx > 0, nextOn: player.idx < rows.length - 1, onPrev: player.prev, onNext: player.next, playing: player.playing, playable, playTitle: voice.playTitle ?? (player.playing ? 'Pause' : 'Play'), onPlay: () => { autoplayDone.current = true; wantPlay.current = !player.playing; if (ytId && !player.playing) setStarting(Date.now()); player.toggle(); }, busy: (voice.relang && !ytId) || voiceHolds || (starting != null && player.playing) };
+  const transport: PlayerTransport = { prevOn: player.idx > 0, nextOn: player.idx < rows.length - 1, onPrev: player.prev, onNext: player.next, playing: player.playing, playable, playTitle: voice.playTitle ?? (player.playing ? 'Pause' : 'Play'), onPlay: () => { autoplayDone.current = true; wantPlay.current = !player.playing; if (ytId && !player.playing) setStarting(Date.now()); player.toggle(); }, busy: (voice.relang && !ytId) || voiceHolds || (starting != null && player.playing) || (player.playing && !!player.preparing) };
   useMediaKeys(playable && listening ? { playing: player.playing, toggle: () => { autoplayDone.current = true; wantPlay.current = !player.playing; player.toggle(); }, next: player.next, prev: player.prev } : null, pageTitle);
   const glassChip: React.CSSProperties = { background: 'transparent', color: '#eef0f8', width: 74, justifyContent: 'center', boxSizing: 'border-box' };
   const chipFor = (style: React.CSSProperties, size?: 'sm') => !meta.can || !ctl.language ? null : locked

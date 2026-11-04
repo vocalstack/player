@@ -410,6 +410,7 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
 
 export function useTxPlayer(url: string | null, available: boolean, rows: Row[], lenS: number | null, offsetS = 0, edgeS: number | null = null): TxPlayer {
   const audio = useRef<HTMLMediaElement | null>(null);
+  const [buffering, setBuffering] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [t, setT] = useState(0);
   const [muted, setMuted] = useState(false);
@@ -431,8 +432,12 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
     a.preload = 'metadata';
     a.muted = mutedRef.current || silenced.current;
     a.onplay = () => setPlaying(true);
-    a.onpause = () => setPlaying(false);
-    a.onended = () => setPlaying(false);
+    a.onpause = () => { setPlaying(false); setBuffering(false); };
+    a.onended = () => { setPlaying(false); setBuffering(false); };
+    a.onwaiting = () => setBuffering(true);
+    a.onstalled = () => { if (!a.paused && a.readyState < 3) setBuffering(true); };
+    a.onplaying = () => setBuffering(false);
+    a.oncanplay = () => setBuffering(false);
     a.onloadedmetadata = () => {
       setReady(true);
       a.currentTime = (from?.t ?? 0) + off;
@@ -452,7 +457,7 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
     audio.current = a;
     return () => {
       carry.current = { t: Math.max(0, a.currentTime - off), playing: !a.paused && !a.ended };
-      a.pause(); a.onplay = a.onpause = a.onended = a.onloadedmetadata = a.onerror = null; audio.current = null;
+      a.pause(); a.onplay = a.onpause = a.onended = a.onloadedmetadata = a.onerror = a.onwaiting = a.onstalled = a.onplaying = a.oncanplay = null; audio.current = null; setBuffering(false);
     };
   }, [url, attempt]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { carry.current = null; }, []);
@@ -556,7 +561,7 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
     },
     engaged: playing || t > 0,
     prev: () => seekRow(idx - 1), next: () => seekRow(idx + 1), hold, release,
-    error, clearError: () => setError(null), has: available, edgeWait,
+    error, clearError: () => setError(null), has: available, edgeWait, preparing: buffering,
     wordSync: true,
     pause: () => { setWait(false); if (carry.current?.asked) carry.current = null; audio.current?.pause(); },
     setVolume: (v: number) => { if (audio.current) audio.current.volume = v; },
