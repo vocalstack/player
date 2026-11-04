@@ -1444,3 +1444,4 @@
 .vsp .vsp-txopts .srow>:last-child{margin-left:auto}
 .vsp .vsp-sheetsearch{background:var(--vs-surface-raised)}
 .vsp .gfull .vsp-sheetsearch,.vsp .vsp-idleroot .vsp-sheetsearch{background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}
+.vsp .txyt__spin{width:38%;height:38%;border-width:4px;color:var(--brand-ink);border-color:rgba(5,6,21,.22);border-top-color:var(--brand-ink)}

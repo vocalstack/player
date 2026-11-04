@@ -58,7 +58,7 @@ export function lineEnd(r: Row | undefined, from: number, dur: number): number {
 
 export interface YtLead { muted: boolean; onInfo: (i: { t?: number; state?: number; ready?: boolean; muted?: boolean }) => void; bind: (cmd: ((func: string, args?: unknown[]) => void) | null) => void }
 
-export function YtFollow({ ytId, title, t, playing: wantPlay, seekN, onToggle, onAd, endT, onGone, onKnown, lead, onTime, waiting = false }: { waiting?: boolean; onTime?: (t: number) => void; lead?: YtLead; ytId: string; title: string; t: number; playing: boolean; seekN: number; onToggle?: () => void; onAd?: (on: boolean) => void; endT?: number | null; onGone?: () => void; onKnown?: (gone: boolean) => void }) {
+export function YtFollow({ busy = false, ytId, title, t, playing: wantPlay, seekN, onToggle, onAd, endT, onGone, onKnown, lead, onTime, waiting = false }: { busy?: boolean; waiting?: boolean; onTime?: (t: number) => void; lead?: YtLead; ytId: string; title: string; t: number; playing: boolean; seekN: number; onToggle?: () => void; onAd?: (on: boolean) => void; endT?: number | null; onGone?: () => void; onKnown?: (gone: boolean) => void }) {
   const ref = useRef<HTMLIFrameElement>(null);
   const [held, setHeld] = useState(false);
   useEffect(() => {
@@ -191,7 +191,7 @@ export function YtFollow({ ytId, title, t, playing: wantPlay, seekN, onToggle, o
     <div className={`txyt${ad ? ' txyt--ad' : ''}`}>
       <iframe ref={ref} onLoad={onLoad} referrerPolicy="strict-origin-when-cross-origin" src={`https://www.youtube-nocookie.com/embed/${ytId}?enablejsapi=1&mute=1&controls=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3`} title={title} allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" />
       {!ad && <div aria-hidden="true" className="txyt__tap" onClick={onToggle} style={{ cursor: onToggle ? 'pointer' : 'default' }} />}
-      <div className={`txyt__paused${ytPaused && !ad && !gone ? ' txyt__paused--on' : ''}`} aria-hidden="true"><span className="txyt__pausedplay"><PlayGlyph size={44} /></span></div>
+      <div className={`txyt__paused${(ytPaused || busy || !ready) && !ad && !gone ? ' txyt__paused--on' : ''}`} aria-hidden="true"><span className="txyt__pausedplay">{busy || !ready ? <span className="gfull__spin txyt__spin" /> : <PlayGlyph size={44} />}</span></div>
       {ad && <div className="txyt__ad" aria-live="polite">Ad on YouTube · the transcript carries on after it</div>}
       {gone && <div className="txyt__gone"><span>YouTube no longer has this part of the broadcast</span><small>A live stream can be rewound only 12 hours</small></div>}
     </div>
