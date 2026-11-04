@@ -1071,6 +1071,8 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     return [...stock, ...savedClones, ...own];
   }, [gvList, savedClones, spkCastOn, people, pendingClones, ended]); // eslint-disable-line react-hooks/exhaustive-deps
   const selSp = spkCastOn ? people.find((p2) => p2.key === spkSelected) ?? null : null;
+  const soleSp = !spkCastOn && gVoicePick && people.length === 1 && !gvList.some((v) => v.cloned && v.auto && v.speaker === people[0].key) ? people[0] : null;
+  const noteSp = selSp ?? soleSp;
   const genderOf = (id: string | undefined) => (id ? gvList.find((v) => v.id === id)?.gender ?? null : null);
   const selSex = selSp ? selSp.sex ?? genderOf(cast.get(selSp.key)) : null;
   const shownList = useMemo(() => {
@@ -1109,7 +1111,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
         )}
         voices={shownList}
         onAdd={(v) => { preview.reset(); onAddVoice?.(v); }}
-        noClone={selSp && !shownList.some((v) => v.cloned) ? noCloneFor?.(selSp, autoOf(selSp.key), ctx) ?? null : null}
+        noClone={noteSp && !shownList.some((v) => v.cloned) ? noCloneFor?.(noteSp, autoOf(noteSp.key), ctx) ?? null : null}
         usedBy={spkCastOn && spkSelected != null
           ? (v) => {
               const also = spkRoster.filter((p) => p.key !== spkSelected && cast.get(p.key) === v.id);
