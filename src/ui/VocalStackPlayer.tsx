@@ -7,6 +7,8 @@ import { audioDownloadUrl, audioSealed, backgroundAudioUrl, deliveryAudioUrl } f
 import { FileFollow } from './FileFollow';
 import { EmbedFollow } from './EmbedFollow';
 import { DailymotionFollow } from './DailymotionFollow';
+import { VimeoFollow } from './VimeoFollow';
+import { vimeoIds } from '../core/embeds';
 import { FacebookFollow } from './FacebookFollow';
 import { WistiaFollow } from './WistiaFollow';
 import { VidyardFollow } from './VidyardFollow';
@@ -523,6 +525,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const wistia = embedSrc && siteOf(embedSrc)?.id === 'wistia' ? wistiaId(embedSrc) : null;
   const vidyard = embedSrc && siteOf(embedSrc)?.id === 'vidyard' ? vidyardId(embedSrc) : null;
   const dm = embedSrc && siteOf(embedSrc)?.id === 'dailymotion' ? dailymotionId(embedSrc) : null;
+  const vm = embedSrc && siteOf(embedSrc)?.id === 'vimeo' ? vimeoIds(embedSrc) : null;
   const ia = embedSrc && siteOf(embedSrc)?.id === 'archive' ? archiveTarget(embedSrc) : null;
   const iaKey = ia ? `${ia.id}/${ia.file ?? ''}` : null;
   const iaFollow = useMemo(() => (ia ? archiveSetup(ia.id, ia.file) : undefined), [iaKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -530,6 +533,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     : wistia ? <WistiaFollow key={wistia} id={wistia} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
     : fbSrc ? <FacebookFollow key={fbSrc} url={fbSrc} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
     : dm ? <DailymotionFollow key={dm} video={dm} player={props.dailymotionPlayer} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
+    : vm ? <VimeoFollow key={vm.id} id={vm.id} h={vm.h} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} title={name} onToggle={player.has ? tapPicture : undefined} />
     : iaFollow ? <FileFollow key={iaKey} setup={iaFollow} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
     : loomFollow ? <FileFollow key={loomVid} setup={loomFollow} seekOver={1} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
     : embedSrc ? <EmbedFollow url={embedSrc} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} title={name} onToggle={player.has ? tapPicture : undefined} /> : null;
@@ -537,7 +541,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const thumbUrl = (shared?.job?.source as { thumbnailUrl?: string | null } | undefined)?.thumbnailUrl ?? null;
   const failedTx = status === 'failed' && rows.length === 0;
   const thumbPic = thumbUrl && /^https:\/\//.test(thumbUrl) ? <div className="vsp-thumbpic" aria-hidden="true" style={{ backgroundImage: `url(${JSON.stringify(thumbUrl)})` }} /> : null;
-  const picture = !ytId ? (locked ? <><div className="vsp-idle__pic vsp-idle__pic--brand" />{thumbPic}{failedTx ? null : baseTap}<div className={failedTx ? 'vsp-failed' : undefined} style={{ display: 'contents' }}>{embedPic}{fileVideo}{linkVideo}</div></> : null) : <>{<YtFollow busy={videoLed && (!!yt.player.preparing || (autoWait && !player.playing && locked && !!full && props.autoplay !== false && !autoplayDone.current))} ytId={ytId} title={name} t={ytAt} playing={player.playing && !voiceHolds} waiting={voice.on && !!player.timed && !!player.preparing} seekN={player.seekN} onTime={(y) => player.videoAt?.(y - (shared?.job?.crop?.startS ?? 0))} onToggle={player.has ? tapPicture : undefined} onAd={setAdOn} lead={videoLed ? yt.lead : undefined} />}<div className="vsp-poster" aria-hidden="true" style={{ opacity: posterGone ? 0 : 1 }}><div className="vsp-poster__img" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${ytId}/hqdefault.jpg)` }} /><span className="txyt__pausedplay">{posterSpin ? <span className="gfull__spin txyt__spin" /> : <PlayGlyph size={44} />}</span></div></>;
+  const picture = !ytId ? (locked ? <><div className="vsp-idle__pic vsp-idle__pic--brand" />{thumbPic}{failedTx ? null : baseTap}<div className={failedTx ? 'vsp-pics vsp-failed' : 'vsp-pics'} style={{ display: 'contents' }}>{embedPic}{fileVideo}{linkVideo}</div></> : null) : <>{<YtFollow busy={videoLed && (!!yt.player.preparing || (autoWait && !player.playing && locked && !!full && props.autoplay !== false && !autoplayDone.current))} ytId={ytId} title={name} t={ytAt} playing={player.playing && !voiceHolds} waiting={voice.on && !!player.timed && !!player.preparing} seekN={player.seekN} onTime={(y) => player.videoAt?.(y - (shared?.job?.crop?.startS ?? 0))} onToggle={player.has ? tapPicture : undefined} onAd={setAdOn} lead={videoLed ? yt.lead : undefined} />}<div className="vsp-poster" aria-hidden="true" style={{ opacity: posterGone ? 0 : 1 }}><div className="vsp-poster__img" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${ytId}/hqdefault.jpg)` }} /><span className="txyt__pausedplay">{posterSpin ? <span className="gfull__spin txyt__spin" /> : <PlayGlyph size={44} />}</span></div></>;
   const video = watching && ytId && !full ? (
     <LiveVideo ytId={ytId} title={name} radius={14} large style={desk ? undefined : { margin: '8px 20px 2px' }} picture={picture}>
       <MiniPlayer pos={pos} transport={transport} chip={chipFor({ ...glassChip, width: 64, height: 28, minHeight: 28, padding: '0 8px' }, 'sm')} voices={voicesBtn} onFull={() => { browserFull(true); setFull(true); }} copied={null} />

@@ -1455,3 +1455,6 @@
 .vsp .vsp-failed .txyt__paused,.vsp .vsp-failed .txyt__tap{display:none}
 .vsp:has(.vsp-end) :is(.txyt__paused,.vsp-poster,.gfull__toast,.gfull__sub,.gfull__prog,.gfull__top,.gfull__topl,.ghead,.vsp-langhint){visibility:hidden}
 .vsp .vsp-end.vsp-end--v2{background:rgba(0,0,0,.62);backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2)}
+.vsp .txyt iframe{color-scheme:normal}
+.vsp .livevid>.vsp-pics>.txyt,.vsp .gfull__frame>.vsp-pics>.txyt{position:absolute;inset:0;aspect-ratio:auto;border-radius:0;isolation:isolate}
+.vsp .txyt iframe.vsp-vimeo{inset:0;top:0;height:100%}
