@@ -365,8 +365,6 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   useDuck([srcPlayer, voice.player], voice.sampling);
   const feedRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (running && !player.playing && feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight; }, [running, rows.length]); // eslint-disable-line react-hooks/exhaustive-deps
-  const findHits = useFindPull(feedRef, rows, find, findQ, setFind);
-  const findField = <TxFind open={find} q={findQ} onQ={setFindQ} onClose={() => setFind(false)} hits={findHits} desk={desk} inline={desk} />;
   const name = displayName({ name: shared?.name, sourceName: shared?.job?.source?.name, ytTitle, url: shared?.job?.source?.kind === 'url' ? shared.job.source.url : props.src ?? null, id: code });
   const canDownload = !!shared?.allowDownload;
   const canExport = !!shared?.allowExport;
@@ -445,6 +443,8 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     return () => clearTimeout(t);
   }, [translating]);
   const feedLang = warm ? shownLang : askLang;
+  const findHits = useFindPull(feedRef, rows, find, findQ, setFind, feedLang);
+  const findField = <TxFind open={find} q={findQ} onQ={setFindQ} onClose={() => setFind(false)} hits={findHits} desk={desk} inline={desk} />;
   const onVisible = useViewportTranslation(recordingId, askLang, rows, mergeTranslations);
   const sharedSummary = useSummaryIn(summaryOf(rec), recordingId, voice.readLang);
   const anyExport = canDownload || canExport;

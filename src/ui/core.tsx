@@ -14,6 +14,7 @@ import { strings } from '../data/i18n';
 import { confClass, fixedSlots, lane, speakerInitial, speakerLabel, speakerLook, type Model, type Row, type Word } from '../core/transcript';
 import { ClipQueue, newMediaElement, readCursor, VoiceNotStarted, type ReadPos, type VoiceClip } from '../core/voiceplayer';
 import { placePosition, snapPosition, type PlayPos } from '../core/playPosition';
+import { findCount, findMatches, matchAt, stepMatch } from '../core/find';
 import { voiceWait, VOICE_WAIT_TITLE } from '../core/voiceWait';
 import { useHeld } from './wait';
 import { lineSpeechEnd, spreadWords } from '../core/readalong';
@@ -1338,25 +1339,70 @@ export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord
   );
 }
 
-export function TxFind({ open, q, onQ, onClose, hits, desk, inline, flash }: { open: boolean; q: string; onQ: (q: string) => void; onClose: () => void; hits: number; desk: boolean; inline?: boolean; flash?: string | null }) {
+export interface FindState { hits: number; at: number; step: (dir: 1 | -1) => void }
+export function TxFind({ open, q, onQ, onClose, hits, desk, inline, flash }: { open: boolean; q: string; onQ: (q: string) => void; onClose: () => void; hits: number | FindState; desk: boolean; inline?: boolean; flash?: string | null }) {
+  const nav = typeof hits === 'number' ? null : hits;
+  const total = nav ? nav.hits : (hits as number);
   return (
     <div className={inline ? 'searchbar searchbar--inline' : `searchbar searchbar--float${desk ? ' searchbar--desk' : ''}${open ? '' : ' is-hidden'}`}>
       <div>
         <Icon d={D.search} size={16} sw={1.7} style={{ color: 'var(--ink-45)', flex: 'none' }} />
-        <input value={q} onChange={(e) => onQ(e.target.value)} onKeyDown={(e) => { if (e.key !== 'Escape') return; e.stopPropagation(); if (q) onQ(''); else onClose(); }} placeholder="Search this transcript" />
+        <input value={q} onChange={(e) => onQ(e.target.value)} onKeyDown={(e) => {
+          if (e.key === 'Enter' && nav) { e.preventDefault(); if (total) nav.step(e.shiftKey ? -1 : 1); return; }
+          if (e.key !== 'Escape') return; e.stopPropagation(); if (q) onQ(''); else onClose();
+        }} placeholder="Search this transcript" />
         {inline && flash && <span className="searchbar__flash">{flash}</span>}
-        {q.trim() && <span className="count">{hits} found</span>}
+        {q.trim() && <span className="count">{nav ? findCount(nav.at, total) : `${total} found`}</span>}
+        {q.trim() && nav && (
+          <>
+            <button type="button" className="searchbar__x searchbar__step" disabled={!total} onClick={() => nav.step(-1)} aria-label="Previous match" title="Previous match (Shift+Enter)"><Icon d={D.chevronUp} size={15} sw={1.8} /></button>
+            <button type="button" className="searchbar__x searchbar__step" disabled={!total} onClick={() => nav.step(1)} aria-label="Next match" title="Next match (Enter)"><Icon d={D.chevronDown} size={15} sw={1.8} /></button>
+          </>
+        )}
         {q.trim() && <button type="button" className="searchbar__x" onClick={() => onQ('')} aria-label="Clear" title="Clear"><Icon d={D.close} size={15} sw={1.7} /></button>}
       </div>
     </div>
   );
 }
-export function useFindPull(feedRef: React.RefObject<HTMLDivElement>, rows: Row[], open: boolean, q: string, setOpen: (v: boolean) => void) {
+export function useFindPull(feedRef: React.RefObject<HTMLDivElement>, rows: Row[], open: boolean, q: string, setOpen: (v: boolean) => void, lang?: string | null): FindState {
   const openRef = useRef(open); openRef.current = open;
   const qRef = useRef(q); qRef.current = q;
-  const [hits, setHits] = useState(0);
   const needle = q.trim().toLowerCase();
-  useEffect(() => { setHits(needle ? rows.filter((r) => r.text.toLowerCase().includes(needle)).length : 0); }, [rows, needle]);
+  const matches = useMemo(() => findMatches(rows, needle, lang), [rows, needle, lang]);
+  const [curId, setCurId] = useState<string | null>(null);
+  const [seek, setSeek] = useState(0);
+  const at = matchAt(rows, matches, curId);
+  const rowIdx = at >= 0 ? matches[at] : -1;
+  useEffect(() => {
+    setCurId(matches.length ? rows[matches[0]].id : null);
+    if (matches.length) setSeek((n) => n + 1);
+  }, [needle]); // eslint-disable-line react-hooks/exhaustive-deps
+  const step = useCallback((dir: 1 | -1) => {
+    const next = stepMatch(at, matches.length, dir);
+    if (next < 0) return;
+    setCurId(rows[matches[next]].id);
+    setSeek((n) => n + 1);
+  }, [at, matches, rows]);
+  const marked = useRef(false);
+  useEffect(() => {
+    const el = feedRef.current;
+    if (!el || (rowIdx < 0 && !marked.current)) return;
+    for (const o of Array.from(el.querySelectorAll<HTMLElement>('[data-find-at]'))) o.removeAttribute('data-find-at');
+    const row = rowIdx >= 0 ? el.querySelector<HTMLElement>(`[data-tx-row="${rowIdx}"]`) : null;
+    row?.setAttribute('data-find-at', '1');
+    marked.current = !!row;
+  });
+  useEffect(() => {
+    const el = feedRef.current;
+    const row = rowIdx >= 0 ? el?.querySelector<HTMLElement>(`[data-tx-row="${rowIdx}"]`) : null;
+    if (!seek || !el || !row) return;
+    const ins = feedInset(el);
+    const visH = Math.max(80, el.clientHeight - ins.top - ins.bottom);
+    const r = row.getBoundingClientRect(), b = el.getBoundingClientRect();
+    const lead = r.height > visH ? 8 : (visH - r.height) / 2;
+    const max = el.scrollHeight - el.clientHeight;
+    el.scrollTo({ top: Math.max(0, Math.min(max, el.scrollTop + (r.top - b.top) - ins.top - lead)), behavior: 'smooth' });
+  }, [seek]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const el = feedRef.current;
     if (!el) return;
@@ -1382,6 +1428,6 @@ export function useFindPull(feedRef: React.RefObject<HTMLDivElement>, rows: Row[
       el.removeEventListener('scroll', onScroll);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  return hits;
+  return useMemo(() => ({ hits: matches.length, at, step }), [matches.length, at, step]);
 }
 
