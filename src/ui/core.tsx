@@ -69,8 +69,11 @@ export function YtFollow({ busy = false, ytId, title, t, playing: wantPlay, seek
   const playing = wantPlay && !held;
   const adRef = useRef(false);
   const [ad, setAd] = useState(false);
+  const apiUp = useRef(false);
+  const queued = useRef<[string, unknown[]][]>([]);
   const cmd = (func: string, args: unknown[] = []) => {
     if (adRef.current && (func === 'pauseVideo' || func === 'seekTo' || func === 'setPlaybackRate')) return;
+    if (!apiUp.current) { queued.current = [...queued.current.filter(([f]) => f !== func), [func, args]]; return; }
     try { ref.current?.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args }), '*'); } catch { }
   };
   const contentDur = useRef<number | null>(null);
@@ -106,8 +109,14 @@ export function YtFollow({ busy = false, ytId, title, t, playing: wantPlay, seek
   const capT = useRef<number[]>([]);
   const noCaptionsSoon = () => { noCaptions(); capT.current.forEach(clearTimeout); capT.current = [400, 1200, 2500, 5000].map((ms) => window.setTimeout(noCaptions, ms)); };
   useEffect(() => () => capT.current.forEach(clearTimeout), []);
+  const hello = useRef<number | undefined>(undefined);
+  useEffect(() => { apiUp.current = false; queued.current = []; return () => window.clearInterval(hello.current); }, [ytId]);
   const onLoad = () => {
-    try { ref.current?.contentWindow?.postMessage(JSON.stringify({ event: 'listening', id: 'reader' }), '*'); } catch { }
+    const say = () => { try { ref.current?.contentWindow?.postMessage(JSON.stringify({ event: 'listening', id: 'reader' }), '*'); } catch { } };
+    say();
+    window.clearInterval(hello.current);
+    let n = 0;
+    hello.current = window.setInterval(() => { if (apiUp.current || ++n > 40) { window.clearInterval(hello.current); return; } say(); }, 250);
     if (!leadRef.current || leadRef.current.muted) cmd('mute');
     setReady(true);
   };
@@ -135,6 +144,7 @@ export function YtFollow({ busy = false, ytId, title, t, playing: wantPlay, seek
         if (contentDur.current == null) contentDur.current = dur;
         else { adByDur.current = Math.abs(dur - contentDur.current) > 1.5; adCheck(); }
       }
+      if (d?.event === 'onReady' && !apiUp.current) { apiUp.current = true; const q = queued.current; queued.current = []; for (const [f, a] of q) cmd(f, a); }
       if (d?.event === 'onReady') { if (!leadRef.current || leadRef.current.muted) cmd('mute'); noCaptionsSoon(); leadRef.current?.onInfo({ ready: true }); }
       if (typeof d?.info?.playerState === 'number') { if (d.info.playerState !== ytState.current && (d.info.playerState === 1 || d.info.playerState === 2)) noCaptionsSoon(); ytState.current = d.info.playerState; setYtPaused(d.info.playerState !== 1 && d.info.playerState !== 3); leadRef.current?.onInfo({ state: d.info.playerState }); }
       const ps = d?.info?.progressState;

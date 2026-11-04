@@ -128,7 +128,6 @@ export function SourceGate({ idle, src, ask, connect, page, poster = null, onCle
     <IdlePlayer idle={idle} poster={poster} src={src} title={hostOf(src)} page={page} onAct={go} pre>
       {(ctl) => <>
       <ConnectButton connect={connect} onClick={go} label={connect.connected ? 'Play with VocalStack' : 'Connect to VocalStack'} />
-      {!connect.busy && <button type="button" className="vsp-idle__opts" onClick={(e) => { e.stopPropagation(); ctl.openTx(); }}>{ctl.txSummary}<span>Change</span></button>}
       {!connect.busy && <div className="vsp-idle__note">{connect.connected ? `Plays ${hostOf(src)} with subtitles and spoken translations.` : `Connect to play ${hostOf(src)} with subtitles and spoken translations.`}</div>}
       {onClear && !connect.busy && <button type="button" className="vsp-idle__other" onClick={onClear}>Choose another video</button>}
       </>}
