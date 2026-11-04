@@ -1199,7 +1199,7 @@
 .vsp:not(.vsp--embed) .vsp-idle{position:fixed}
 .vsp .vsp-idle__connect{display:inline-flex;align-items:center;gap:clamp(6px,1.4cqw,10px);height:clamp(36px,10cqh,52px);padding:0 clamp(14px,3.4cqw,24px);font-size:clamp(12.5px,2.4cqw,15px)!important;transition:transform .15s ease,box-shadow .15s ease,background .15s ease;border:0;border-radius:999px;background:#eef0f8;color:#050507;font:inherit;font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,.45)}
 .vsp .vsp-idle__connect:disabled{cursor:default;opacity:.92}
-.vsp .vsp-idle__note{max-width:min(92cqw,420px);font-size:clamp(11px,2.1cqw,13px);line-height:1.45;color:rgba(238,240,248,.82);text-shadow:0 1px 6px rgba(0,0,0,.7);pointer-events:none}
+.vsp .vsp-idle__note{max-width:min(92cqw,640px);text-wrap:balance;font-size:clamp(11px,2.1cqw,13px);line-height:1.45;color:rgba(238,240,248,.82);text-shadow:0 1px 6px rgba(0,0,0,.7);pointer-events:none}
 .vsp .vsp-idle__other{border:0;background:none;color:rgba(238,240,248,.75);font:inherit;font-size:12.5px;text-decoration:underline;cursor:pointer}
 .vsp .vsp-idle__form{display:flex;gap:8px;width:min(92cqw,520px)}
 .vsp .vsp-idle__connect:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 14px 34px rgba(0,0,0,.5);background:#fff}
