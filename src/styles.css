@@ -1458,3 +1458,7 @@
 .vsp .txyt iframe{color-scheme:normal}
 .vsp .livevid>.vsp-pics>.txyt,.vsp .gfull__frame>.vsp-pics>.txyt{position:absolute;inset:0;aspect-ratio:auto;border-radius:0;isolation:isolate}
 .vsp .txyt iframe.vsp-vimeo{inset:0;top:0;height:100%}
+@keyframes vsp-pan{0%{transform:scale(1.06) translate(-1.5%,-1%)}100%{transform:scale(1.16) translate(1.5%,1%)}}
+.vsp .vsp-thumbpic--pan{background-size:cover;animation:vsp-pan 14s ease-in-out infinite alternate;animation-play-state:paused}
+.vsp .vsp-thumbpic--pan.vsp-thumbpic--on{animation-play-state:running}
+@media (prefers-reduced-motion:reduce){.vsp .vsp-thumbpic--pan{animation:none}}
