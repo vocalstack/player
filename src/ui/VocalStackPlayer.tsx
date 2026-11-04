@@ -6,10 +6,12 @@ import { useLanguageList } from '../ds/LanguagePicker';
 import { audioDownloadUrl, audioSealed, backgroundAudioUrl, deliveryAudioUrl } from '../core/audio';
 import { FileFollow } from './FileFollow';
 import { EmbedFollow } from './EmbedFollow';
+import { DailymotionFollow } from './DailymotionFollow';
 import { FacebookFollow } from './FacebookFollow';
 import { WistiaFollow } from './WistiaFollow';
 import { VidyardFollow } from './VidyardFollow';
-import { hasEmbed, linkVideoFile, loomId, sourceVideoUrl, vidyardId, wistiaId } from '../core/embeds';
+import { dailymotionId, hasEmbed, linkVideoFile, loomId, sourceVideoUrl, vidyardId, wistiaId } from '../core/embeds';
+import { archiveSetup, archiveTarget } from '../core/archive';
 import { siteOf } from '../core/sites';
 import { SiteIcon } from './SiteIcon';
 import { loomSetup } from '../core/loomStream';
@@ -99,6 +101,7 @@ export interface VocalStackPlayerProps {
   endCard?: EndCardOptions | false;
   appUrl?: string;
   poster?: string | null;
+  dailymotionPlayer?: string;
   voice?: string | null;
   settingsExtra?: ReactNode;
   shareUrl?: (t: number | null) => string;
@@ -519,9 +522,15 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const fbSrc = embedSrc && siteOf(embedSrc)?.id === 'facebook' ? embedSrc : null;
   const wistia = embedSrc && siteOf(embedSrc)?.id === 'wistia' ? wistiaId(embedSrc) : null;
   const vidyard = embedSrc && siteOf(embedSrc)?.id === 'vidyard' ? vidyardId(embedSrc) : null;
+  const dm = embedSrc && siteOf(embedSrc)?.id === 'dailymotion' ? dailymotionId(embedSrc) : null;
+  const ia = embedSrc && siteOf(embedSrc)?.id === 'archive' ? archiveTarget(embedSrc) : null;
+  const iaKey = ia ? `${ia.id}/${ia.file ?? ''}` : null;
+  const iaFollow = useMemo(() => (ia ? archiveSetup(ia.id, ia.file) : undefined), [iaKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const embedPic = vidyard ? <VidyardFollow key={vidyard} uuid={vidyard} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
     : wistia ? <WistiaFollow key={wistia} id={wistia} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
     : fbSrc ? <FacebookFollow key={fbSrc} url={fbSrc} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
+    : dm ? <DailymotionFollow key={dm} video={dm} player={props.dailymotionPlayer} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
+    : iaFollow ? <FileFollow key={iaKey} setup={iaFollow} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
     : loomFollow ? <FileFollow key={loomVid} setup={loomFollow} seekOver={1} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
     : embedSrc ? <EmbedFollow url={embedSrc} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} title={name} onToggle={player.has ? tapPicture : undefined} /> : null;
   const baseTap = player.has ? <div className="txyt vsp-follow"><div aria-hidden="true" className="txyt__tap" onClick={tapPicture} style={{ cursor: 'pointer' }} /><div className={`txyt__paused${!player.playing ? ' txyt__paused--on' : ''}`} aria-hidden="true"><span className="txyt__pausedplay"><PlayGlyph size={44} /></span></div></div> : null;
