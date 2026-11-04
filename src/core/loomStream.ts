@@ -11,6 +11,10 @@ export async function loomStreamUrl(id: string): Promise<string | null> {
   }
 }
 
+export function isPlaylist(url: string): boolean {
+  try { return /\.m3u8$/i.test(new URL(url).pathname); } catch { return false; }
+}
+
 export function signedLoader(master: string) {
   const query = master.includes('?') ? master.slice(master.indexOf('?') + 1) : '';
   return (xhr: XMLHttpRequest, u: string) => { if (query && !u.includes('Signature=')) xhr.open('GET', u + (u.includes('?') ? '&' : '?') + query, true); };
@@ -24,6 +28,13 @@ export function loomSetup(id: string): FollowSetup {
       const url = await loomStreamUrl(id);
       if (!live) return;
       if (!url) { fail(); return; }
+      if (!isPlaylist(url)) {
+        const off = () => fail();
+        v.addEventListener('error', off, { once: true });
+        v.src = url;
+        destroy = () => { v.removeEventListener('error', off); v.removeAttribute('src'); v.load(); };
+        return;
+      }
       const mod = await import('hls.js').catch(() => null);
       if (!live) return;
       const Hls = mod?.default;

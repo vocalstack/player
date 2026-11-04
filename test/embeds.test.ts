@@ -85,3 +85,10 @@ test('a Loom GIF thumbnail becomes its still JPG; others are left alone', () => 
   assert.equal(stillThumb('https://example.com/a.gif'), 'https://example.com/a.gif');
   assert.equal(stillThumb(null), null);
 });
+
+test('a Loom address is an HLS playlist only when its path ends in .m3u8', async () => {
+  const { isPlaylist } = await import('../src/core/loomStream.ts');
+  assert.equal(isPlaylist('https://luna.loom.com/id/raw/playlist.m3u8?Policy=x&Signature=y'), true);
+  assert.equal(isPlaylist('https://cdn.loom.com/sessions/transcoded/abc.mp4?Policy=x&Signature=y'), false);
+  assert.equal(isPlaylist('not a url'), false);
+});
