@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { embedUrl, linkVideoFile, loomId, vimeoIds, dailymotionId, twitchTarget } from '../src/core/embeds.ts';
+import { embedUrl, linkVideoFile, loomId, vimeoIds, dailymotionId, twitchTarget, stillThumb } from '../src/core/embeds.ts';
 
 test('embed ids come out of site links', () => {
   assert.equal(loomId('https://www.loom.com/share/29a5fc11a57846f5ab5a81ef1e24e16d'), '29a5fc11a57846f5ab5a81ef1e24e16d');
@@ -77,4 +77,11 @@ test('a video file on a public host is played from that host', () => {
   assert.equal(linkVideoFile('https://example.com/talk.mp4'), null);
   assert.equal(linkVideoFile('http://upload.wikimedia.org/x/talk.webm'), null);
   assert.equal(linkVideoFile(null), null);
+});
+
+test('a Loom GIF thumbnail becomes its still JPG; others are left alone', () => {
+  assert.equal(stillThumb('https://cdn.loom.com/sessions/thumbnails/abc-123.gif'), 'https://cdn.loom.com/sessions/thumbnails/abc-123.jpg');
+  assert.equal(stillThumb('https://i.ytimg.com/vi/x/hqdefault.jpg'), 'https://i.ytimg.com/vi/x/hqdefault.jpg');
+  assert.equal(stillThumb('https://example.com/a.gif'), 'https://example.com/a.gif');
+  assert.equal(stillThumb(null), null);
 });

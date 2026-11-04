@@ -196,3 +196,8 @@ export function vidyardId(raw: string): string | null {
   const m = /\/(?:watch\/)?([A-Za-z0-9_-]{16,})(?:\.html)?\/?$/.exec(u(raw)?.pathname ?? '');
   return m ? m[1] : null;
 }
+
+export function stillThumb(url: string | null | undefined): string | null {
+  if (!url) return null;
+  return /^https:\/\/cdn\.loom\.com\/sessions\/thumbnails\/[^?#]+\.gif(\?.*)?$/i.test(url) ? url.replace(/\.gif(?=(\?|$))/i, '.jpg') : url;
+}

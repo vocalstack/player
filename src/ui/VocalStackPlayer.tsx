@@ -8,7 +8,7 @@ import { FileFollow } from './FileFollow';
 import { EmbedFollow } from './EmbedFollow';
 import { DailymotionFollow } from './DailymotionFollow';
 import { VimeoFollow } from './VimeoFollow';
-import { vimeoIds } from '../core/embeds';
+import { vimeoIds, stillThumb } from '../core/embeds';
 import { FacebookFollow } from './FacebookFollow';
 import { WistiaFollow } from './WistiaFollow';
 import { VidyardFollow } from './VidyardFollow';
@@ -538,7 +538,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     : loomFollow ? <FileFollow key={loomVid} setup={loomFollow} seekOver={1} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} />
     : embedSrc ? <EmbedFollow url={embedSrc} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} title={name} onToggle={player.has ? tapPicture : undefined} /> : null;
   const baseTap = player.has ? <div className="txyt vsp-follow"><div aria-hidden="true" className="txyt__tap" onClick={tapPicture} style={{ cursor: 'pointer' }} /><div className={`txyt__paused${!player.playing ? ' txyt__paused--on' : ''}`} aria-hidden="true"><span className="txyt__pausedplay"><PlayGlyph size={44} /></span></div></div> : null;
-  const thumbUrl = (shared?.job?.source as { thumbnailUrl?: string | null } | undefined)?.thumbnailUrl ?? null;
+  const thumbUrl = stillThumb((shared?.job?.source as { thumbnailUrl?: string | null } | undefined)?.thumbnailUrl ?? null);
   const failedTx = status === 'failed' && rows.length === 0;
   const thumbPic = thumbUrl && /^https:\/\//.test(thumbUrl) ? <div className={`vsp-thumbpic${(shared?.job?.source as { site?: string | null } | undefined)?.site === 'x' ? ` vsp-thumbpic--pan${player.playing ? ' vsp-thumbpic--on' : ''}` : ''}`} aria-hidden="true" style={{ backgroundImage: `url(${JSON.stringify(thumbUrl)})` }} /> : null;
   const xSrc = shared?.job?.source as { site?: string | null; embedId?: string | null } | undefined;
@@ -793,7 +793,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   );
   const dp = useSideTabs<PubTab>('ga', { tabs, cur: tab, pref: tabs[0]?.key, onPick: setTab });
   const holdPct = Math.max(0, Math.min(100, Math.round(pct)));
-  const holdThumb = (shared?.job?.source as { thumbnailUrl?: string | null } | undefined)?.thumbnailUrl ?? props.poster ?? null;
+  const holdThumb = stillThumb((shared?.job?.source as { thumbnailUrl?: string | null } | undefined)?.thumbnailUrl ?? props.poster ?? null);
   const holdSite = srcVideoUrl ? siteOf(srcVideoUrl) : null;
   const hold = holding && (
     <div className="gfull gfull--hold" data-theme="dark" role="status" aria-live="polite">
