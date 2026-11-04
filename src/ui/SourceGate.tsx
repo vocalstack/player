@@ -103,7 +103,7 @@ function IdlePlayer({ idle, poster, src, title, page, onAct, children, pre = fal
   return (
     <div ref={box} className={`vsp-idleroot${small ? ' vsp-idleroot--small' : ''}`}>
       <FullVideo topLeft={ctl.cloneToggle} modal={ctl.modal} page={page} picture={<Backdrop poster={poster} src={src} />} title={title} desk={desk} pos={NOW} sub={null} mute={{ muted: idle.prefs.muted, onToggle: () => idle.set({ muted: !idle.prefs.muted }) }} cc={{ on: idle.prefs.subtitles, onToggle: () => idle.set({ subtitles: !idle.prefs.subtitles }) }} chip={ctl.chip} transport={transport} picker={ctl.sheets} sheet={null} voices={null} voicesBtn={null} sheetOpen={ctl.sheetOpen} onSettings={ctl.openSettings} onShare={() => shareLink(idle.shareUrl ?? window.location.href, title)} copied={null} onTouch={() => {}} />
-      {!ctl.sheetOpen && <div className="vsp-idle" data-theme="dark"><div className="vsp-idle__box">{typeof children === 'function' ? children(ctl) : children}</div></div>}
+      {!ctl.sheetOpen && !ctl.modal && <div className="vsp-idle" data-theme="dark"><div className="vsp-idle__box">{typeof children === 'function' ? children(ctl) : children}</div></div>}
     </div>
   );
 }

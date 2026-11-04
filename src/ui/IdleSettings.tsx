@@ -67,7 +67,6 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
   const spokenLangs = useMemo(() => pickerLanguages(langs, 'transcription'), [langs]);
   const spokenMeta = langMeta(langs, prefs.spoken);
   const spokenList = useLanguageList({ open: sheet === 'settings' && page === 'spoken', onClose: () => setPage('tx'), value: prefs.spoken, onSelect: (c: string | null) => { set({ spoken: c }); setPage('tx'); }, languages: spokenLangs, none: 'Auto detect', pinned: prefs.spoken ? [prefs.spoken] : [], recent: [], keepOpen: true });
-  const [asking, setAsking] = useState(false);
   const setVoices = (v: 'cloned' | 'synthetic') => {
     if (v === 'synthetic') { set({ voices: 'synthetic' }); return; }
     if (hasCloneConsent()) set({ voices: 'cloned', ...(prefs.speakers === 'off' ? { speakers: 'auto' as const } : null) });
@@ -78,6 +77,7 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
   const cloning = prefs.voices === 'cloned' && hasCloneConsent();
   const txSummary = [cloning ? 'Cloned voices' : 'Synthetic voices', prefs.spoken ? spokenMeta.label : 'Auto detect', prefs.speakers === 'off' ? 'No speaker labels' : prefs.speakers === 'on' ? 'Speaker labels' : 'Speaker labels when needed'].join(' · ');
   const flag = prefs.lang ? <span style={{ fontSize: 19, lineHeight: 1 }}>{meta.flag}</span> : <Icon d={D.langAuto} size={19} sw={1.7} />;
+  const [asking, setAsking] = useState(false);
   const [hint, setHint] = useState(() => { try { return sessionStorage.getItem('vsp.langHint') !== 'false'; } catch { return true; } });
   const dropHint = () => { setHint(false); try { sessionStorage.setItem('vsp.langHint', 'false'); } catch { } };
   const hintLangs = useMemo(() => HINT_CODES.map((c) => languages.find((l) => l.code === c)).filter((l): l is (typeof languages)[number] => !!l), [languages]);
@@ -90,7 +90,7 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
     ro.observe(root);
     return () => ro.disconnect();
   }, []);
-  const hintOn = roomy && hint && !prefs.lang && sheet == null && hintLangs.length > 0;
+  const hintOn = roomy && hint && !prefs.lang && sheet == null && !asking && hintLangs.length > 0;
   const [hintIdx, setHintIdx] = useState(0);
   useEffect(() => {
     if (!hintOn) return;
