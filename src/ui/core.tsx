@@ -1190,6 +1190,7 @@ export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord
   useFeedBar(feedRef, thumbRef);
   const [hovId, setHovId] = useState<string | null>(null);
   const needle = (find ?? '').trim().toLowerCase();
+  const hitTerms = needle.split(/\s+/).filter(Boolean);
   const [off, setOff] = useState<-1 | 0 | 1>(0);
   const glideUntil = useRef(0);
   const glide = useRef<number | null>(null);
@@ -1292,7 +1293,7 @@ export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord
         const on = playing && i === idx;
         const held = engaged && i === idx;
         const fixing = !!fixingId && fixingId === r.id;
-        const dim = needle && !r.text.toLowerCase().includes(needle) && !(lang && r.translations[lang]?.toLowerCase().includes(needle)) ? 0.22 : !engaged || i <= idx || fixing ? 1 : 0.38;
+        const dim = !engaged || i <= idx || fixing ? 1 : 0.38;
         const tapRow = listener ? () => player.playRow(i)
           : fixMode && onFix ? () => { if (playing && !on) player.seekRow(i); onFix(r); }
           : playing && on ? undefined : () => player.playRow(i);
@@ -1332,11 +1333,12 @@ export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord
                 const fx = !tr && !listener && (!!fixed?.has(key) || !!w.script);
                 const dash = !tr && !listener && marks && !!c && !fx;
                 const half = dash ? (c === 'low' ? 'var(--conf-low-half)' : 'var(--conf-mid-half)') : null;
-                const fg = fx ? 'var(--brand)' : ahead ? 'var(--ink-40)' : half ?? 'var(--ink-96)';
+                const hit = hitTerms.length > 0 && hitTerms.some((n) => w.text.toLowerCase().includes(n));
+                const fg = hit || fx ? 'var(--brand)' : ahead ? 'var(--ink-40)' : half ?? 'var(--ink-96)';
                 return (
                   <span key={key + j}>
                     <span
-                      className="txw"
+                      className={`txw${hit ? ' w--hit' : ''}`}
                       title={onWord && !tr ? (fixMode ? 'Correct this word' : on ? (playing && player.seekWord ? 'Play from this word' : 'Play from this line') : 'Play from this line') : on ? '' : 'Play from this line'}
                       onClick={onWord && !tr ? (e) => { e.stopPropagation(); if (fixMode) { onWord(r, w); return; } if (playing && on) { player.seekWord?.(w); return; } player.playRow(i); } : undefined}
                       style={{ color: fg, opacity: ahead ? 0.45 : 1, fontWeight: 300, cursor: onWord && !tr ? (fixMode || !on || !playing || player.seekWord ? 'pointer' : 'default') : on ? 'default' : 'pointer', textShadow: at ? '0 0 2px currentColor, 0 0 4px currentColor' : 'none', textDecorationLine: dash || fx ? 'underline' : 'none', textDecorationStyle: fx ? 'solid' : 'dotted', textDecorationColor: fx ? 'var(--brand)' : half ?? 'currentColor', textDecorationThickness: dash || fx ? '1.5px' : undefined, textUnderlineOffset: dash || fx ? '3px' : undefined }}
