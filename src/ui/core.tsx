@@ -1148,7 +1148,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   return {
     barChip: { flag: chipMeta.flag, code: chipMeta.code, label: chipMeta.label, onClick: side || stickyPicker ? toggleChip : openPicker, active: !!((side || stickyPicker) && pickerMine), can: canTranslate },
     sheetsOpen: picker || sheet,
-    on: speaks, player, chip, voiceBtn, voiceWaiting: busy, sheets, sidePanel, voicesMine, toggleVoices, cloningOn: cloneOn, playTitle, noVoice, noVoiceNote, relang, sampling: preview.sampleId != null, error: preview.error, clearError: () => preview.clearError(), openVoices, openPicker, original, reloadVoices: () => setCatVer((n) => n + 1), voicesVer: catVer, people, gvList, autoOf, savedFor, closeVoices, setSheet,
+    on: speaks, player, chip, voiceBtn, clipsReady: vp.has, clipFor: (id: number | null | undefined) => id != null && arch.clips.some((c) => c.sentenceId === id), voiceWaiting: busy, sheets, sidePanel, voicesMine, toggleVoices, cloningOn: cloneOn, playTitle, noVoice, noVoiceNote, relang, sampling: preview.sampleId != null, error: preview.error, clearError: () => preview.clearError(), openVoices, openPicker, original, reloadVoices: () => setCatVer((n) => n + 1), voicesVer: catVer, people, gvList, autoOf, savedFor, closeVoices, setSheet,
     selectedSpeaker: selSp, armVoice: preview.arm, resetPreview: preview.reset, armedId: preview.armId, resetCast: () => setCastByLang((m) => ({ ...m, [vLang ?? '']: {} })),
     readLang: typeof pickedLang === 'string' && pickedLang !== srcLang ? pickedLang : null,
     readVoiceKey: forcedVoice || (castKeyStr ?? picked ?? arch.track?.voiceKey ?? ''),

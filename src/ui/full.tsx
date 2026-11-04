@@ -303,7 +303,7 @@ export function FullVideo({ topLeft, modal, compact = false, noFull = false, pag
   const acts = (
     <div className="gfull__acts">
       {voicesBtn && <VoicesButton v={voicesBtn} size={big ? 20 : mini ? 15 : 18} />}
-      {onShare && glass('Share', D.share, 1.6, onShare)}
+      {onShare && glass('Share', D.share, 1.6, onShare, { transform: 'translateX(-2px)' })}
       {canFull() && !noFull && glass(isFull ? 'Exit full screen' : 'Full screen', isFull ? ICON_EXIT : ICON_FULL, 1.7, () => realFull(!isFull))}
       {onClose && glass('Close player', D.close, 1.7, onClose)}
     </div>

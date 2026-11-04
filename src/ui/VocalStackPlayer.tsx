@@ -325,7 +325,17 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const voice = useTxVoice({ forcedVoice: props.voice ?? null, recordingId, model, rows, lenS, ended: !!recordingId && !running, cred: api.cred, langs, srcLang: langCode, canTranslate: !!shared?.allowTranslate, pickedLang: txLang, setPickedLang: setTxLang, side: desk && !full ? PUB_SIDE : undefined, hearOriginal, timed: !!ytId, stockVoices: locked && !cloning, consent: cloning, stickyPicker: locked, pickerBusy: langBusyRef.current });
   const langSent = useRef<string | null>(null);
   useEffect(() => { if (!recordingId || langSent.current === askLang) return; langSent.current = askLang; setLanguage(askLang); }, [askLang, recordingId]); // eslint-disable-line react-hooks/exhaustive-deps
-  const voiceLate = voice.on && running && !voice.player.has && srcPlayer.has;
+  const voiceLate = voice.on && srcPlayer.has && (!voice.clipsReady || !voice.clipFor(rows[Math.max(0, srcPlayer.idx)]?.sentenceId));
+  const wasLate = useRef(voiceLate);
+  useEffect(() => {
+    const was = wasLate.current;
+    wasLate.current = voiceLate;
+    if (was && !voiceLate && srcPlayer.playing) {
+      const i = srcPlayer.idx;
+      srcPlayer.pause();
+      voice.player.playRow(i);
+    }
+  }, [voiceLate]); // eslint-disable-line react-hooks/exhaustive-deps
   const player = videoLed ? yt.player : voice.on && !voiceLate ? voice.player : srcPlayer;
   useEffect(() => { if (videoLed) { voice.player.pause(); return; } (voice.on ? srcPlayer : voice.player).pause(); }, [voice.on, videoLed]); // eslint-disable-line react-hooks/exhaustive-deps
   const followLines = useMemo(() => rows.filter((r) => r.sentenceId != null).map((r, i, a) => ({ sid: r.sentenceId as number, start: r.start, end: a[i + 1]?.start ?? lineEnd(r, r.start, r.start + 4) })), [rows]);
