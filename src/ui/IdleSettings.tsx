@@ -62,7 +62,7 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
   const meta = langMeta(langs, prefs.lang);
   const languages = useMemo(() => pickerLanguages(langs, 'translation'), [langs]);
   const pick = (c: string | null) => { set({ lang: c }); pushRecent(c); };
-  const list = useLanguageList({ open: sheet === 'lang' || (sheet === 'settings' && page === 'lang'), onClose: () => (sheet === 'lang' ? setSheet(null) : setPage('main')), value: prefs.lang, onSelect: pick, languages, none: 'As spoken', pinned: prefs.lang ? [prefs.lang] : [], recent, keepOpen: true });
+  const list = useLanguageList({ open: sheet === 'lang' || (sheet === 'settings' && page === 'lang'), onClose: () => (sheet === 'lang' ? setSheet(null) : setPage('main')), value: prefs.lang, onSelect: pick, languages, none: 'As spoken', pinned: prefs.lang ? [prefs.lang] : [], recent, keepOpen: sheet !== 'lang' });
   const close = () => { setSheet(null); setPage('main'); };
   const spokenLangs = useMemo(() => pickerLanguages(langs, 'transcription'), [langs]);
   const spokenMeta = langMeta(langs, prefs.spoken);
@@ -133,13 +133,13 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
   );
   const langList = (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
-      <div style={{ position: 'sticky', top: 0, zIndex: 1, padding: '4px 14px 10px', background: 'var(--vs-surface-raised)' }}>{list.search}</div>
+      <div className="vsp-sheetsearch" style={{ position: 'sticky', top: 0, zIndex: 1, padding: '4px 14px 10px' }}>{list.search}</div>
       {list.list}
     </div>
   );
   const spokenPicker = (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
-      <div style={{ position: 'sticky', top: 0, zIndex: 1, padding: '4px 14px 10px', background: 'var(--vs-surface-raised)' }}>{spokenList.search}</div>
+      <div className="vsp-sheetsearch" style={{ position: 'sticky', top: 0, zIndex: 1, padding: '4px 14px 10px' }}>{spokenList.search}</div>
       {spokenList.list}
     </div>
   );

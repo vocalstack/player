@@ -1436,3 +1436,5 @@
 .vsp .vsp-txopts .srow{flex-wrap:wrap;row-gap:10px}
 .vsp .vsp-txopts .srow>div:first-child{min-width:min(100%,200px)}
 .vsp .vsp-txopts .srow>:last-child{margin-left:auto}
+.vsp .vsp-sheetsearch{background:var(--vs-surface-raised)}
+.vsp .gfull .vsp-sheetsearch,.vsp .vsp-idleroot .vsp-sheetsearch{background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}

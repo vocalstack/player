@@ -612,7 +612,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
       <GrowBox>
       {page === 'lang' ? (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ position: 'sticky', top: 0, zIndex: 1, padding: '4px 14px 10px', background: 'var(--vs-surface-raised)' }}>{langPage.search}</div>
+          <div className="vsp-sheetsearch" style={{ position: 'sticky', top: 0, zIndex: 1, padding: '4px 14px 10px' }}>{langPage.search}</div>
           {langPage.list}
         </div>
       ) : page === 'subs' ? (
