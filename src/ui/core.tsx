@@ -1401,15 +1401,6 @@ export function useFindPull(feedRef: React.RefObject<HTMLDivElement>, rows: Row[
     setCurId(rows[matches[next]].id);
     setSeek((n) => n + 1);
   }, [at, matches, rows]);
-  const marked = useRef(false);
-  useEffect(() => {
-    const el = feedRef.current;
-    if (!el || (rowIdx < 0 && !marked.current)) return;
-    for (const o of Array.from(el.querySelectorAll<HTMLElement>('[data-find-at]'))) o.removeAttribute('data-find-at');
-    const row = rowIdx >= 0 ? el.querySelector<HTMLElement>(`[data-tx-row="${rowIdx}"]`) : null;
-    row?.setAttribute('data-find-at', '1');
-    marked.current = !!row;
-  });
   useEffect(() => {
     const el = feedRef.current;
     const row = rowIdx >= 0 ? el?.querySelector<HTMLElement>(`[data-tx-row="${rowIdx}"]`) : null;
