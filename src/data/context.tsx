@@ -100,7 +100,27 @@ export function withMedia(api: PlayerApi, media: string | null): PlayerApi {
   return media ? { ...api, cred: { ...api.cred, media } } : api;
 }
 
-export async function loadSource(api: PlayerApi, id: string): Promise<PlayerSource> {
+const LIVE_STATES = ['pending', 'live', 'paused'];
+
+export function isLiveRecording(r: Pick<Recording, 'kind' | 'state'> | null | undefined): boolean {
+  return !!r && r.kind === 'live' && LIVE_STATES.includes(r.state);
+}
+
+export function streamOffsetS(ingest: { mediaAt?: string | null; streamStartedAt?: string | null } | null | undefined): number {
+  if (!ingest?.mediaAt || !ingest.streamStartedAt) return 0;
+  const s = (Date.parse(ingest.mediaAt) - Date.parse(ingest.streamStartedAt)) / 1000;
+  return Number.isFinite(s) && s > 0 ? s : 0;
+}
+
+export function liveJob(recording: Recording, url: string | null | undefined): TranscriptionJob | null {
+  const r = recording as Recording & { ingest?: { url?: string | null; mediaAt?: string | null; streamStartedAt?: string | null } | null };
+  const link = url ?? r.ingest?.url ?? null;
+  if (!link) return null;
+  const done = r.state === 'finalized';
+  return { recordingId: r.id, state: done ? 'done' : 'transcribing', hasAudio: done, hasVideo: false, source: { kind: 'url', url: link }, crop: { startS: streamOffsetS(r.ingest) } } as unknown as TranscriptionJob;
+}
+
+export async function loadSource(api: PlayerApi, id: string, recordingId?: string | null): Promise<PlayerSource> {
   if (api.listen) {
     const recording = await api.client.recordings.get(api.listen.recordingId, api.readAs);
     const r: any = recording;
@@ -108,20 +128,22 @@ export async function loadSource(api: PlayerApi, id: string): Promise<PlayerSour
   }
   if (api.owner) {
     const tx = await api.client.transcriptions.get(id);
-    const job = (tx as any).job ?? null;
-    const rid: string | null = job?.recordingId ?? null;
+    const own = (tx as any).job ?? null;
+    const rid: string | null = recordingId ?? own?.recordingId ?? null;
     if (!rid) throw Object.assign(new Error('This transcription has no recording yet.'), { code: 'not_found', status: 404 });
     const recording = await api.client.recordings.get(rid);
+    const src = (tx as any).source as { kind?: string; url?: string | null } | undefined;
+    const job = own && own.recordingId === rid ? own : recording.kind === 'live' ? liveJob(recording, src?.kind === 'stream' ? src.url : null) : own;
     return { key: id, code: null, transcriptionId: tx.id, name: tx.name ?? '', recording, job, allowDownload: true, allowExport: true, allowTranslate: true, sharedBy: null };
   }
   const s = await api.client.shareLinks.open(id);
   return {
-    key: id, code: s.code ?? id, transcriptionId: s.transcriptionId ?? null, name: s.name ?? '', recording: s.recording, job: s.job ?? null,
+    key: id, code: s.code ?? id, transcriptionId: s.transcriptionId ?? null, name: s.name ?? '', recording: s.recording, job: s.job ?? (s.recording?.kind === 'live' ? liveJob(s.recording, null) : null),
     allowDownload: !!s.allowDownload, allowExport: !!s.allowExport, allowTranslate: !!s.allowTranslate, sharedBy: s.sharedBy ?? null,
   };
 }
 
-export function useSource(api: PlayerApi, id: string): { source: PlayerSource | null; gone: boolean; error: ErrorLike | null; reload: () => void } {
+export function useSource(api: PlayerApi, id: string, recordingId?: string | null): { source: PlayerSource | null; gone: boolean; error: ErrorLike | null; reload: () => void } {
   const [source, setSource] = useState<PlayerSource | null>(null);
   const [gone, setGone] = useState(false);
   const [error, setError] = useState<ErrorLike | null>(null);
@@ -129,11 +151,11 @@ export function useSource(api: PlayerApi, id: string): { source: PlayerSource | 
   useEffect(() => {
     if (!id) { setSource(null); setGone(false); setError(null); return; }
     let alive = true;
-    loadSource(api, id)
+    loadSource(api, id, recordingId)
       .then((s) => { if (alive) { setSource(s); setGone(false); setError(null); } })
       .catch((e) => { if (!alive) return; const d = describe(e); if (d.code === 'not_found' || d.status === 404) setGone(true); else setError(d); });
     return () => { alive = false; };
-  }, [api, id, n]);
+  }, [api, id, n, recordingId]);
   return { source, gone, error, reload: () => setN((x) => x + 1) };
 }
 

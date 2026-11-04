@@ -16,6 +16,7 @@ import { ClipQueue, newMediaElement, readCursor, VoiceNotStarted, type ReadPos, 
 import { placePosition, snapPosition, type PlayPos } from '../core/playPosition';
 import { findCount, findMatches, matchAt, stepMatch } from '../core/find';
 import { voiceWait, VOICE_WAIT_TITLE } from '../core/voiceWait';
+import { fromStream, toStream, type Gap } from '../core/streamTime';
 import { useHeld } from './wait';
 import { lineSpeechEnd, spreadWords } from '../core/readalong';
 import { type AvailableVoice, type CastMember, FixBadges, FixPen, rowFixes, FeedBar, NO_VOICE_TIP, feedInset, SpeakerCast, VoiceIdGlyph, VoiceSheetBody, autoCast, castKey, langMeta, namedCount, rowKey, speakerRoster, useArchiveVoice, useFeedBar, useVoiceCatalogue, useDragScroll } from './shared';
@@ -289,10 +290,17 @@ export function useDuck(players: TxPlayer[], ducked: boolean) {
   useEffect(() => { fade(ducked ? DUCK : 1, ducked ? DUCK_MS : UNDUCK_MS); }, [ducked, fade]);
   useEffect(() => () => { cancelAnimationFrame(raf.current); at.current = 1; for (const p of live.current) p.setVolume(1); }, []);
 }
-export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edgeS: number | null): { player: TxPlayer; lead: YtLead; setVideoSound: (on: boolean) => void } {
+const NO_GAPS: readonly Gap[] = [];
+const HOLD_NEAR_S = 6;
+const HOLD_TRIES = 5;
+const HOLD_RETRY_MS = 1200;
+
+export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edgeS: number | null, gaps: readonly Gap[] = NO_GAPS): { player: TxPlayer; lead: YtLead; setVideoSound: (on: boolean) => void } {
   const cmdRef = useRef<((func: string, args?: unknown[]) => void) | null>(null);
   const readyRef = useRef(false);
   const pending = useRef(false);
+  const hold = useRef<{ t: number; tries: number; at: number } | null>({ t: 0, tries: 0, at: 0 });
+  const played = useRef(false);
   const [state, setState] = useState<number | null>(null);
   const [muted, setMuted] = useState(true);
   const mutedRef = useRef(true);
@@ -301,10 +309,18 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
   const tRef = useRef(0); tRef.current = t;
   const base = useRef<{ t: number; at: number }>({ t: 0, at: 0 });
   const offset = useRef(offsetS); offset.current = offsetS;
+  const gapsRef = useRef(gaps); gapsRef.current = gaps;
+  const ytOf = (t: number) => toStream(t, offset.current, gapsRef.current);
   const edgeRef = useRef(edgeS); edgeRef.current = edgeS;
   const [edgeWait, setEdgeWait] = useState(false);
   const edgeWaitRef = useRef(false);
   const setWait = (w: boolean) => { edgeWaitRef.current = w; setEdgeWait(w); };
+  const holdSeek = () => {
+    const h = hold.current;
+    if (!h || performance.now() - h.at < HOLD_RETRY_MS) return;
+    h.at = performance.now(); h.tries += 1;
+    send('seekTo', [ytOf(h.t), true]);
+  };
   const send = (func: string, args?: unknown[]) => cmdRef.current?.(func, args);
   const playing = state === 1 || state === 3;
   const stateRef = useRef<number | null>(null);
@@ -313,11 +329,19 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
     muted: true,
     bind: (c) => { cmdRef.current = c; if (!c) readyRef.current = false; },
     onInfo: (i) => {
+      if (i.ready && readyRef.current) { hold.current = { t: tRef.current, tries: 0, at: 0 }; played.current = false; }
+      if (i.state === 1) played.current = true;
       if (i.ready && !readyRef.current) { readyRef.current = true; if (pending.current) { pending.current = false; send(lead.muted ? 'mute' : 'unMute'); send('playVideo'); } }
       if (typeof i.state === 'number') { stateRef.current = i.state; setState(i.state); if (i.state === 1 && !wantPlay.current && !held.current && performance.now() - pausedAt.current < 6000) send('pauseVideo'); }
       if (typeof i.muted === 'boolean') ytMuted.current = i.muted;
+      if (typeof i.state === 'number' && i.state === 1 && hold.current) holdSeek();
+      if (typeof i.t === 'number' && hold.current) {
+        const h = hold.current;
+        if ((played.current && Math.abs(i.t - ytOf(h.t)) <= HOLD_NEAR_S) || h.tries >= HOLD_TRIES) hold.current = null;
+        else { if (stateRef.current === 1) holdSeek(); return; }
+      }
       if (typeof i.t === 'number') {
-        const at = i.t - offset.current;
+        const at = fromStream(i.t, offset.current, gapsRef.current);
         base.current = { t: at, at: performance.now() };
         if (!(at < tRef.current && tRef.current - at < 0.35)) setT(Math.max(0, at));
       }
@@ -354,7 +378,8 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
   const [seekN, setSeekN] = useState(0);
   const seek = (s0: number) => {
     const s = Math.max(0, edgeRef.current != null ? Math.min(s0, Math.max(0, edgeRef.current - 0.5)) : s0);
-    send('seekTo', [s + offset.current, true]);
+    hold.current = { t: s, tries: 0, at: 0 };
+    if (readyRef.current) holdSeek();
     base.current = { t: s, at: performance.now() };
     setT(s); setSeekN((n) => n + 1);
   };
@@ -386,7 +411,8 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
   const applyMute = () => { const v = mutedRef.current || soundOff.current; lead.muted = v; send(v ? 'mute' : 'unMute'); };
   const setMute = (m: boolean) => { mutedRef.current = m; setMuted(m); applyMute(); };
   const chosen = useRef(false);
-  const soundUp = () => { setMute(false); if (soundOff.current) return; setTimeout(() => { if (stateRef.current === 2 && wantPlay.current && !mutedRef.current) { setMute(true); send('playVideo'); } }, 900); };
+  const blocked = () => stateRef.current === 2 && wantPlay.current && !mutedRef.current && !edgeWaitRef.current && !held.current;
+  const soundUp = () => { setMute(false); if (soundOff.current) return; setTimeout(() => { if (blocked()) { setMute(true); send('playVideo'); } }, 900); };
   const setVideoSound = (on: boolean) => { if (soundOff.current === !on) return; soundOff.current = !on; applyMute(); };
   const autoplay = async () => {
     const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -406,7 +432,7 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
   const player: TxPlayer = {
     autoplay,
     playing, ended: state === 0, t, idx, dur, muted, seekN, toggle, seekRow,
-    toggleMute: () => { chosen.current = true; const m = !mutedRef.current; setMute(m); if (!m && !soundOff.current && stateRef.current === 1) setTimeout(() => { if (stateRef.current === 2 && !mutedRef.current) { setMute(true); send('playVideo'); } }, 900); },
+    toggleMute: () => { chosen.current = true; const m = !mutedRef.current; setMute(m); if (!m && !soundOff.current && stateRef.current === 1) setTimeout(() => { if (blocked()) { setMute(true); send('playVideo'); } }, 900); },
     seekFrac: (f: number) => seek(Math.max(0, Math.min(1, f)) * dur),
     seekWord: (w: Word) => seek(w.start),
     playRow: (i: number) => { seekRow(i); if (!playing) play(); },

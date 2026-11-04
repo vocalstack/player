@@ -27,7 +27,8 @@ import { rows as toRows, showLabels, speakerLabel, speakerLook } from '../core/t
 import { downloadVoiceTrack, exportTranscript, jobLengthS, progressOf, rowStatusOf, saveUrl, saveWhenReady, segsLabel, TX_FORMATS, type TxProgress } from '../data/tx';
 import { ytIdOf } from '../core/youtube';
 import { subtitleShown } from '../core/readalong';
-import { PlayerApiProvider, useApi, useMediaToken, useSource, withMedia, type Listen, type PlayerApi, type PlayerSource as LoadedSource, type TokenSource } from '../data/context';
+import { fromStream, spanGaps, toStream } from '../core/streamTime';
+import { PlayerApiProvider, isLiveRecording, useApi, useMediaToken, useSource, withMedia, type Listen, type PlayerApi, type PlayerSource as LoadedSource, type TokenSource } from '../data/context';
 import { SideFrame, SidePanels, useSideTabs } from './SideColumn';
 import { ExportPanel, LiveVideo, ReplayScrub, SummaryPanel, shareLink, summaryOf, TabBar, Toast, useSummaryIn, useViewportTranslation, type TabSpec } from './shared';
 import { MuteButton, NO_SEEK, PAUSE_D, PLAY_D, PUB_SIDE, TxFind, TxLines, YtFollow, lineEnd, lineWords, pictureT, spokenWordOf, useDuck, useFindPull, useFlash, useTxPlayer, useTxVoice, useYtLead } from './core';
@@ -82,9 +83,11 @@ export interface PlayerHandle {
 }
 
 const PLAYBACK_MS = 100;
+const LIVE_BEHIND_S = 8;
 
 export interface VocalStackPlayerProps {
   id?: string;
+  recording?: string | null;
   src?: string;
   token?: TokenSource | null;
   baseUrl?: string | null;
@@ -187,7 +190,7 @@ export const VocalStackPlayer = forwardRef(function VocalStackPlayer(props: Voca
     })();
     return () => { live = false; };
   }, [gateSrc, cur.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  const { source, gone, error, reload } = useSource(base, cur.id);
+  const { source, gone, error, reload } = useSource(base, cur.id, cur.id && cur.id === props.id ? props.recording ?? null : null);
   const media = useMediaToken(base, source?.recording.id ?? null);
   const api = useMemo(() => withMedia(base, media), [base, media]);
   useEffect(() => { if (source) props.onSource?.(source); }, [source]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -303,11 +306,17 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     reread.current = Date.now();
     props.reread();
   }, [settled, liveMoving, live?.state, live?.processedS, code]);
-  const status = rowStatusOf(progress?.state ?? shared?.job?.state ?? (api.listen ? (rec?.state === 'finalized' ? 'done' : rec?.state ? 'transcribing' : undefined) : undefined));
+  const liveRec = rec?.kind === 'live';
+  const recLive = liveRec && isLiveRecording(rec) && !['ended', 'processing', 'finalized'].includes(model.state);
+  const wasLive = useRef(recLive);
+  useEffect(() => { if (wasLive.current && !recLive) props.reread(); wasLive.current = recLive; }, [recLive]); // eslint-disable-line react-hooks/exhaustive-deps
+  const status = liveRec ? (recLive ? 'transcribing' : 'done') : rowStatusOf(progress?.state ?? shared?.job?.state ?? (api.listen ? (rec?.state === 'finalized' ? 'done' : rec?.state ? 'transcribing' : undefined) : undefined));
   const running = !!recordingId && (status === 'transcribing' || status === 'queued');
-  const holding = locked && !gone && (!shared || ((running || status === 'cropping') && rows.length === 0));
+  const holding = locked && !gone && (!shared || (!recLive && (running || status === 'cropping') && rows.length === 0));
   const pct = running ? (progress?.pct ?? 0) : 100;
-  const lenS = jobLengthS(shared?.job, progress) ?? rec?.mediaDurationS ?? null;
+  const lastRow = rows[rows.length - 1];
+  const doneTo = lastRow ? lastRow.words[lastRow.words.length - 1]?.end ?? lastRow.start : 0;
+  const lenS = recLive ? (doneTo || null) : jobLengthS(shared?.job, progress) ?? rec?.mediaDurationS ?? null;
   const langCode = model.segments.values().next().value?.language ?? rec?.spokenLanguage ?? null;
   const by = shared?.sharedBy ? `Shared by ${shared.sharedBy}` : '';
   const srcName = shared?.job?.source?.name?.trim() || null;
@@ -321,15 +330,14 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const audioUrl = deliveryUrl && (!sourceStored || sealed === 'yes') ? deliveryUrl
     : deliveryUrl && sealed === 'unknown' ? null
     : recordingId && shared?.allowDownload && (sourceAudio || (hasAudio && sourceStored)) ? audioDownloadUrl(api.origin, recordingId, 'source', api.cred) : null;
-  const lastRow = rows[rows.length - 1];
-  const doneTo = lastRow ? lastRow.words[lastRow.words.length - 1]?.end ?? lastRow.start : 0;
-  const edgeS = locked && running ? Math.max(doneTo, progress?.processedS ?? 0) : null;
+  const edgeS = locked && running && !(recLive && rows.length === 0) ? Math.max(doneTo, progress?.processedS ?? 0) : null;
   const audioPlayer = useTxPlayer(audioUrl, (hasAudio || sourceAudio) && !!shared?.allowDownload, rows, lenS, sourceAudio ? shared?.job?.crop?.startS ?? 0 : 0, edgeS);
   const srcVideoUrl = sourceVideoUrl(shared?.job?.source as Parameters<typeof sourceVideoUrl>[0]);
   const ytId = srcVideoUrl && siteOf(srcVideoUrl)?.id === 'youtube' ? ytIdOf(srcVideoUrl) : null;
   const ytLed = !!ytId && !audioUrl;
   const ytTitle = useYtTitle(ytId);
-  const yt = useYtLead(rows, lenS, shared?.job?.crop?.startS ?? 0, edgeS);
+  const gaps = useMemo(() => (liveRec ? spanGaps(model.spans) : []), [liveRec, model.spans]);
+  const yt = useYtLead(rows, lenS, shared?.job?.crop?.startS ?? 0, edgeS, gaps);
   const videoLed = !!ytId;
   const srcPlayer = videoLed ? yt.player : audioPlayer;
   const langs = useLanguages();
@@ -438,7 +446,8 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const unmutedNow = useRef(false);
   const soundOn = () => { if (!soundTip) return; setSoundTip(false); unmutedNow.current = true; setTimeout(() => { unmutedNow.current = false; }, 500); if (playerRef.current.muted) playerRef.current.toggleMute(); };
   const toggleSound = () => { if (unmutedNow.current) { unmutedNow.current = false; return; } setSoundTip(false); playerRef.current.toggleMute(); };
-  const tapPicture = () => { if (unmutedNow.current) { unmutedNow.current = false; return; } autoplayDone.current = true; wantPlay.current = !playerRef.current.playing; playerRef.current.toggle(); };
+  const toLive = () => { const p = playerRef.current; if (recLive && rows.length && !p.playing && (p.t <= 0 || p.t >= doneTo - 1)) startSeek(Math.max(0, doneTo - LIVE_BEHIND_S)); };
+  const tapPicture = () => { if (unmutedNow.current) { unmutedNow.current = false; return; } toLive(); autoplayDone.current = true; wantPlay.current = !playerRef.current.playing; playerRef.current.toggle(); };
   const mute = (size: number) => <MuteButton player={player} size={size} />;
   const sumOn = !!recordingId && !running;
   const [warm, setWarm] = useState(false);
@@ -453,7 +462,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const onVisible = useViewportTranslation(recordingId, askLang, rows, mergeTranslations);
   const sharedSummary = useSummaryIn(summaryOf(rec), recordingId, voice.readLang);
   const anyExport = canDownload || canExport;
-  const ytAt = (shared?.job?.crop?.startS ?? 0) + pictureT(player, rows);
+  const ytAt = toStream(pictureT(player, rows), shared?.job?.crop?.startS ?? 0, gaps);
   const listening = mode === 'listen';
   const watching = listening && (!!ytId || locked);
   const pickMode = (m: 'read' | 'listen') => { srcPlayer.pause(); voice.player.pause(); setMode(m); if (m === 'read' && full) { browserFull(false); setFull(false); } };
@@ -472,10 +481,10 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     <ReplayScrub index={player.idx} total={Math.max(1, rows.length)} frac={player.dur > 0 ? Math.min(1, player.t / player.dur) : 0} glideMs={player.wordSync ? 0 : 220} atLabel={clock(player.t)} durLabel={clock(player.dur)} stepLabel={deskStep ? `${player.idx + 1} / ${rows.length}` : ''} onSeek={voice.relang ? NO_SEEK : player.seekRow} onSeekFrac={voice.relang ? undefined : player.seekFrac} onScrubStart={player.hold} onScrubEnd={player.release} />
   );
   const pos: PlayerPos = {
-    live: false, atEdge: false, edgeFrac: null, readyFrac: edgeS != null && player.dur > 0 ? Math.min(1, edgeS / player.dur) : null,
+    live: recLive, atEdge: recLive && player.t >= doneTo - LIVE_BEHIND_S - 4, edgeFrac: null, readyFrac: !recLive && edgeS != null && player.dur > 0 ? Math.min(1, edgeS / player.dur) : null,
     pct: player.dur > 0 ? Math.min(100, Math.round((player.t / player.dur) * 1000) / 10) : 0,
-    atLabel: clock(player.t), labelAt: (f) => clock(f * player.dur), endLabel: clock(player.dur),
-    onSeek: (f) => { if (!voice.relang) player.seekFrac?.(f); },
+    atLabel: clock(player.t), labelAt: (f) => clock(f * player.dur), endLabel: recLive ? 'LIVE' : clock(player.dur),
+    onSeek: (f) => { if (voice.relang) return; if (recLive && f >= 0.98) startSeek(Math.max(0, doneTo - LIVE_BEHIND_S)); else player.seekFrac?.(f); },
   };
   const [slowLine, lineSince] = useHeld(voice.on && !!player.preparing && player.playing, 1500);
   const voiceFailed = voice.on && player.error?.code === 'voice_not_started';
@@ -500,8 +509,8 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const audioSummary = !speaking ? (removeBg && bgState !== 'unavailable' ? 'Original speech, background removed' : 'Original sound') : [`Translated${voice.hasClone ? (cloning ? ', cloned voices' : ', synthetic voices') : ''}`, !removeBg && canDownload && bed !== 'unavailable' ? 'with background sound' : null].filter(Boolean).join(' ');
   const waitRetry = () => { if (waitState?.kind === 'translateFailed') { setLanguage(askLang); return; } autoplayDone.current = true; player.toggle(); };
   const waitOriginal = () => { const at = player.idx; player.pause(); setTxLang(null); autoplayDone.current = true; srcPlayer.playRow(at); };
-  const transport: PlayerTransport = { prevOn: player.idx > 0, nextOn: player.idx < rows.length - 1, onPrev: player.prev, onNext: player.next, playing: player.playing, playable, playTitle: voice.playTitle ?? (player.playing ? 'Pause' : 'Play'), onPlay: () => { autoplayDone.current = true; wantPlay.current = !player.playing; player.toggle(); }, busy: (voice.relang && !ytId) || voiceHolds || (!videoLed && player.playing && !!player.preparing) };
-  useMediaKeys(playable && listening ? { playing: player.playing, toggle: () => { autoplayDone.current = true; wantPlay.current = !player.playing; player.toggle(); }, next: player.next, prev: player.prev } : null, pageTitle);
+  const transport: PlayerTransport = { prevOn: player.idx > 0, nextOn: player.idx < rows.length - 1, onPrev: player.prev, onNext: player.next, playing: player.playing, playable, playTitle: voice.playTitle ?? (player.playing ? 'Pause' : 'Play'), onPlay: () => { toLive(); autoplayDone.current = true; wantPlay.current = !player.playing; player.toggle(); }, busy: (voice.relang && !ytId) || voiceHolds || (!videoLed && player.playing && !!player.preparing) };
+  useMediaKeys(playable && listening ? { playing: player.playing, toggle: () => { toLive(); autoplayDone.current = true; wantPlay.current = !player.playing; player.toggle(); }, next: player.next, prev: player.prev } : null, pageTitle);
   const glassChip: React.CSSProperties = { background: 'transparent', color: '#eef0f8', width: 74, justifyContent: 'center', boxSizing: 'border-box' };
   const chipFor = (style: React.CSSProperties, size?: 'sm') => !meta.can || !ctl.language ? null : locked
     ? <button type="button" className="gfull__btn" title={langBusy ? `Language: ${meta.label ?? meta.code}, still being prepared` : `Language: ${meta.label ?? meta.code}`} aria-label={`Language: ${meta.label ?? meta.code}`} aria-busy={langBusy || undefined} onClick={() => { setSettings(false); meta.onClick(); }} style={{ position: 'relative' }}><span style={{ fontSize: size === 'sm' ? 17 : 21, lineHeight: 1 }}>{meta.flag}</span>{langBusy && <span style={{ position: 'absolute', right: 2, bottom: 2, display: 'flex', borderRadius: 999, background: 'rgba(5,6,21,.7)', padding: 1 }}><Spinner size={11} color="#eef0f8" track="rgba(255,255,255,.25)" /></span>}</button>
@@ -539,7 +548,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const thumbUrl = stillThumb((shared?.job?.source as { thumbnailUrl?: string | null } | undefined)?.thumbnailUrl ?? null);
   const failedTx = status === 'failed' && rows.length === 0;
   const thumbPic = thumbUrl && /^https:\/\//.test(thumbUrl) ? <div className={`vsp-thumbpic${(shared?.job?.source as { site?: string | null } | undefined)?.site === 'x' ? ` vsp-thumbpic--pan${player.playing ? ' vsp-thumbpic--on' : ''}` : ''}`} aria-hidden="true" style={{ backgroundImage: `url(${JSON.stringify(thumbUrl)})` }} /> : null;
-  const picture = !ytId ? (locked ? <><div className="vsp-idle__pic vsp-idle__pic--brand" />{thumbPic}{failedTx ? null : baseTap}<div className={failedTx ? 'vsp-pics vsp-failed' : 'vsp-pics'} style={{ display: 'contents' }}>{embedPic}{fileVideo}{linkVideo}</div></> : null) : <>{<YtFollow busy={videoLed && (!!yt.player.preparing || (autoWait && !player.playing && locked && !!full && props.autoplay !== false && !autoplayDone.current))} ytId={ytId} title={name} t={ytAt} playing={player.playing && !voiceHolds} waiting={voice.on && !!player.timed && !!player.preparing} seekN={player.seekN} onTime={(y) => player.videoAt?.(y - (shared?.job?.crop?.startS ?? 0))} onToggle={player.has ? tapPicture : undefined} onAd={setAdOn} lead={videoLed ? yt.lead : undefined} />}<div className="vsp-poster" aria-hidden="true" style={{ opacity: posterGone ? 0 : 1 }}><div className="vsp-poster__img" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${ytId}/hqdefault.jpg)` }} /><span className="txyt__pausedplay">{posterSpin ? <span className="gfull__spin txyt__spin" /> : <PlayGlyph size={44} />}</span></div></>;
+  const picture = !ytId ? (locked ? <><div className="vsp-idle__pic vsp-idle__pic--brand" />{thumbPic}{failedTx ? null : baseTap}<div className={failedTx ? 'vsp-pics vsp-failed' : 'vsp-pics'} style={{ display: 'contents' }}>{embedPic}{fileVideo}{linkVideo}</div></> : null) : <>{<YtFollow busy={videoLed && (!!yt.player.preparing || (autoWait && !player.playing && locked && !!full && props.autoplay !== false && !autoplayDone.current))} ytId={ytId} title={name} t={ytAt} playing={player.playing && !voiceHolds} waiting={voice.on && !!player.timed && !!player.preparing} seekN={player.seekN} onTime={(y) => player.videoAt?.(fromStream(y, shared?.job?.crop?.startS ?? 0, gaps))} onToggle={player.has ? tapPicture : undefined} onAd={setAdOn} lead={videoLed ? yt.lead : undefined} />}<div className="vsp-poster" aria-hidden="true" style={{ opacity: posterGone ? 0 : 1 }}><div className="vsp-poster__img" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${ytId}/hqdefault.jpg)` }} /><span className="txyt__pausedplay">{posterSpin ? <span className="gfull__spin txyt__spin" /> : <PlayGlyph size={44} />}</span></div></>;
   const video = watching && ytId && !full ? (
     <LiveVideo ytId={ytId} title={name} radius={14} large style={desk ? undefined : { margin: '8px 20px 2px' }} picture={picture}>
       <MiniPlayer pos={pos} transport={transport} chip={chipFor({ ...glassChip, width: 64, height: 28, minHeight: 28, padding: '0 8px' }, 'sm')} voices={voicesBtn} onFull={() => { browserFull(true); setFull(true); }} copied={null} />
@@ -595,9 +604,9 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const seekTo = (t0: number) => { autoplayDone.current = true; startAt.current = null; startSeek(Math.max(0, t0)); };
   props.handle.current = {
     seek: (t0) => seekTo(t0),
-    play: () => { autoplayDone.current = true; if (listening && !playerRef.current.playing) playerRef.current.toggle(); },
+    play: () => { autoplayDone.current = true; if (listening && !playerRef.current.playing) { toLive(); playerRef.current.toggle(); } },
     pause: () => { autoplayDone.current = true; playerRef.current.pause(); },
-    toggle: () => { autoplayDone.current = true; if (listening || playerRef.current.playing) playerRef.current.toggle(); },
+    toggle: () => { autoplayDone.current = true; if (listening || playerRef.current.playing) { toLive(); playerRef.current.toggle(); } },
     toggleMute: () => { setSoundTip(false); playerRef.current.toggleMute(); },
   };
   useEffect(() => () => { props.handle.current = null; }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -742,14 +751,14 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const fullEl = full && watching && (!!ytId || locked) && (
     <FullVideo
       modal={askConsent ? <CloneConsent onYes={grantClone} onNo={() => setAskConsent(false)} /> : undefined}
-      page={(props.layout ?? 'embed') === 'page'} picture={picture} title={name} desk={desk} pos={pos} mute={{ muted: player.muted, onToggle: toggleSound }} cc={ctl.subtitles ? { on: ccOn, onToggle: () => setCcOn((v) => !v) } : undefined} noFull={!ctl.fullscreen} ad={adOn} wait={waitState && !softWait ? <PlayerWait state={waitState} line={voiceHolds ? subWords.map((w) => w.t + w.sp).join('') : null} onRetry={waitRetry} onOriginal={waitOriginal} /> : player.edgeWait ? `Transcribing ${Math.round(pct)}% — it plays on as more is written` : null} pct={running ? Math.round(pct) : null}
+      page={(props.layout ?? 'embed') === 'page'} picture={picture} title={name} desk={desk} pos={pos} mute={{ muted: player.muted, onToggle: toggleSound }} cc={ctl.subtitles ? { on: ccOn, onToggle: () => setCcOn((v) => !v) } : undefined} noFull={!ctl.fullscreen} ad={adOn} wait={waitState && !softWait ? <PlayerWait state={waitState} line={voiceHolds ? subWords.map((w) => w.t + w.sp).join('') : null} onRetry={waitRetry} onOriginal={waitOriginal} /> : player.edgeWait ? (recLive ? 'Catching up with the live transcript…' : `Transcribing ${Math.round(pct)}% — it plays on as more is written`) : null} pct={running && !recLive ? Math.round(pct) : null}
       sub={ccOn && subRow ? { who: subLook ? speakerLabel(model, subRow.speaker) : null, color: subLook ? subLook.fg ?? `var(--lane-${subLook.lane})` : '#fff', words: subWords, cursor: spokenWordOf(player, player.idx, subLine) } : null}
       chip={chipFor(desk ? glassChip : { ...glassChip, width: 64, padding: '0 6px' }, desk ? undefined : 'sm')} transport={transport}
       picker={voice.sheets} sheet={locked ? settingsSheet : null} voices={null} voicesBtn={locked ? null : voicesBtn} sheetOpen={voice.sheetsOpen || settings} onShare={locked && ctl.share ? shareHere : undefined} onSettings={locked && ctl.settings ? () => { voice.closePicker(); setSettings((v) => !v); } : undefined} compact={!!props.compact} paused={{ title: name, summary: sharedSummary.state === 'ready' ? sharedSummary.summary ?? null : null, share: ctl.share && (props.shareUrl || !props.onShare) ? { url: shareAtUrl, at: player.t } : null }}
       copied={failedTx ? <div className="gfull__toast gfull__toast--warn" role="status"><Icon d={D.warn} size={13} sw={1.9} />This video couldn't be transcribed</div> : linkCopied ? <div className="gfull__toast" aria-live="polite"><Icon d={D.check} size={13} sw={2} />Link copied</div> : soundTip ? <div className="gfull__toast gfull__soundtip" aria-live="polite"><Icon d={D.volumeOff} size={14} sw={1.8} />Tap for sound</div> : softNote && hushed !== hushKey ? <div className="gfull__toast gfull__toast--x" role="status" aria-live="polite"><Spinner size={13} color="#eef0f8" track="rgba(255,255,255,.25)" />{softNote}{hushBtn}</div> : (voiceLate || voice.on && (videoLed ? follow.missing != null : player.silent)) && hushed !== hushKey ? <div className="gfull__toast gfull__toast--x" role="status" aria-live="polite"><Spinner size={13} color="#eef0f8" track="rgba(255,255,255,.25)" />{`${waitLangName || 'Translated'} voice is still being prepared · playing with subtitles`}{hushBtn}</div> : null} onTouch={() => { browserFull(true); soundOn(); }} onClose={locked ? undefined : () => { browserFull(false); setFull(false); }} />
   );
   useEffect(() => { if (!locked && full && !watching) { browserFull(false); setFull(false); } }, [locked, full, watching]);
-  const progressBox = running && (
+  const progressBox = running && !recLive && (
     <div className={`pubprog${desk ? ' pubprog--desk' : ''}${find ? ' pubprog--find' : ''}`}>
       <div className="pubprog__row"><span className="l">{`TRANSCRIBING ${pct}%`}</span>{!desk && <div style={{ flex: 1 }} />}{desk && <div className="pubprog__bar" style={{ flex: 1 }}><div style={{ width: `${pct}%` }} /></div>}<span className="s">{segs}</span></div>
       {!desk && <div className="pubprog__bar" style={{ marginTop: 8 }}><div style={{ width: `${pct}%` }} /></div>}
@@ -801,7 +810,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
       </div>
     </div>
   );
-  const tabPct = locked && shared && (running || status === 'cropping') ? Math.max(0, Math.min(100, Math.round(pct))) : null;
+  const tabPct = locked && shared && !recLive && (running || status === 'cropping') ? Math.max(0, Math.min(100, Math.round(pct))) : null;
   const onProgress = useRef(props.onProgress);
   onProgress.current = props.onProgress;
   useEffect(() => { onProgress.current?.(tabPct); }, [tabPct]);
