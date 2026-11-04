@@ -164,7 +164,7 @@ export function MiniPlayer({ pos, transport, chip, voices, onShare, onFull, copi
 
 const DIM_WORD: React.CSSProperties = { color: 'rgba(255,255,255,.4)' };
 
-export function FullVideo({ compact = false, noFull = false, page = true, picture, title, desk, pos, sub, wait, pct, mute, cc, ad, chip, transport, picker, sheet, voices, voicesBtn, sheetOpen, onShare, onSettings, paused, copied, onTouch, onClose }: { compact?: boolean; noFull?: boolean; page?: boolean; onTouch: () => void; onSettings?: () => void; paused?: { title: string; summary: string | null; share?: { url: (t: number | null) => string; at: number } | null } | null; voices: React.ReactNode; voicesBtn: VoicesBtn | null; picture: React.ReactNode; title: string; desk: boolean; pos: PlayerPos; sub: { who: string | null; color: string; words: { t: string; sp: string; dim: boolean }[]; cursor?: number | null } | null; wait?: React.ReactNode; pct?: number | null; mute?: { muted: boolean; onToggle: () => void }; cc?: { on: boolean; onToggle: () => void }; ad?: boolean; chip: React.ReactNode; transport: PlayerTransport; picker: React.ReactNode; sheet: React.ReactNode; sheetOpen: boolean; onShare?: () => void; copied: React.ReactNode; onClose?: () => void }) {
+export function FullVideo({ topLeft, modal, compact = false, noFull = false, page = true, picture, title, desk, pos, sub, wait, pct, mute, cc, ad, chip, transport, picker, sheet, voices, voicesBtn, sheetOpen, onShare, onSettings, paused, copied, onTouch, onClose }: { topLeft?: React.ReactNode; modal?: React.ReactNode; compact?: boolean; noFull?: boolean; page?: boolean; onTouch: () => void; onSettings?: () => void; paused?: { title: string; summary: string | null; share?: { url: (t: number | null) => string; at: number } | null } | null; voices: React.ReactNode; voicesBtn: VoicesBtn | null; picture: React.ReactNode; title: string; desk: boolean; pos: PlayerPos; sub: { who: string | null; color: string; words: { t: string; sp: string; dim: boolean }[]; cursor?: number | null } | null; wait?: React.ReactNode; pct?: number | null; mute?: { muted: boolean; onToggle: () => void }; cc?: { on: boolean; onToggle: () => void }; ad?: boolean; chip: React.ReactNode; transport: PlayerTransport; picker: React.ReactNode; sheet: React.ReactNode; sheetOpen: boolean; onShare?: () => void; copied: React.ReactNode; onClose?: () => void }) {
   const [isFull, setIsFull] = useState(() => !!fullNow());
   useEffect(() => {
     const on = () => setIsFull(!!fullNow());
@@ -332,6 +332,8 @@ export function FullVideo({ compact = false, noFull = false, page = true, pictur
           </div>
         )}
         {top}
+        {topLeft && <div className="gfull__topl">{topLeft}</div>}
+        {modal}
         {copied}
         {wait ? (
           typeof wait === 'string'

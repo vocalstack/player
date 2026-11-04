@@ -1409,3 +1409,21 @@
 .vsp .vsp-langhint__close{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:0;border-radius:9px;background:var(--fill-05,rgba(255,255,255,.06));color:var(--vs-ink-82);cursor:pointer}
 .vsp .vsp-langhint__arrow{position:absolute;right:20px;bottom:-6px;width:11px;height:11px;background:rgba(0,0,0,.72);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);clip-path:polygon(100% 0,100% 100%,0 100%);border-right:1px solid rgba(255,255,255,.14);border-bottom:1px solid rgba(255,255,255,.14);border-radius:0 0 2px 0;transform:rotate(45deg)}
 @media (pointer:coarse),(max-width:820px){.vsp input:not([type=checkbox]):not([type=radio]):not([type=range]),.vsp textarea,.vsp select{font-size:16px!important}}
+.vsp .gfull__topl{position:absolute;top:calc(16px + env(safe-area-inset-top));left:16px;z-index:2;transition:opacity .3s ease}
+.vsp .gfull--desk .gfull__topl{top:24px;left:24px}
+.vsp .gfull--mini .gfull__topl{top:8px;left:8px}
+.vsp .gfull--calm .gfull__topl,.vsp .gfull--ad .gfull__topl{opacity:0;pointer-events:none}
+.vsp .gfull__clone{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 8px 0 12px;border:0;border-radius:99px;background:rgba(0,0,0,.55);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);color:#eef0f8;font:500 13px/1 var(--vs-font-sans);cursor:pointer}
+.vsp .gfull__clone:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.vsp .gfull__clonesw{position:relative;width:30px;height:18px;border-radius:99px;background:rgba(255,255,255,.22);transition:background .2s}
+.vsp .gfull__clonesw>i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .2s}
+.vsp .gfull__clone--on .gfull__clonesw{background:var(--brand)}
+.vsp .gfull__clone--on .gfull__clonesw>i{transform:translateX(12px)}
+.vsp .gfull__consent{position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.45)}
+.vsp .gfull__consentcard{width:min(100%,400px);max-height:100%;overflow:auto;box-sizing:border-box;padding:20px;border-radius:16px;background:rgba(0,0,0,.78);-webkit-backdrop-filter:blur(24px) saturate(150%);backdrop-filter:blur(24px) saturate(150%);box-shadow:0 0 0 1px rgba(255,255,255,.12),0 20px 50px rgba(0,0,0,.5);color:#eef0f8;font-family:var(--vs-font-sans)}
+.vsp .gfull__consenthead{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600;margin-bottom:10px}
+.vsp .gfull__consentcard p{margin:0 0 8px;font-size:13.5px;line-height:1.5;color:rgba(238,240,248,.82)}
+.vsp .gfull__consentbtns{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:14px}
+.vsp .gfull__consentbtns button{height:36px;padding:0 14px;border:0;border-radius:10px;font:600 13px/1 var(--vs-font-sans);cursor:pointer}
+.vsp .gfull__consentno{background:rgba(255,255,255,.1);color:#eef0f8}
+.vsp .gfull__consentyes{background:#fff;color:#0d1020}

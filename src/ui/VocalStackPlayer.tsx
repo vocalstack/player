@@ -225,6 +225,11 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const [ccOn, setCcOn] = useState(init.cc);
   const [speakOn, setSpeakOn] = useState(init.translateAudio);
   const [cloneOn, setCloneOn] = useState(init.clonedVoices);
+  const [consent, setConsent] = useState(() => { try { return sessionStorage.getItem('vsp.cloneConsent') === '1'; } catch { return false; } });
+  const [askConsent, setAskConsent] = useState(false);
+  const cloning = cloneOn && consent;
+  const wantClone = (on: boolean) => { if (!on) { setCloneOn(false); return; } if (consent) setCloneOn(true); else setAskConsent(true); };
+  const grantClone = () => { setConsent(true); try { sessionStorage.setItem('vsp.cloneConsent', '1'); } catch { } setCloneOn(true); setAskConsent(false); };
   const [removeBg, setRemoveBg] = useState(init.removeBackground);
   const fixed = props.settings;
   useEffect(() => { if (fixed?.lang !== undefined) setTxLang(fixed.lang); }, [fixed?.lang]);
@@ -295,7 +300,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const srcPlayer = videoLed ? yt.player : audioPlayer;
   const langs = useLanguages();
   const langBusyRef = useRef<string | null>(null);
-  const voice = useTxVoice({ forcedVoice: props.voice ?? null, recordingId, model, rows, lenS, ended: !!recordingId && !running, cred: api.cred, langs, srcLang: langCode, canTranslate: !!shared?.allowTranslate, pickedLang: txLang, setPickedLang: setTxLang, side: desk && !full ? PUB_SIDE : undefined, hearOriginal, timed: !!ytId, stockVoices: locked && !cloneOn, stickyPicker: locked, pickerBusy: langBusyRef.current });
+  const voice = useTxVoice({ forcedVoice: props.voice ?? null, recordingId, model, rows, lenS, ended: !!recordingId && !running, cred: api.cred, langs, srcLang: langCode, canTranslate: !!shared?.allowTranslate, pickedLang: txLang, setPickedLang: setTxLang, side: desk && !full ? PUB_SIDE : undefined, hearOriginal, timed: !!ytId, stockVoices: locked && !cloning, consent: cloning, stickyPicker: locked, pickerBusy: langBusyRef.current });
   const langSent = useRef<string | null>(null);
   useEffect(() => { if (!recordingId || langSent.current === askLang) return; langSent.current = askLang; setLanguage(askLang); }, [askLang, recordingId]); // eslint-disable-line react-hooks/exhaustive-deps
   const player = videoLed ? yt.player : voice.on ? voice.player : srcPlayer;
@@ -436,7 +441,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   useEffect(() => { yt.setVideoSound(!(videoLed && (voice.on || speechOver))); audioPlayer.silence?.(!videoLed && speechOver); }, [videoLed, voice.on, speechOver, audioUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   const bgState = !canDownload ? 'unavailable' : voice.on ? bed : speechTrack.state;
   const speaking = speakOn && speakAvail && !!askLang;
-  const audioSummary = !speaking ? (removeBg && bgState !== 'unavailable' ? 'Original speech, background removed' : 'Original sound') : [`Translated${voice.hasClone ? (cloneOn ? ', cloned voices' : ', synthetic voices') : ''}`, !removeBg && canDownload && bed !== 'unavailable' ? 'with background sound' : null].filter(Boolean).join(' ');
+  const audioSummary = !speaking ? (removeBg && bgState !== 'unavailable' ? 'Original speech, background removed' : 'Original sound') : [`Translated${voice.hasClone ? (cloning ? ', cloned voices' : ', synthetic voices') : ''}`, !removeBg && canDownload && bed !== 'unavailable' ? 'with background sound' : null].filter(Boolean).join(' ');
   const waitRetry = () => { if (waitState?.kind === 'translateFailed') { setLanguage(askLang); return; } autoplayDone.current = true; player.toggle(); };
   const waitOriginal = () => { const at = player.idx; player.pause(); setTxLang(null); autoplayDone.current = true; srcPlayer.playRow(at); };
   const transport: PlayerTransport = { prevOn: player.idx > 0, nextOn: player.idx < rows.length - 1, onPrev: player.prev, onNext: player.next, playing: player.playing, playable, playTitle: voice.playTitle ?? (player.playing ? 'Pause' : 'Play'), onPlay: () => { autoplayDone.current = true; player.toggle(); }, busy: (voice.relang && !ytId) || voiceHolds };
@@ -482,7 +487,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const subAt = wordsOn ? spokenWordOf(player, player.idx, subLine) : null;
   const subWords = subLine.map((w, j) => ({ t: w.text, sp: j < subLine.length - 1 ? ' ' : '', dim: subAt != null && j > subAt }));
   const labelsOn = labelsPref ? labelsPref === 'on' : locked ? false : showLabels(model, rows, rec?.settings);
-  const settingsOut = { lang: askLang, subtitles: ccOn, speakerLabels: labelsOn, wordHighlight: wordsOn, translateAudio: speakOn, voices: cloneOn ? 'cloned' as const : 'synthetic' as const, removeBackground: removeBg };
+  const settingsOut = { lang: askLang, subtitles: ccOn, speakerLabels: labelsOn, wordHighlight: wordsOn, translateAudio: speakOn, voices: cloning ? 'cloned' as const : 'synthetic' as const, removeBackground: removeBg };
   const settingsKey = JSON.stringify(settingsOut);
   const onSettings = useRef(props.onSettingsChange);
   onSettings.current = props.onSettingsChange;
@@ -604,8 +609,8 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
           </div>
           {speaking && voice.hasClone && (
             <div className="srow">
-              <div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">Voices</div><div className="srow__s">{cloneOn ? 'Each speaker in their own cloned voice' : 'Synthetic voices matched to each speaker'}</div></div>
-              <Switch<'stock' | 'clone'> value={cloneOn ? 'clone' : 'stock'} onChange={(v) => setCloneOn(v === 'clone')} size="sm" options={[{ value: 'stock', label: 'Synthetic' }, { value: 'clone', label: 'Cloned' }]} />
+              <div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">Voices</div><div className="srow__s">{cloning ? 'Each speaker in their own cloned voice' : 'Synthetic voices matched to each speaker'}</div></div>
+              <Switch<'stock' | 'clone'> value={cloning ? 'clone' : 'stock'} onChange={(v) => wantClone(v === 'clone')} size="sm" options={[{ value: 'stock', label: 'Synthetic' }, { value: 'clone', label: 'Cloned' }]} />
             </div>
           )}
           <div className="srow">
@@ -669,7 +674,21 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   );
 
   const fullEl = full && watching && (!!ytId || locked) && (
-    <FullVideo page={(props.layout ?? 'embed') === 'page'} picture={picture} title={name} desk={desk} pos={pos} mute={{ muted: player.muted, onToggle: toggleSound }} cc={ctl.subtitles ? { on: ccOn, onToggle: () => setCcOn((v) => !v) } : undefined} noFull={!ctl.fullscreen} ad={adOn} wait={waitState && !softWait ? <PlayerWait state={waitState} line={voiceHolds ? subWords.map((w) => w.t + w.sp).join('') : null} onRetry={waitRetry} onOriginal={waitOriginal} /> : player.edgeWait ? `Transcribing ${Math.round(pct)}% — it plays on as more is written` : null} pct={running ? Math.round(pct) : null}
+    <FullVideo topLeft={speakOn ? <button type="button" role="switch" aria-checked={cloning} className={`gfull__clone${cloning ? ' gfull__clone--on' : ''}`} onClick={(e) => { e.stopPropagation(); wantClone(!cloning); }}><Icon d={D.voiceClone} size={15} sw={1.6} /><span>Voice cloning</span><span className="gfull__clonesw" aria-hidden="true"><i /></span></button> : undefined}
+      modal={askConsent ? (
+        <div className="gfull__consent" role="dialog" aria-modal="true" aria-labelledby="vsp-consent-t" onClick={(e) => { e.stopPropagation(); setAskConsent(false); }} onPointerDown={(e) => e.stopPropagation()}>
+          <div className="gfull__consentcard" onClick={(e) => e.stopPropagation()}>
+            <div id="vsp-consent-t" className="gfull__consenthead"><Icon d={D.voiceClone} size={18} sw={1.6} />Use cloned voices?</div>
+            <p>A cloned voice reads each speaker's own words, translated into your language, in a copy of that speaker's voice. It never says anything they didn't say.</p>
+            <p>Only turn it on if the people speaking agreed to have their voices cloned.</p>
+            <div className="gfull__consentbtns">
+              <button type="button" className="gfull__consentno" onClick={() => setAskConsent(false)}>Not now</button>
+              <button type="button" className="gfull__consentyes" autoFocus onClick={grantClone}>They agreed, use cloned voices</button>
+            </div>
+          </div>
+        </div>
+      ) : undefined}
+      page={(props.layout ?? 'embed') === 'page'} picture={picture} title={name} desk={desk} pos={pos} mute={{ muted: player.muted, onToggle: toggleSound }} cc={ctl.subtitles ? { on: ccOn, onToggle: () => setCcOn((v) => !v) } : undefined} noFull={!ctl.fullscreen} ad={adOn} wait={waitState && !softWait ? <PlayerWait state={waitState} line={voiceHolds ? subWords.map((w) => w.t + w.sp).join('') : null} onRetry={waitRetry} onOriginal={waitOriginal} /> : player.edgeWait ? `Transcribing ${Math.round(pct)}% — it plays on as more is written` : null} pct={running ? Math.round(pct) : null}
       sub={ccOn && subRow ? { who: subLook ? speakerLabel(model, subRow.speaker) : null, color: subLook ? subLook.fg ?? `var(--lane-${subLook.lane})` : '#fff', words: subWords, cursor: spokenWordOf(player, player.idx, subLine) } : null}
       chip={chipFor(desk ? glassChip : { ...glassChip, width: 64, padding: '0 6px' }, desk ? undefined : 'sm')} transport={transport}
       picker={voice.sheets} sheet={locked ? settingsSheet : null} voices={null} voicesBtn={locked ? null : voicesBtn} sheetOpen={voice.sheetsOpen || settings} onShare={locked && ctl.share ? shareHere : undefined} onSettings={locked && ctl.settings ? () => { voice.closePicker(); setSettings((v) => !v); } : undefined} compact={!!props.compact} paused={{ title: name, summary: sharedSummary.state === 'ready' ? sharedSummary.summary ?? null : null, share: ctl.share && (props.shareUrl || !props.onShare) ? { url: shareAtUrl, at: player.t } : null }}

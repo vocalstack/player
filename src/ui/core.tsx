@@ -879,7 +879,8 @@ export interface VoiceSheetHooks {
   castWarn?: (sp: CastMember, ctx: VoiceSheetCtx) => string | null;
 }
 
-export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs, srcLang, canTranslate, pickedLang, setPickedLang, side, hearOriginal = false, timed = false, stockVoices = false, stickyPicker = false, pickerBusy = null, voiceSheet , forcedVoice = null }: {
+export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs, srcLang, canTranslate, pickedLang, setPickedLang, side, hearOriginal = false, timed = false, stockVoices = false, stickyPicker = false, pickerBusy = null, voiceSheet , forcedVoice = null, consent = true }: {
+  consent?: boolean;
   voiceSheet?: VoiceSheetHooks;
   forcedVoice?: string | null;
   hearOriginal?: boolean;
@@ -948,7 +949,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     () => rows.filter((r) => !r.suppressed && !r.unclear).map((r) => r.sentenceId).filter((id): id is number => id != null),
     [rows],
   );
-  const arch = useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice: forcedVoice || (castKeyStr ?? picked), sentenceIds: ended && speakHere ? sentenceIds : undefined });
+  const arch = useArchiveVoice({ consent, recordingId, lang, ended, cred, pickedVoice: forcedVoice || (castKeyStr ?? picked), sentenceIds: ended && speakHere ? sentenceIds : undefined });
   const gvPicked = gvList.find((v) => v.id === picked) ?? gvList.find((v) => v.id === arch.track?.voice) ?? gvList.find((v) => v.default) ?? gvList[0] ?? null;
   const gvId = gvPicked?.id ?? null;
 

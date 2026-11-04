@@ -786,7 +786,8 @@ export function namedCount(model: Model): number {
 }
 
 
-export function useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice, sentenceIds }: {
+export function useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice, sentenceIds, consent = true }: {
+  consent?: boolean;
   recordingId: string | null;
   lang: string | null;
   ended: boolean;
@@ -820,7 +821,7 @@ export function useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice, s
     asked.current.add(k);
     setAsking(k);
     setRenderError(null);
-    const body: { langs: string[]; voice?: string; voiceBySpeaker?: Record<string, string> } = { langs: [lang] };
+    const body: { langs: string[]; voice?: string; voiceBySpeaker?: Record<string, string>; consent?: boolean } = { langs: [lang], consent };
     if (castObj) body.voiceBySpeaker = castObj;
     else if (voiceId) body.voice = voiceId;
     const r = await apiFetch(api, `/v1/recordings/${recordingId}/voice`, { method: 'POST', body }).catch(() => null);
@@ -832,7 +833,7 @@ export function useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice, s
       return;
     }
     reload();
-  }, [recordingId, lang, ended, api, reload]);
+  }, [recordingId, lang, ended, api, reload, consent]);
   const forget = useCallback(() => {
     const prefix = `${recordingId ?? ''}|${lang ?? ''}|`;
     for (const k of [...asked.current]) if (k.startsWith(prefix)) asked.current.delete(k);
@@ -854,13 +855,13 @@ export function useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice, s
     if (prev && prev.key === key && Math.abs(prev.near - target) < 12 && Date.now() - prev.at < 60_000) return;
     kicked.current = { key, near: target, at: Date.now() };
     const castMap = parseCast(renderVoiceId);
-    const body: { langs: string[]; near: number; voice?: string; voiceBySpeaker?: Record<string, string> } = { langs: [lang], near: target };
+    const body: { langs: string[]; near: number; voice?: string; voiceBySpeaker?: Record<string, string>; consent?: boolean } = { langs: [lang], near: target, consent };
     if (castMap && castMap.size) body.voiceBySpeaker = Object.fromEntries([...castMap].map(([k2, v]) => [String(k2), v]));
     else if (renderVoiceId) body.voice = renderVoiceId;
     void apiFetch(api, `/v1/recordings/${recordingId}/voice`, { method: 'POST', body })
       .then((r) => { if (!r.ok) kicked.current = null; })
       .catch(() => { kicked.current = null; });
-  }, [ended, recordingId, lang, renderVoiceId, near, missing, api]);
+  }, [ended, recordingId, lang, renderVoiceId, near, missing, api, consent]);
   const missingNow = missing.length > 0;
   const lastCount = useRef({ n: -1, at: 0 });
   useEffect(() => {
