@@ -158,10 +158,9 @@ export function StartCard({ idle, connect, page, poster = null, onPick, onShare 
       if (!connect.connected) { setShareErr('That share link does not open. It may have been revoked.'); return; }
     }
     onPick(full);
-    connect.start(full, false);
   };
   const submit = () => { if (ok && !busy) void launch(clean); };
-  const go = () => { if (ok) submit(); else if (!connect.connected) connect.connect(); else inputRef.current?.focus(); };
+  const go = () => { if (ok) submit(); else inputRef.current?.focus(); };
   const auto = (v: string) => {
     const c = v.trim();
     if (!isLink(c) || busy || c === lastAuto.current) return;
@@ -170,18 +169,17 @@ export function StartCard({ idle, connect, page, poster = null, onPick, onShare 
   };
   const note = connect.busy ? <div className="vsp-idle__note" role="status">{STATUS[connect.status ?? 'checking']}</div>
     : opening ? <div className="vsp-idle__note" role="status">Opening the shared transcript…</div>
-    : <div className="vsp-idle__note">{connect.connected ? 'Paste a VocalStack share link, or a YouTube, Vimeo, mp3 or any video link to play it here with subtitles and spoken translations.' : 'Paste a VocalStack share link to watch it here, or connect to transcribe any video link.'}</div>;
+    : <div className="vsp-idle__note">Paste a YouTube, Vimeo, mp3 or any video link, or a VocalStack share link, to play it here with subtitles and spoken translations.</div>;
   return (
     <IdlePlayer idle={idle} poster={poster} src={null} title="VocalStack" page={page} onAct={go}>
       <form className="vsp-idle__form" onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <span className="vsp-idle__field">
           <Icon d={D.link} size={16} sw={1.8} />
-          <input ref={inputRef} className="vsp-idle__input" type="url" inputMode="url" enterKeyHint="go" autoComplete="off" spellCheck={false} placeholder={connect.connected ? 'Paste a video link' : 'Paste a share link'} value={url} onChange={(e) => setUrl(e.target.value)} onPaste={(e) => { const v = e.clipboardData.getData('text'); if (v) { setUrl(v.trim()); auto(v); e.preventDefault(); } }} aria-label="Video link" autoFocus={connect.connected} />
+          <input ref={inputRef} className="vsp-idle__input" type="url" inputMode="url" enterKeyHint="go" autoComplete="off" spellCheck={false} placeholder="Paste a video link" value={url} onChange={(e) => setUrl(e.target.value)} onPaste={(e) => { const v = e.clipboardData.getData('text'); if (v) { setUrl(v.trim()); auto(v); e.preventDefault(); } }} aria-label="Video link" autoFocus={connect.connected} />
           {busy && <Spinner size={15} color="#eef0f8" track="rgba(255,255,255,.2)" />}
         </span>
       </form>
       {note}
-      {!connect.connected && !busy && <ConnectButton connect={connect} onClick={connect.connect} label="Connect to VocalStack" />}
       {(shareErr || connect.err) && <div className="vsp-end__err" role="alert">{shareErr ?? connect.err}</div>}
     </IdlePlayer>
   );
