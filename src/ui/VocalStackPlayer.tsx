@@ -264,8 +264,10 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const [cloneOn, setCloneOn] = useState(init.clonedVoices);
   const [consent, setConsent] = useState(hasCloneConsent);
   const [askConsent, setAskConsent] = useState(false);
-  const cloning = cloneOn && consent;
-  const wantClone = (on: boolean) => { if (!on) { setCloneOn(false); return; } if (consent) setCloneOn(true); else setAskConsent(true); };
+  const [clonedRec, setClonedRec] = useState<string | null>(null);
+  const hostCloned = !!recordingId && clonedRec === recordingId;
+  const cloning = cloneOn && (consent || hostCloned);
+  const wantClone = (on: boolean) => { if (!on) { setCloneOn(false); return; } if (consent || hostCloned) setCloneOn(true); else setAskConsent(true); };
   const grantClone = () => { setConsent(true); grantCloneConsent(); setCloneOn(true); setAskConsent(false); };
   const [removeBg, setRemoveBg] = useState(init.removeBackground);
   const fixed = props.settings;
@@ -350,7 +352,8 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const srcPlayer = videoLed ? yt.player : audioPlayer;
   const langs = useLanguages();
   const langBusyRef = useRef<string | null>(null);
-  const voice = useTxVoice({ forcedVoice: props.voice ?? null, recordingId, model, rows, lenS, ended: !!recordingId && !running, cred: api.cred, langs, srcLang: langCode, canTranslate: !!shared?.allowTranslate, pickedLang: txLang, setPickedLang: setTxLang, side: desk && !full ? PUB_SIDE : undefined, hearOriginal, timed: !!ytId, stockVoices: locked && !cloning, consent: cloning, stickyPicker: locked, pickerBusy: langBusyRef.current });
+  const voice = useTxVoice({ forcedVoice: props.voice ?? null, recordingId, model, rows, lenS, ended: !!recordingId && !running, cred: api.cred, langs, srcLang: langCode, canTranslate: !!shared?.allowTranslate, pickedLang: txLang, setPickedLang: setTxLang, side: desk && !full ? PUB_SIDE : undefined, hearOriginal, timed: !!ytId, stockVoices: locked && !cloning, consent: cloning, cloneIfOffered: cloneOn, stickyPicker: locked, pickerBusy: langBusyRef.current });
+  useEffect(() => { if (voice.hasClone && recordingId) setClonedRec(recordingId); }, [voice.hasClone, recordingId]);
   const langSent = useRef<string | null>(null);
   useEffect(() => { if (!recordingId || langSent.current === askLang) return; langSent.current = askLang; setLanguage(askLang); }, [askLang, recordingId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [onVoice, setOnVoice] = useState(false);

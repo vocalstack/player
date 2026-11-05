@@ -972,8 +972,9 @@ export interface VoiceSheetHooks {
   castWarn?: (sp: CastMember, ctx: VoiceSheetCtx) => string | null;
 }
 
-export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs, srcLang, canTranslate, pickedLang, setPickedLang, side, hearOriginal = false, timed = false, stockVoices = false, stickyPicker = false, pickerBusy = null, voiceSheet , forcedVoice = null, consent = true }: {
+export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs, srcLang, canTranslate, pickedLang, setPickedLang, side, hearOriginal = false, timed = false, stockVoices = false, stickyPicker = false, pickerBusy = null, voiceSheet , forcedVoice = null, consent = true, cloneIfOffered = false }: {
   consent?: boolean;
+  cloneIfOffered?: boolean;
   voiceSheet?: VoiceSheetHooks;
   forcedVoice?: string | null;
   hearOriginal?: boolean;
@@ -1032,17 +1033,18 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     return out;
   }, [spkRoster, gvList, castByLang, vLang, cloneOn]);
   const castChosen = spkCastOn && Object.keys(castByLang[vLang ?? ''] ?? {}).length > 0;
-  const stockCast = useMemo(() => (stockVoices && !castChosen ? autoCast(spkRoster, gvList, false) : null), [stockVoices, castChosen, spkRoster, gvList]);
+  const hasClone = gvList.some((v) => v.cloned && v.consent !== 'pending');
+  const hostClones = cloneIfOffered && hasClone;
+  const stockCast = useMemo(() => (stockVoices && !hostClones && !castChosen ? autoCast(spkRoster, gvList, false) : null), [stockVoices, hostClones, castChosen, spkRoster, gvList]);
   const castKeyStr = useMemo(() => (castChosen ? castKey(cast) || null : stockCast ? castKey(stockCast) || null : null), [castChosen, cast, stockCast]);
   const sentCast = castChosen ? cast : stockCast;
-  const hasClone = gvList.some((v) => v.cloned && v.consent !== 'pending');
   const canSpeak = !!lang && !!langs?.voice.includes(lang);
   const speakHere = canSpeak && !hearOriginal;
   const sentenceIds = useMemo(
     () => rows.filter((r) => !r.suppressed && !r.unclear).map((r) => r.sentenceId).filter((id): id is number => id != null),
     [rows],
   );
-  const arch = useArchiveVoice({ consent, recordingId, lang, ended, cred, pickedVoice: forcedVoice || (castKeyStr ?? picked), sentenceIds: ended && speakHere ? sentenceIds : undefined });
+  const arch = useArchiveVoice({ consent: consent || hostClones, recordingId, lang, ended, cred, pickedVoice: forcedVoice || (castKeyStr ?? picked), sentenceIds: ended && speakHere ? sentenceIds : undefined });
   const gvPicked = gvList.find((v) => v.id === picked) ?? gvList.find((v) => v.id === arch.track?.voice) ?? gvList.find((v) => v.default) ?? gvList[0] ?? null;
   const gvId = gvPicked?.id ?? null;
 
