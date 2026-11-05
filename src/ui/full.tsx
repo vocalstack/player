@@ -13,19 +13,44 @@ const DUCK = 0.5;
 const ICON_FULL = 'M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15';
 const ICON_EXIT = 'M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25';
 
+let pseudoEl: HTMLElement | null = null;
+let pseudoWas: (readonly [string, string])[] = [];
+const PSEUDO_EVENT = 'vsp-pseudofullchange';
+
 function fullNow(): Element | null {
   const d = document as Document & { webkitFullscreenElement?: Element };
-  return d.fullscreenElement ?? d.webkitFullscreenElement ?? null;
+  return d.fullscreenElement ?? d.webkitFullscreenElement ?? pseudoEl;
 }
 
 let fullTarget: HTMLElement | null = null;
 export function setFullTarget(el: HTMLElement | null) {
+  if (!el && pseudoEl && pseudoEl === fullTarget) pseudoFull(false);
   fullTarget = el;
 }
 
-function canFull(): boolean {
+function nativeFull(): boolean {
   const d = document as Document & { webkitFullscreenEnabled?: boolean };
-  return !!(d.fullscreenEnabled || d.webkitFullscreenEnabled);
+  const el = (fullTarget ?? document.documentElement) as HTMLElement & { webkitRequestFullscreen?: unknown };
+  return !!(d.fullscreenEnabled || d.webkitFullscreenEnabled) && !!(el.requestFullscreen || el.webkitRequestFullscreen);
+}
+
+function canFull(): boolean {
+  return nativeFull() || !!fullTarget;
+}
+
+function pseudoFull(on: boolean) {
+  const els = [document.documentElement, document.body];
+  if (on && !pseudoEl && fullTarget) {
+    pseudoEl = fullTarget;
+    pseudoWas = els.map((el) => [el.style.overflow, el.style.overscrollBehavior] as const);
+    els.forEach((el) => { el.style.overflow = 'hidden'; el.style.overscrollBehavior = 'none'; });
+    pseudoEl.classList.add('vsp--pseudofull');
+  } else if (!on && pseudoEl) {
+    pseudoEl.classList.remove('vsp--pseudofull');
+    els.forEach((el, i) => { el.style.overflow = pseudoWas[i]?.[0] ?? ''; el.style.overscrollBehavior = pseudoWas[i]?.[1] ?? ''; });
+    pseudoEl = null;
+  } else return;
+  document.dispatchEvent(new Event(PSEUDO_EVENT));
 }
 
 function noBrowserFull(): boolean {
@@ -35,12 +60,18 @@ function noBrowserFull(): boolean {
 }
 
 export function browserFull(on: boolean) {
-  if (typeof document === 'undefined' || !window.matchMedia?.('(pointer: coarse)').matches) return;
+  if (typeof document === 'undefined') return;
+  if (!on) pseudoFull(false);
+  if (!window.matchMedia?.('(pointer: coarse)').matches || !nativeFull()) return;
   realFull(on);
 }
 
 export function realFull(on: boolean) {
   if (typeof document === 'undefined') return;
+  if (!nativeFull() || pseudoEl) {
+    pseudoFull(on);
+    return;
+  }
   const d = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => Promise<void> };
   const el = (fullTarget ?? document.documentElement) as HTMLElement & { webkitRequestFullscreen?: (o?: FullscreenOptions) => Promise<void> };
   const now = d.fullscreenElement ?? d.webkitFullscreenElement;
@@ -172,7 +203,8 @@ export function FullVideo({ topLeft, modal, compact = false, noFull = false, pag
     const on = () => setIsFull(!!fullNow());
     document.addEventListener('fullscreenchange', on);
     document.addEventListener('webkitfullscreenchange', on);
-    return () => { document.removeEventListener('fullscreenchange', on); document.removeEventListener('webkitfullscreenchange', on); };
+    document.addEventListener(PSEUDO_EVENT, on);
+    return () => { document.removeEventListener('fullscreenchange', on); document.removeEventListener('webkitfullscreenchange', on); document.removeEventListener(PSEUDO_EVENT, on); };
   }, []);
   const close = useRef(onClose);
   close.current = onClose;
@@ -221,6 +253,7 @@ export function FullVideo({ topLeft, modal, compact = false, noFull = false, pag
   useEffect(() => {
     const typing = (el: EventTarget | null) => el instanceof HTMLElement && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
     const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !sheetUp.current && pseudoEl) { e.stopPropagation(); realFull(false); return; }
       if (e.key === 'Escape' && !sheetUp.current && close.current) { e.stopPropagation(); close.current(); }
       if (e.key === ' ' && !sheetUp.current && !typing(e.target)) { e.preventDefault(); e.stopPropagation(); if (!e.repeat) play.current?.(); }
       if ((e.key === 'f' || e.key === 'F') && !e.metaKey && !e.ctrlKey && !e.altKey && !sheetUp.current && !typing(e.target) && canFull()) { e.preventDefault(); if (!e.repeat) realFull(!fullNow()); }
