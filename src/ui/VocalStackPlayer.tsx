@@ -379,8 +379,8 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   });
   useEffect(() => { if (!voiceLate) return; const id = rows[rowAt]?.sentenceId; if (id != null) voice.nearRow(id); }, [voiceLate, rowAt]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (videoLed) { voice.player.pause(); return; } (voice.on ? srcPlayer : voice.player).pause(); }, [voice.on, videoLed]); // eslint-disable-line react-hooks/exhaustive-deps
-  const followLines = useMemo(() => rows.filter((r) => r.sentenceId != null).map((r, i, a) => ({ sid: r.sentenceId as number, start: r.start, end: a[i + 1]?.start ?? lineEnd(r, r.start, r.start + 4) })), [rows]);
-  const follow = useVoiceFollow({ on: videoLed && voice.on, lines: followLines, clips: voice.clips, t: player.t, playing: player.playing, muted: player.muted });
+  const followLines = useMemo(() => rows.filter((r) => r.sentenceId != null).map((r, i, a) => ({ sid: r.sentenceId as number, start: r.start, end: a[i + 1]?.start ?? lineEnd(r, r.start, r.start + 4), words: r.words.map((w) => ({ start: w.start, end: w.end, text: w.text })) })), [rows]);
+  const follow = useVoiceFollow({ on: videoLed && voice.on, lines: followLines, clips: voice.clips, t: player.t, playing: player.playing && !player.settling, muted: player.muted, times: voice.wordTimes });
   const langBusy = !!askLang && (translating || voice.relang || (voice.on && follow.missing != null));
   langBusyRef.current = langBusy ? askLang : null;
   useEffect(() => { if (videoLed && voice.on && follow.sid != null) voice.setNear(follow.sid); }, [follow.sid, videoLed, voice.on]); // eslint-disable-line react-hooks/exhaustive-deps

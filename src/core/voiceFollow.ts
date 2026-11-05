@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-export interface FollowLine { sid: number; start: number; end: number }
+export interface FollowWord { start: number; end: number; text?: string }
+export interface FollowLine { sid: number; start: number; end: number; words?: readonly FollowWord[] }
+export type FollowTimes = Readonly<Record<string, readonly (readonly [number, number])[]>>;
 export interface FollowClip { src: string; part: number; parts: number; durationS?: number | null }
 
 export type FollowTarget =
@@ -11,6 +13,7 @@ export type FollowTarget =
 
 export const FOLLOW_DRIFT_S = 0.5;
 export const FOLLOW_AHEAD = 3;
+export const FOLLOW_JUMP_S = 1.5;
 
 export function lineAt(lines: readonly FollowLine[], t: number): number {
   let k = -1;
@@ -18,7 +21,23 @@ export function lineAt(lines: readonly FollowLine[], t: number): number {
   return k;
 }
 
-export function followTarget(lines: readonly FollowLine[], clips: ReadonlyMap<number, readonly FollowClip[]>, t: number): FollowTarget {
+export function clipTimeAt(line: FollowLine, t: number, totalS: number | null, times?: readonly (readonly [number, number])[]): number {
+  const ws = line.words ?? [];
+  let j = -1;
+  for (let k = 0; k < ws.length; k++) if (ws[k].start <= t + 0.02) j = k;
+  if (j < 0) return Math.max(0, t - line.start);
+  const w = ws[j];
+  const into = w.end > w.start ? Math.max(0, Math.min(1, (t - w.start) / (w.end - w.start))) : 0;
+  if (times && times.length === ws.length) return times[j][0] + into * (times[j][1] - times[j][0]);
+  if (totalS == null || j === 0 && into === 0) return Math.max(0, t - line.start);
+  const len = (x: FollowWord) => Math.max(1, (x.text ?? '').trim().length);
+  let all = 0;
+  let before = 0;
+  for (let k = 0; k < ws.length; k++) { all += len(ws[k]); if (k < j) before += len(ws[k]); }
+  return ((before + into * len(w)) / all) * totalS;
+}
+
+export function followTarget(lines: readonly FollowLine[], clips: ReadonlyMap<number, readonly FollowClip[]>, t: number, times?: FollowTimes): FollowTarget {
   const k = lineAt(lines, t);
   if (k < 0) return { kind: 'none' };
   const line = lines[k];
@@ -26,7 +45,9 @@ export function followTarget(lines: readonly FollowLine[], clips: ReadonlyMap<nu
   const parts = [...(clips.get(line.sid) ?? [])].sort((a, b) => a.part - b.part);
   if (!parts.length) return { kind: 'missing', sid: line.sid };
   const total = Math.max(1, ...parts.map((p) => p.parts));
-  let elapsed = Math.max(0, t - line.start);
+  const durs = Array.from({ length: total }, (_, p) => parts.find((x) => x.part === p)?.durationS ?? null);
+  const totalS = durs.every((d) => d != null && d > 0) ? durs.reduce<number>((a, d) => a + (d ?? 0), 0) : null;
+  let elapsed = clipTimeAt(line, t, totalS, total === 1 ? times?.[String(line.sid)] : undefined);
   for (let p = 0; p < total; p++) {
     const c = parts.find((x) => x.part === p);
     if (!c) return { kind: 'missing', sid: line.sid };
@@ -58,14 +79,14 @@ export function upcomingSrcs(lines: readonly FollowLine[], clips: ReadonlyMap<nu
 
 export interface FollowState { missing: number | null; sid: number | null }
 
-export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; clips: readonly (FollowClip & { sentenceId: number })[]; t: number; playing: boolean; muted: boolean }): FollowState {
+export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; clips: readonly (FollowClip & { sentenceId: number })[]; t: number; playing: boolean; muted: boolean; times?: FollowTimes }): FollowState {
   const bySid = useMemo(() => {
     const m = new Map<number, FollowClip[]>();
     for (const c of o.clips) m.set(c.sentenceId, [...(m.get(c.sentenceId) ?? []), c]);
     return m;
   }, [o.clips]);
   const cache = useRef(new Map<string, HTMLAudioElement>());
-  const cur = useRef<{ src: string; sid: number; el: HTMLAudioElement } | null>(null);
+  const cur = useRef<{ src: string; sid: number; el: HTMLAudioElement; t: number; at: number; last: number } | null>(null);
   const [state, setState] = useState<FollowState>({ missing: null, sid: null });
   const el = (src: string) => {
     let a = cache.current.get(src);
@@ -81,7 +102,7 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
   useEffect(() => () => { for (const a of cache.current.values()) { a.pause(); a.removeAttribute('src'); } cache.current.clear(); cur.current = null; }, []);
   useEffect(() => {
     if (!o.on) { stopCurrent(); setState((s) => (s.missing == null && s.sid == null ? s : { missing: null, sid: null })); return; }
-    const want = followTarget(o.lines, bySid, o.t);
+    const want = followTarget(o.lines, bySid, o.t, o.times);
     const missing = want.kind === 'missing' ? want.sid : null;
     const sid = want.kind === 'none' ? null : want.sid;
     setState((s) => (s.missing === missing && s.sid === sid ? s : { missing, sid }));
@@ -100,7 +121,11 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
     }
     if (c && c.src === want.src) {
       c.el.muted = o.muted;
-      if (!c.el.ended && Math.abs(c.el.currentTime - want.offset) > FOLLOW_DRIFT_S) { try { c.el.currentTime = want.offset; } catch { } }
+      const jumped = Math.abs(o.t - c.last) > FOLLOW_JUMP_S;
+      c.last = o.t;
+      if (jumped) { c.t = o.t; c.at = want.offset; }
+      const expect = c.at + (o.t - c.t);
+      if (!c.el.ended && Math.abs(c.el.currentTime - expect) > FOLLOW_DRIFT_S) { try { c.el.currentTime = expect; } catch { } }
       if (c.el.paused && !c.el.ended) void c.el.play().catch(() => {});
       return;
     }
@@ -108,7 +133,7 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
     const a = el(want.src);
     a.muted = o.muted;
     try { a.currentTime = want.offset; } catch { }
-    cur.current = { src: want.src, sid: want.sid, el: a };
+    cur.current = { src: want.src, sid: want.sid, el: a, t: o.t, at: want.offset, last: o.t };
     void a.play().catch(() => {});
   }, [o.on, o.t, o.playing, o.muted, o.lines, bySid]); // eslint-disable-line react-hooks/exhaustive-deps
   return state;

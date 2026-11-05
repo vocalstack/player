@@ -242,6 +242,7 @@ export interface TxPlayer {
   clipPos?: ReadPos | null;
   has: boolean;
   preparing?: boolean;
+  settling?: boolean;
   starting?: number | null;
   autoplay?: () => Promise<boolean | null>;
   edgeWait?: boolean;
@@ -312,6 +313,7 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
   const tRef = useRef(0); tRef.current = t;
   const base = useRef<{ t: number; at: number }>({ t: 0, at: 0 });
   const floor = useRef<{ t: number; until: number } | null>(null);
+  const [pinned, setPinned] = useState(false);
   const [liveOff, setLiveOff] = useState<number | null>(null);
   const liveOffRef = useRef<number | null>(null);
   const liveStart = useRef(liveStartMs); liveStart.current = liveStartMs;
@@ -382,7 +384,7 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
         const at = fromStream(i.t, offset.current, gapsRef.current);
         const f = floor.current;
         if (f && at <= f.t + FLOOR_PAST_S && f.t - at <= HOLD_NEAR_S + 2 && performance.now() < f.until) { base.current = { t: f.t, at: performance.now() }; if (tRef.current !== f.t) setT(f.t); return; }
-        if (f && (at > f.t + FLOOR_PAST_S || performance.now() >= f.until)) floor.current = null;
+        if (f && (at > f.t + FLOOR_PAST_S || performance.now() >= f.until)) { floor.current = null; setPinned(false); }
         base.current = { t: at, at: performance.now() };
         if (!(at < tRef.current && tRef.current - at < 0.35)) setT(Math.max(0, at));
       }
@@ -394,7 +396,8 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
     let raf = 0;
     const tick = () => {
       const b = base.current;
-      const at = b.t + Math.min(1.2, (performance.now() - b.at) / 1000);
+      const f = floor.current;
+      const at = f ? Math.min(f.t, b.t) : b.t + Math.min(1.2, (performance.now() - b.at) / 1000);
       if (edgeRef.current != null && at >= edgeRef.current) { setWait(true); send('pauseVideo'); setT(at); return; }
       if (at > tRef.current) setT(at);
       raf = requestAnimationFrame(tick);
@@ -421,6 +424,7 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
     const s = Math.max(0, edgeRef.current != null ? Math.min(s0, Math.max(0, edgeRef.current - 0.5)) : s0);
     hold.current = { t: s, tries: 0, at: 0 };
     floor.current = { t: s, until: performance.now() + FLOOR_MS };
+    setPinned(true);
     lastSeek.current = { t: s, at: performance.now() };
     if (readyRef.current) holdSeek();
     base.current = { t: s, at: performance.now() };
@@ -484,7 +488,7 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
     prev: () => seekRow(idx - 1), next: () => seekRow(idx + 1),
     hold: () => { if (playing) { send('pauseVideo'); held.current = true; } },
     release: () => { if (held.current) { held.current = false; play(); } },
-    error: null, clearError: () => {}, has: true, edgeWait, wordSync: true, preparing: want && state !== 1 && !edgeWait,
+    error: null, clearError: () => {}, has: true, edgeWait, wordSync: true, preparing: want && state !== 1 && !edgeWait, settling: pinned,
     pause,
     setVolume: (v: number) => send('setVolume', [Math.round(v * 100)]),
   };
@@ -1247,6 +1251,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     requestTrack: () => arch.requestRender(castKeyStr ?? picked, castKeyStr ? sentCast : null),
     hasClone,
     clips: arch.clips,
+    wordTimes: arch.track?.wordTimes,
     setNear: arch.setNear,
     closePicker: () => { if (pickerMine) closePicker(); },
   };

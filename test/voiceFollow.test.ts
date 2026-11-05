@@ -52,3 +52,21 @@ test('after a jump the voice of the line before stops; only the line that just e
   assert.equal(mayRunOn(lines, 5, 2), false);
   assert.equal(mayRunOn(lines, 15, null), false);
 });
+
+test('a click on a word inside a line starts the voice at that word: from its own word times when the track has them, else by how much of the line is before it', () => {
+  const ws = [{ start: 14, end: 15, text: 'one' }, { start: 15, end: 16, text: 'two' }, { start: 16, end: 18, text: 'threefour' }];
+  const ln: FollowLine[] = [{ sid: 1, start: 14, end: 20, words: ws }];
+  const c = map([[1, [clip('b', 0, 1, 6)]]]);
+  assert.deepEqual(followTarget(ln, c, 16, { 1: [[0, 0.5], [0.5, 2], [2, 5]] }), { kind: 'play', sid: 1, src: 'b', offset: 2 });
+  assert.deepEqual(followTarget(ln, c, 15.5, { 1: [[0, 0.5], [0.5, 2], [2, 5]] }), { kind: 'play', sid: 1, src: 'b', offset: 1.25 });
+  const share = followTarget(ln, c, 16);
+  assert.equal(share.kind === 'play' ? Math.round(share.offset * 1000) / 1000 : null, 2.4);
+  assert.deepEqual(followTarget(ln, c, 14), { kind: 'play', sid: 1, src: 'b', offset: 0 });
+});
+
+test('word times that do not match the line, or a line read in parts, fall back to the share of the line', () => {
+  const ws = [{ start: 14, end: 15, text: 'aa' }, { start: 15, end: 16, text: 'bb' }];
+  const ln: FollowLine[] = [{ sid: 1, start: 14, end: 20, words: ws }];
+  assert.deepEqual(followTarget(ln, map([[1, [clip('b', 0, 1, 4)]]]), 15, { 1: [[0, 1]] }), { kind: 'play', sid: 1, src: 'b', offset: 2 });
+  assert.deepEqual(followTarget(ln, map([[1, [clip('b0', 0, 2, 2), clip('b1', 1, 2, 2)]]]), 15.5), { kind: 'play', sid: 1, src: 'b1', offset: 1 });
+});
