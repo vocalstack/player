@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react';
 import type { Correction, LanguageLists } from '@vocalstack/js-sdk';
 import { LanguageChip, Sheet, Switch } from '../ds/Controls';
 import { D, Icon, PlayGlyph, Spinner } from '../ds/Icons';
@@ -1273,6 +1273,128 @@ function hitParts(text: string, terms: string[]): React.ReactNode {
   return out;
 }
 
+function rowDest(el: HTMLElement, row: HTMLElement): number {
+  const ins = feedInset(el);
+  const visH = Math.max(80, el.clientHeight - ins.top - ins.bottom);
+  const r = row.getBoundingClientRect(), b = el.getBoundingClientRect();
+  const lead = r.height > visH ? 8 : (visH - r.height) / 2;
+  const max = el.scrollHeight - el.clientHeight;
+  return Math.max(0, Math.min(max, el.scrollTop + (r.top - b.top) - ins.top - lead));
+}
+
+function settleRow(el: HTMLElement, row: HTMLElement): () => void {
+  let raf = 0, n = 0, calm = 0;
+  const fix = () => {
+    const to = rowDest(el, row);
+    if (Math.abs(to - el.scrollTop) > 1) { el.scrollTop = to; calm = 0; } else calm++;
+    if (++n < 30 && calm < 3) raf = requestAnimationFrame(fix);
+  };
+  raf = requestAnimationFrame(fix);
+  return () => cancelAnimationFrame(raf);
+}
+
+function glideRow(el: HTMLElement, row: HTMLElement, ms = 360): () => void {
+  const from = el.scrollTop, t0 = performance.now();
+  let raf = 0, stop: (() => void) | null = null;
+  if (Math.abs(rowDest(el, row) - from) < 2) { el.scrollTop = rowDest(el, row); return settleRow(el, row); }
+  const step = () => {
+    const k = Math.min(1, (performance.now() - t0) / ms);
+    const to = rowDest(el, row);
+    el.scrollTop = from + (to - from) * (1 - Math.pow(1 - k, 3));
+    if (k < 1) raf = requestAnimationFrame(step);
+    else stop = settleRow(el, row);
+  };
+  raf = requestAnimationFrame(step);
+  return () => { cancelAnimationFrame(raf); stop?.(); };
+}
+
+interface RowActs {
+  playRow: (i: number) => void;
+  seekRow: (i: number) => void;
+  seekWord: (w: Word) => void;
+  fixOpen: (r: Row, hist: boolean) => void;
+  word: (r: Row, w: Word) => void;
+  fix: (r: Row) => void;
+  hover: (id: string | null) => void;
+}
+
+interface TxRowProps {
+  model: Model; next: Row | undefined; r: Row; i: number; on: boolean; held: boolean; t: number; clipPos: ReadPos | null; wordSync: boolean; playing: boolean;
+  fixing: boolean; dim: number; hovered: boolean; warm: boolean; lang: string | null; hitTerms: string; applied?: Correction[]; fixed?: Set<string>;
+  listener: boolean; desk: boolean; showLabels: boolean; marks: boolean; fixBadges: boolean; fixMode: boolean; wordHl: boolean; canSeekWord: boolean;
+  has: { fixOpen: boolean; word: boolean; fix: boolean }; act: RowActs;
+}
+
+const sameRow = (a: TxRowProps, b: TxRowProps) => {
+  for (const k of Object.keys(b) as (keyof TxRowProps)[]) {
+    if (k === 'has') { if (a.has.fixOpen !== b.has.fixOpen || a.has.word !== b.has.word || a.has.fix !== b.has.fix) return false; continue; }
+    if (a[k] !== b[k]) return false;
+  }
+  return true;
+};
+
+const TxRow = memo(function TxRow({ model, next, r, i, on, held, t, clipPos, wordSync, playing, fixing, dim, hovered, warm, lang, hitTerms: hitKey, applied, fixed, listener, desk, showLabels, marks, fixBadges, fixMode, wordHl, canSeekWord, has, act }: TxRowProps) {
+  const hitTerms = hitKey ? hitKey.split(' ') : [];
+  const onFixOpen = has.fixOpen ? act.fixOpen : undefined;
+  const onWord = has.word ? act.word : undefined;
+  const onFix = has.fix ? act.fix : undefined;
+  const tapRow = listener ? () => act.playRow(i)
+    : fixMode && onFix ? () => { if (playing && !on) act.seekRow(i); onFix(r); }
+    : playing && on ? undefined : () => act.playRow(i);
+  const fx = listener ? null : rowFixes(r, applied, fixed);
+  const fxAny = !!fx && (fx.script > 0 || fx.manual);
+  const pen = desk && !!onFixOpen && hovered && !!fx && !fxAny;
+  const who = speakerLabel(model, r.speaker);
+  const look = speakerLook(model, r.speaker);
+  const ln = look.lane;
+  const tr = lang && r.translations[lang] && r.language !== lang ? r.translations[lang] : null;
+  const words = useMemo(() => lineWords(next ? [r, next] : [r], 0, lang), [r, next, lang]);
+  const spokenWord = held && !wordSync && clipPos ? readCursor(words.map((w) => ({ t: w.text, sp: ' ' })), clipPos) : null;
+  return (
+    <div data-tx-row={i} data-sentence={r.sentenceId} className={`txline${warm ? ' txline--warm' : ''}${fixing ? ' txline--fixing' : ''}`} aria-current={fixing || undefined} style={{ opacity: dim }} onClick={tapRow} onMouseEnter={desk && onFixOpen ? () => act.hover(r.id) : undefined} onMouseLeave={desk && onFixOpen ? () => act.hover(null) : undefined}>
+      <div className="txline__meta">
+        <span className="txline__at">{clock(r.start)}</span>
+        {showLabels && r.speaker >= 0 && (
+          <>
+            <div className={`lanechip bg-lane-${ln}`} style={look.soft ? { background: look.soft, color: look.fg } : undefined}>{speakerInitial(model, r.speaker)}</div>
+            <span className={`txline__who lane-${ln}`} style={look.fg ? { color: look.fg } : undefined}>{who}</span>
+            {look.hasVoice && <VoiceIdGlyph color={look.fg ?? `var(--lane-${ln})`} />}
+          </>
+        )}
+        {on && <span title="Playing" style={{ flex: 'none', display: 'inline-flex', alignItems: 'center' }}><Icon d={D.headphones} size={desk ? 15 : 14} sw={1.6} stroke={showLabels && r.speaker >= 0 ? look.fg ?? `var(--lane-${ln})` : 'var(--ink-45)'} /></span>}
+        {fx && fixBadges && <FixBadges f={fx} desk={desk} onOpen={onFixOpen ? () => onFixOpen(r, true) : undefined} />}
+        {pen && <FixPen alone onOpen={() => onFixOpen?.(r, false)} />}
+      </div>
+      <div className="txline__text">
+        {words.map((w, j) => {
+          const key = `${w.seq}:${w.idx}`;
+          const c = confClass(w.prob);
+          const tracks = held && wordHl;
+          const at = tracks && (wordSync
+            ? t >= w.start && (t < w.end || j === words.length - 1 || t < words[j + 1].start)
+            : j === spokenWord);
+          const ahead = tracks && !at && (wordSync ? w.start > t : spokenWord != null && j > spokenWord);
+          const fx = !tr && !listener && (!!fixed?.has(key) || !!w.script);
+          const dash = !tr && !listener && marks && !!c && !fx;
+          const half = dash ? (c === 'low' ? 'var(--conf-low-half)' : 'var(--conf-mid-half)') : null;
+          const fg = fx ? 'var(--brand)' : ahead ? 'var(--ink-40)' : half ?? 'var(--ink-96)';
+          return (
+            <span key={key + j}>
+              <span
+                className="txw"
+                title={onWord && !tr ? (fixMode ? 'Correct this word' : on ? (playing && canSeekWord ? 'Play from this word' : 'Play from this line') : 'Play from this line') : on ? '' : 'Play from this line'}
+                onClick={onWord && !tr ? (e) => { e.stopPropagation(); if (fixMode) { onWord(r, w); return; } if (playing && on) { act.seekWord(w); return; } act.playRow(i); } : undefined}
+                style={{ color: fg, opacity: ahead ? 0.45 : 1, fontWeight: 300, cursor: onWord && !tr ? (fixMode || !on || !playing || canSeekWord ? 'pointer' : 'default') : on ? 'default' : 'pointer', textShadow: at ? '0 0 2px currentColor, 0 0 4px currentColor' : 'none', textDecorationLine: dash || fx ? 'underline' : 'none', textDecorationStyle: fx ? 'solid' : 'dotted', textDecorationColor: fx ? 'var(--brand)' : half ?? 'currentColor', textDecorationThickness: dash || fx ? '1.5px' : undefined, textUnderlineOffset: dash || fx ? '3px' : undefined }}
+              >{hitParts(w.text, hitTerms)}</span>
+              <span style={{ whiteSpace: 'pre-wrap' }}> </span>
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}, sameRow);
+
 export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord, onFix, fixMode, fixingId, marks = true, fixBadges = true, tail, tailFg, running, desk, feedRef, listener, showLabels, find, findOpen, lang, warm, onVisible, wordHl = true }: { model: Model; rows: Row[]; player: TxPlayer; fixed?: Set<string>; applied?: Correction[]; onFixOpen?: (r: Row, hist: boolean) => void; onWord?: (r: Row, w: Word) => void; onFix?: (r: Row) => void; fixMode?: boolean; fixingId?: string | null; marks?: boolean; fixBadges?: boolean; tail: string; tailFg: string; running?: boolean; desk: boolean; feedRef: React.RefObject<HTMLDivElement>; listener?: boolean; showLabels: boolean; find?: string; findOpen?: boolean; lang?: string | null ; warm?: boolean; onVisible?: (ids: number[]) => void; wordHl?: boolean }) {
   const { playing, engaged, t, idx, seekN, wordSync, clipPos } = player;
   useDragScroll(true, feedRef);
@@ -1280,43 +1402,55 @@ export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord
   useFeedBar(feedRef, thumbRef);
   const [hovId, setHovId] = useState<string | null>(null);
   const needle = (find ?? '').trim().toLowerCase();
-  const hitTerms = needle.split(/\s+/).filter(Boolean);
+  const hitKey = needle.split(/\s+/).filter(Boolean).join(' ');
+  const live = useRef({ player, onFixOpen, onWord, onFix });
+  live.current = { player, onFixOpen, onWord, onFix };
+  const act = useMemo<RowActs>(() => ({
+    playRow: (i) => live.current.player.playRow(i),
+    seekRow: (i) => live.current.player.seekRow(i),
+    seekWord: (w) => live.current.player.seekWord?.(w),
+    fixOpen: (r, hist) => live.current.onFixOpen?.(r, hist),
+    word: (r, w) => live.current.onWord?.(r, w),
+    fix: (r) => live.current.onFix?.(r),
+    hover: setHovId,
+  }), []);
+  const has = { fixOpen: !!onFixOpen, word: !!onWord, fix: !!onFix };
   const [off, setOff] = useState<-1 | 0 | 1>(0);
   const glideUntil = useRef(0);
-  const glide = useRef<number | null>(null);
+  const glide = useRef<(() => void) | null>(null);
   const lastIdx = useRef(idx);
   const rowEl = (i: number) => feedRef.current?.querySelector<HTMLElement>(`[data-tx-row="${i}"]`) ?? null;
   const visKey = useRef('');
+  const onVisRef = useRef(onVisible);
+  onVisRef.current = onVisible;
+  const hasVis = !!onVisible;
+  const rowsKey = rows.length ? `${rows.length}:${rows[0].id}:${rows[rows.length - 1].id}` : '';
   useEffect(() => {
     const el = feedRef.current;
-    if (!el || !onVisible) return;
-    const measure = () => {
-      const b = el.getBoundingClientRect();
-      const ids: number[] = [];
-      for (const c of Array.from(el.querySelectorAll<HTMLElement>('[data-sentence]'))) {
-        const r = c.getBoundingClientRect();
-        if (r.bottom > b.top && r.top < b.bottom) ids.push(Number(c.dataset.sentence));
-      }
+    if (!el || !hasVis || typeof IntersectionObserver === 'undefined') return;
+    const seen = new Set<HTMLElement>();
+    let h: number | undefined;
+    const report = () => {
+      const ids = [...seen].sort((x, y) => Number(x.dataset.txRow) - Number(y.dataset.txRow)).map((c) => Number(c.dataset.sentence));
       const key = ids.join(',');
       if (key === visKey.current) return;
       visKey.current = key;
-      onVisible(ids);
+      onVisRef.current?.(ids);
     };
-    const t = window.setTimeout(measure, 120);
-    let h: number | undefined;
-    const onScroll = () => { window.clearTimeout(h); h = window.setTimeout(measure, 120); };
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => { window.clearTimeout(t); window.clearTimeout(h); el.removeEventListener('scroll', onScroll); };
-  }, [rows, onVisible, feedRef]);
+    const io = new IntersectionObserver((es) => {
+      for (const e of es) { const c = e.target as HTMLElement; if (e.isIntersecting) seen.add(c); else seen.delete(c); }
+      window.clearTimeout(h);
+      h = window.setTimeout(report, 120);
+    }, { root: el });
+    for (const c of Array.from(el.querySelectorAll<HTMLElement>('[data-sentence]'))) io.observe(c);
+    return () => { window.clearTimeout(h); io.disconnect(); };
+  }, [rowsKey, hasVis, feedRef]);
   const centre = (i: number) => {
     const el = feedRef.current, row = rowEl(i);
     if (!el || !row) return;
-    const top = row.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
-    const max = el.scrollHeight - el.clientHeight;
-    const ins = feedInset(el);
-    const visH = Math.max(80, el.clientHeight - ins.top - ins.bottom);
-    const lead = row.offsetHeight > visH ? 8 : (visH - row.offsetHeight) / 2;
-    el.scrollTop = Math.max(0, Math.min(max, top - ins.top - lead));
+    glide.current?.();
+    el.scrollTop = rowDest(el, row);
+    glide.current = settleRow(el, row);
   };
   const rowOffscreen = (i: number): -1 | 0 | 1 => {
     const el = feedRef.current, row = rowEl(i);
@@ -1333,24 +1467,10 @@ export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord
     glideUntil.current = performance.now() + 420;
     const el = feedRef.current, row = rowEl(i);
     if (!el || !el.clientHeight || !row) return;
-    const r = row.getBoundingClientRect(), b = el.getBoundingClientRect();
-    const max = el.scrollHeight - el.clientHeight;
-    const from = el.scrollTop;
-    const ins = feedInset(el);
-    const visH = Math.max(80, el.clientHeight - ins.top - ins.bottom);
-    const lead = r.height > visH ? 8 : (visH - r.height) / 2;
-    const to = Math.max(0, Math.min(max, from + (r.top - b.top) - ins.top - lead));
-    if (glide.current) cancelAnimationFrame(glide.current);
-    if (Math.abs(to - from) < 2) { el.scrollTop = to; glide.current = null; return; }
-    const t0 = performance.now(), ms = 360;
-    const step = () => {
-      const k = Math.min(1, (performance.now() - t0) / ms);
-      el.scrollTop = from + (to - from) * (1 - Math.pow(1 - k, 3));
-      glide.current = k < 1 ? requestAnimationFrame(step) : null;
-    };
-    glide.current = requestAnimationFrame(step);
+    glide.current?.();
+    glide.current = glideRow(el, row);
   };
-  useEffect(() => () => { if (glide.current) cancelAnimationFrame(glide.current); }, []);
+  useEffect(() => () => { glide.current?.(); }, []);
   const offRef = useRef<-1 | 0 | 1>(0);
   useEffect(() => {
     if (!playing) { lastIdx.current = idx; offRef.current = 0; setOff(0); return; }
@@ -1384,60 +1504,8 @@ export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord
         const held = engaged && i === idx;
         const fixing = !!fixingId && fixingId === r.id;
         const dim = needle && !r.text.toLowerCase().includes(needle) && !(lang && r.translations[lang]?.toLowerCase().includes(needle)) ? 0.22 : !engaged || i <= idx || fixing ? 1 : 0.38;
-        const tapRow = listener ? () => player.playRow(i)
-          : fixMode && onFix ? () => { if (playing && !on) player.seekRow(i); onFix(r); }
-          : playing && on ? undefined : () => player.playRow(i);
-        const fx = listener ? null : rowFixes(r, applied, fixed);
-        const fxAny = !!fx && (fx.script > 0 || fx.manual);
-        const pen = desk && !!onFixOpen && hovId === r.id && !!fx && !fxAny;
-        const who = speakerLabel(model, r.speaker);
-        const look = speakerLook(model, r.speaker);
-        const ln = look.lane;
-        const tr = lang && r.translations[lang] && r.language !== lang ? r.translations[lang] : null;
-        const words = lineWords(rows, i, lang);
-        const spokenWord = held && !wordSync && clipPos ? readCursor(words.map((w) => ({ t: w.text, sp: ' ' })), clipPos) : null;
         return (
-          <div key={r.id} data-tx-row={i} data-sentence={r.sentenceId} className={`txline${warm ? ' txline--warm' : ''}${fixing ? ' txline--fixing' : ''}`} aria-current={fixing || undefined} style={{ opacity: dim }} onClick={tapRow} onMouseEnter={desk && onFixOpen ? () => setHovId(r.id) : undefined} onMouseLeave={desk && onFixOpen ? () => setHovId(null) : undefined}>
-            <div className="txline__meta">
-              <span className="txline__at">{clock(r.start)}</span>
-              {showLabels && r.speaker >= 0 && (
-                <>
-                  <div className={`lanechip bg-lane-${ln}`} style={look.soft ? { background: look.soft, color: look.fg } : undefined}>{speakerInitial(model, r.speaker)}</div>
-                  <span className={`txline__who lane-${ln}`} style={look.fg ? { color: look.fg } : undefined}>{who}</span>
-                  {look.hasVoice && <VoiceIdGlyph color={look.fg ?? `var(--lane-${ln})`} />}
-                </>
-              )}
-              {on && <span title="Playing" style={{ flex: 'none', display: 'inline-flex', alignItems: 'center' }}><Icon d={D.headphones} size={desk ? 15 : 14} sw={1.6} stroke={showLabels && r.speaker >= 0 ? look.fg ?? `var(--lane-${ln})` : 'var(--ink-45)'} /></span>}
-              {fx && fixBadges && <FixBadges f={fx} desk={desk} onOpen={onFixOpen ? () => onFixOpen(r, true) : undefined} />}
-              {pen && <FixPen alone onOpen={() => onFixOpen?.(r, false)} />}
-            </div>
-            <div className="txline__text">
-              {words.map((w, j) => {
-                const key = `${w.seq}:${w.idx}`;
-                const c = confClass(w.prob);
-                const tracks = held && wordHl;
-                const at = tracks && (wordSync
-                  ? t >= w.start && (t < w.end || j === words.length - 1 || t < words[j + 1].start)
-                  : j === spokenWord);
-                const ahead = tracks && !at && (wordSync ? w.start > t : spokenWord != null && j > spokenWord);
-                const fx = !tr && !listener && (!!fixed?.has(key) || !!w.script);
-                const dash = !tr && !listener && marks && !!c && !fx;
-                const half = dash ? (c === 'low' ? 'var(--conf-low-half)' : 'var(--conf-mid-half)') : null;
-                const fg = fx ? 'var(--brand)' : ahead ? 'var(--ink-40)' : half ?? 'var(--ink-96)';
-                return (
-                  <span key={key + j}>
-                    <span
-                      className="txw"
-                      title={onWord && !tr ? (fixMode ? 'Correct this word' : on ? (playing && player.seekWord ? 'Play from this word' : 'Play from this line') : 'Play from this line') : on ? '' : 'Play from this line'}
-                      onClick={onWord && !tr ? (e) => { e.stopPropagation(); if (fixMode) { onWord(r, w); return; } if (playing && on) { player.seekWord?.(w); return; } player.playRow(i); } : undefined}
-                      style={{ color: fg, opacity: ahead ? 0.45 : 1, fontWeight: 300, cursor: onWord && !tr ? (fixMode || !on || !playing || player.seekWord ? 'pointer' : 'default') : on ? 'default' : 'pointer', textShadow: at ? '0 0 2px currentColor, 0 0 4px currentColor' : 'none', textDecorationLine: dash || fx ? 'underline' : 'none', textDecorationStyle: fx ? 'solid' : 'dotted', textDecorationColor: fx ? 'var(--brand)' : half ?? 'currentColor', textDecorationThickness: dash || fx ? '1.5px' : undefined, textUnderlineOffset: dash || fx ? '3px' : undefined }}
-                    >{hitParts(w.text, hitTerms)}</span>
-                    <span style={{ whiteSpace: 'pre-wrap' }}> </span>
-                  </span>
-                );
-              })}
-            </div>
-          </div>
+          <TxRow key={r.id} model={model} next={rows[i + 1]} r={r} i={i} on={on} held={held} t={held ? t : 0} clipPos={held ? clipPos ?? null : null} wordSync={wordSync} playing={playing} fixing={fixing} dim={dim} hovered={hovId === r.id} warm={!!warm} lang={lang ?? null} hitTerms={hitKey} applied={applied} fixed={fixed} listener={!!listener} desk={desk} showLabels={showLabels} marks={marks} fixBadges={fixBadges} fixMode={!!fixMode} wordHl={wordHl} canSeekWord={!!player.seekWord} has={has} act={act} />
         );
       })}
       {running
@@ -1497,12 +1565,7 @@ export function useFindPull(feedRef: React.RefObject<HTMLDivElement>, rows: Row[
     const el = feedRef.current;
     const row = rowIdx >= 0 ? el?.querySelector<HTMLElement>(`[data-tx-row="${rowIdx}"]`) : null;
     if (!seek || !el || !row) return;
-    const ins = feedInset(el);
-    const visH = Math.max(80, el.clientHeight - ins.top - ins.bottom);
-    const r = row.getBoundingClientRect(), b = el.getBoundingClientRect();
-    const lead = r.height > visH ? 8 : (visH - r.height) / 2;
-    const max = el.scrollHeight - el.clientHeight;
-    el.scrollTo({ top: Math.max(0, Math.min(max, el.scrollTop + (r.top - b.top) - ins.top - lead)), behavior: 'smooth' });
+    return glideRow(el, row);
   }, [seek]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const el = feedRef.current;

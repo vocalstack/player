@@ -912,6 +912,7 @@
 .vsp .searchbar__flash{flex:none;padding:4px 9px;border-radius:8px;background:var(--brand-14);font-size:12px;font-weight:500;color:var(--brand)}
 .vsp .searchbar--float.searchbar--desk>div{box-sizing:border-box;height:42px;padding:0 12px}
 .vsp .txline{padding:13px 0;border-top:1px solid var(--hair);transition:opacity .28s ease}
+.vsp .txfeed>.txline{content-visibility:auto;contain-intrinsic-size:auto 96px}
 .vsp .txfeed--desk .txline{cursor:pointer}
 .vsp .txfeed--desk .txline{padding:14px 0}
 .vsp .txline__meta{display:flex;align-items:center;gap:7px;min-height:18px;margin-bottom:7px}
