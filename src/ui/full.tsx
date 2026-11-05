@@ -60,19 +60,72 @@ function blackChrome(): () => void {
   return () => undo.reverse().forEach((f) => f());
 }
 
+let pseudoRoom: (() => void) | null = null;
+let pseudoY = 0;
+
+function swipeRoom(el: HTMLElement, y0: number): () => void {
+  const html = document.documentElement;
+  pseudoY = y0;
+  const was = html.style.overscrollBehavior;
+  const strip = document.createElement('div');
+  strip.setAttribute('aria-hidden', 'true');
+  strip.style.cssText = `position:absolute;top:0;left:0;width:1px;height:calc(${Math.round(y0)}px + 100lvh + 240px);pointer-events:none;visibility:hidden`;
+  document.body.appendChild(strip);
+  html.style.overscrollBehavior = 'none';
+  window.scrollTo(0, y0);
+  const vv = window.visualViewport;
+  const fit = () => {
+    if (!vv) return;
+    el.style.setProperty('--vsp-vvt', `${vv.offsetTop}px`);
+    el.style.setProperty('--vsp-vvl', `${vv.offsetLeft}px`);
+    el.style.setProperty('--vsp-vvw', `${vv.width}px`);
+    el.style.setProperty('--vsp-vvh', `${vv.height}px`);
+  };
+  fit();
+  if (vv) el.classList.add('vsp--vv');
+  let raf = 0;
+  const nudge = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { fit(); if (window.scrollY <= y0) window.scrollTo(0, y0 + 1); }); };
+  vv?.addEventListener('resize', fit);
+  vv?.addEventListener('scroll', fit);
+  window.addEventListener('resize', fit);
+  window.addEventListener('orientationchange', nudge);
+  nudge();
+  return () => {
+    cancelAnimationFrame(raf);
+    vv?.removeEventListener('resize', fit);
+    vv?.removeEventListener('scroll', fit);
+    window.removeEventListener('resize', fit);
+    window.removeEventListener('orientationchange', nudge);
+    el.classList.remove('vsp--vv');
+    ['--vsp-vvt', '--vsp-vvl', '--vsp-vvw', '--vsp-vvh'].forEach((k) => el.style.removeProperty(k));
+    strip.remove();
+    html.style.overscrollBehavior = was;
+    window.scrollTo(0, y0);
+  };
+}
+
+function swipeable(): boolean {
+  return typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
+}
+
 function pseudoFull(on: boolean) {
   const els = [document.documentElement, document.body];
   if (on && !pseudoEl && fullTarget) {
     pseudoEl = fullTarget;
+    const y0 = window.scrollY;
     pseudoWas = els.map((el) => [el.style.overflow, el.style.overscrollBehavior, el.style.getPropertyValue('background-color'), el.style.getPropertyPriority('background-color')] as const);
-    els.forEach((el) => { el.style.overflow = 'hidden'; el.style.overscrollBehavior = 'none'; el.style.setProperty('background-color', '#000', 'important'); });
+    const swipe = swipeable();
+    els.forEach((el) => { if (!swipe) { el.style.overflow = 'hidden'; el.style.overscrollBehavior = 'none'; } el.style.setProperty('background-color', '#000', 'important'); });
     pseudoMeta = blackChrome();
     pseudoEl.classList.add('vsp--pseudofull');
+    pseudoRoom = swipe ? swipeRoom(pseudoEl, y0) : null;
   } else if (!on && pseudoEl) {
     pseudoEl.classList.remove('vsp--pseudofull');
     els.forEach((el, i) => { el.style.overflow = pseudoWas[i]?.[0] ?? ''; el.style.overscrollBehavior = pseudoWas[i]?.[1] ?? ''; el.style.removeProperty('background-color'); if (pseudoWas[i]?.[2]) el.style.setProperty('background-color', pseudoWas[i][2], pseudoWas[i][3]); });
     pseudoMeta?.();
     pseudoMeta = null;
+    pseudoRoom?.();
+    pseudoRoom = null;
     pseudoEl = null;
   } else return;
   document.dispatchEvent(new Event(PSEUDO_EVENT));
@@ -273,6 +326,22 @@ export function FullVideo({ topLeft, modal, compact = false, noFull = false, pag
       window.scrollTo(0, 0);
     };
   }, [swipeFull, page]);
+  const pseudoSwipe = isFull && !!pseudoRoom && pseudoEl === fullTarget;
+  const [pseudoBars, setPseudoBars] = useState(true);
+  useEffect(() => {
+    if (!pseudoSwipe) return;
+    const vv = window.visualViewport;
+    const check = () => {
+      const short = Math.min(window.screen?.width || 0, window.screen?.height || 0);
+      const side = window.innerWidth > window.innerHeight;
+      setPseudoBars(window.scrollY <= pseudoY + 24 && !(side && short > 0 && (vv?.height ?? window.innerHeight) >= short - 2));
+    };
+    setPseudoBars(true);
+    check();
+    window.addEventListener('scroll', check, { passive: true });
+    vv?.addEventListener('resize', check);
+    return () => { window.removeEventListener('scroll', check); vv?.removeEventListener('resize', check); };
+  }, [pseudoSwipe]);
   const sheetUp = useRef(sheetOpen);
   sheetUp.current = sheetOpen;
   useEffect(() => {
@@ -321,21 +390,49 @@ export function FullVideo({ topLeft, modal, compact = false, noFull = false, pag
   const land = !big && sideways;
   const subBox = useRef<HTMLDivElement>(null);
   const subKey = sub ? sub.words.map((w) => (w.dim ? 0 : 1)).join('') + sub.words.length + ':' + (sub.cursor ?? '') : '';
-  useLayoutEffect(() => {
+  const subFit = useRef<() => void>(() => {});
+  subFit.current = () => {
     const box = subBox.current;
     if (!box) return;
     const reading = !!sub?.words.some((w) => w.dim) || sub?.cursor != null;
     const said = box.querySelectorAll<HTMLElement>(sub?.cursor != null && !sub.words.some((w) => w.dim) ? '[data-at]' : '[data-said]');
     const row = parseFloat(getComputedStyle(box).lineHeight) || 24;
-    const extra = Math.round(box.scrollHeight / row) - Math.round(box.clientHeight / row);
-    const room = Math.max(0, extra) * row;
-    if (room <= 0) { if (box.scrollTop) box.scrollTo({ top: 0 }); return; }
-    const rowOf = (el: HTMLElement) => Math.round((el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop) / row);
-    const page = Math.max(1, Math.round(box.clientHeight / row));
-    const at = reading ? (said.length ? Math.floor(rowOf(said[said.length - 1]) / page) * page * row : 0) : room;
-    const want = Math.max(0, Math.min(room, at));
-    if (Math.abs(want - box.scrollTop) > 1) box.scrollTop = want;
-  }, [subKey, land]); // eslint-disable-line react-hooks/exhaustive-deps
+    const page = Math.max(1, Math.floor((box.clientHeight + 1) / row));
+    const room = Math.max(0, Math.round(box.scrollHeight / row) - page) * row;
+    if (room <= 0) { if (box.scrollTop) box.scrollTo({ top: 0 }); }
+    else {
+      const rowOf = (el: HTMLElement) => Math.round((el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop) / row);
+      const at = reading ? (said.length ? Math.floor(rowOf(said[said.length - 1]) / page) * page * row : 0) : room;
+      const want = Math.max(0, Math.min(room, at));
+      if (Math.abs(want - box.scrollTop) > 1) box.scrollTop = want;
+    }
+    const text = box.querySelector<HTMLElement>(':scope>span');
+    let cutTop = 0, cutBottom = 0;
+    if (text) {
+      const b = box.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const pad = parseFloat(getComputedStyle(text).paddingBottom) || 0;
+      for (const r of Array.from(range.getClientRects())) {
+        if (r.height <= 0) continue;
+        if (r.bottom <= b.top + 0.5) cutTop = Math.max(cutTop, pad);
+        if (r.top < b.top - 0.5 && r.bottom > b.top + 0.5) cutTop = Math.max(cutTop, r.bottom - b.top);
+        if (r.bottom > b.bottom + 0.5 && r.top < b.bottom - 0.5) cutBottom = Math.max(cutBottom, b.bottom - r.top);
+      }
+    }
+    const clip = cutTop || cutBottom ? `inset(${Math.ceil(cutTop)}px 0 ${Math.ceil(cutBottom)}px 0)` : '';
+    if (box.style.clipPath !== clip) box.style.clipPath = clip;
+  };
+  const subText = sub ? sub.words.map((w) => w.t).join('') : '';
+  useLayoutEffect(() => { subFit.current(); }, [subKey, subText, land, isFull]);
+  const hasSub = !wait && !!sub;
+  useEffect(() => {
+    const box = subBox.current;
+    if (!box || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => subFit.current());
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, [hasSub]);
   const [shareAt, setShareAt] = useState(true);
   const [shareCopied, setShareCopied] = useState(false);
   const shareT = useRef<number | undefined>(undefined);
@@ -376,9 +473,9 @@ export function FullVideo({ topLeft, modal, compact = false, noFull = false, pag
     </div>
   );
   return (
-    <div ref={rootRef} className={`gfull${big ? ' gfull--desk' : ''}${mini ? ' gfull--mini' : ''}${small ? ' gfull--small' : ''}${swipeFull ? ' gfull--swipe' : ''}${ad ? ' gfull--ad' : ''}${calm ? ' gfull--calm' : ''}`} data-theme="dark" role="dialog" aria-label={title} onPointerMove={onMove} onPointerDownCapture={(e) => { if (calm) swallow.current = true; setTouchN((n) => n + 1); if (!(e.target as Element).closest?.('[aria-label="Exit full screen"], [aria-label="Full screen"], [aria-label="Close player"]')) onTouch(); }}
+    <div ref={rootRef} className={`gfull${big ? ' gfull--desk' : ''}${mini ? ' gfull--mini' : ''}${small ? ' gfull--small' : ''}${swipeFull || pseudoSwipe ? ' gfull--swipe' : ''}${ad ? ' gfull--ad' : ''}${calm ? ' gfull--calm' : ''}`} data-theme="dark" role="dialog" aria-label={title} onPointerMove={onMove} onPointerDownCapture={(e) => { if (calm) swallow.current = true; setTouchN((n) => n + 1); if (!(e.target as Element).closest?.('[aria-label="Exit full screen"], [aria-label="Full screen"], [aria-label="Close player"]')) onTouch(); }}
       onClickCapture={(e) => { if (swallow.current) { swallow.current = false; e.stopPropagation(); e.preventDefault(); } }}>
-      {swipeFull && barsUp && <div className="gfull__swipe" aria-live="polite"><Icon d="m4.5 15.75 7.5-7.5 7.5 7.5" size={14} sw={2} />Swipe up for full screen</div>}
+      {(pseudoSwipe ? pseudoBars : swipeFull && barsUp) && <div className="gfull__swipe" aria-live="polite"><Icon d="m4.5 15.75 7.5-7.5 7.5 7.5" size={14} sw={2} />Swipe up for full screen</div>}
       <div className={`gfull__frame${land ? ' gfull__frame--land' : ''}`}>
         {picture}
         <div className="gfull__shade" aria-hidden="true" />

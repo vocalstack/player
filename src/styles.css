@@ -1152,16 +1152,18 @@
 @media (prefers-reduced-motion:reduce){.vsp .pwait__spin{animation:none;border-color:rgba(238,240,248,.2);border-top-color:var(--brand);border-right-color:var(--brand)}
 .vsp .pwait__bar>div{animation:none;left:0;width:100%;opacity:.45}}
 
-.vsp{position:relative}
+.vsp{position:relative;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .vsp.vsp--embed{width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:var(--vsp-radius,12px);background:#050507}
 .vsp.vsp--embed .gfull{position:absolute;z-index:1}
 .vsp.vsp--embed:fullscreen{border-radius:0;aspect-ratio:auto}
 .vsp.vsp--embed:-webkit-full-screen{border-radius:0;aspect-ratio:auto}
 .vsp.vsp--embed.vsp--pseudofull{position:fixed;inset:0;z-index:2147483647;width:auto;height:100%;height:-webkit-fill-available;height:100dvh;max-width:none;max-height:none;margin:0;aspect-ratio:auto;border-radius:0;background:#000}
-.vsp.vsp--embed.vsp--pseudofull .gfull{top:env(safe-area-inset-top);right:env(safe-area-inset-right);bottom:env(safe-area-inset-bottom);left:env(safe-area-inset-left);background:#000}
-.vsp.vsp--embed.vsp--pseudofull .gfull .gfull__frame--land .gfull__sub>div{max-height:3.95em}
-.vsp.vsp--embed:fullscreen .gfull .gfull__frame--land .gfull__sub>div{max-height:3.95em}
-.vsp.vsp--embed:-webkit-full-screen .gfull .gfull__frame--land .gfull__sub>div{max-height:3.95em}
+.vsp.vsp--embed.vsp--pseudofull.vsp--vv{top:var(--vsp-vvt,0);left:var(--vsp-vvl,0);right:auto;bottom:auto;width:var(--vsp-vvw,100%);height:var(--vsp-vvh,100dvh)}
+.vsp.vsp--embed.vsp--pseudofull .gfull{top:env(safe-area-inset-top);right:env(safe-area-inset-right);bottom:0;left:env(safe-area-inset-left);background:#000}
+.vsp.vsp--embed.vsp--pseudofull .gfull__frame>:is(.gfull__sub,.gfull__prog){transform:translateY(calc(-1 * env(safe-area-inset-bottom)))}
+.vsp.vsp--embed.vsp--pseudofull .gfull .gfull__frame--land .gfull__sub>div{max-height:3.9em}
+.vsp.vsp--embed:fullscreen .gfull .gfull__frame--land .gfull__sub>div{max-height:3.9em}
+.vsp.vsp--embed:-webkit-full-screen .gfull .gfull__frame--land .gfull__sub>div{max-height:3.9em}
 .vsp .vsp-end{position:absolute;inset:0;z-index:95;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(5,5,7,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:#eef0f8;font-family:var(--vs-font-sans)}
 .vsp:not(.vsp--embed) .vsp-end{position:fixed}
 .vsp .vsp-end__card{position:relative;width:min(100%,460px);display:flex;flex-direction:column;gap:10px;padding:22px;border-radius:18px;background:rgba(19,19,38,.92);box-shadow:0 0 0 1px rgba(255,255,255,.08),0 20px 50px rgba(0,0,0,.5)}
