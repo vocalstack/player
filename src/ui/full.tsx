@@ -14,7 +14,8 @@ const ICON_FULL = 'M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5
 const ICON_EXIT = 'M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25';
 
 let pseudoEl: HTMLElement | null = null;
-let pseudoWas: (readonly [string, string])[] = [];
+let pseudoWas: (readonly [string, string, string, string])[] = [];
+let pseudoMeta: (() => void) | null = null;
 const PSEUDO_EVENT = 'vsp-pseudofullchange';
 
 function fullNow(): Element | null {
@@ -38,16 +39,40 @@ function canFull(): boolean {
   return nativeFull() || !!fullTarget;
 }
 
+function blackChrome(): () => void {
+  const undo: (() => void)[] = [];
+  const tints = Array.from(document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]'));
+  tints.forEach((m) => { const was = m.content; m.content = '#000'; undo.push(() => { m.content = was; }); });
+  if (!tints.some((m) => !m.media)) {
+    const m = document.createElement('meta');
+    m.name = 'theme-color';
+    m.content = '#000';
+    document.head.appendChild(m);
+    undo.push(() => m.remove());
+  }
+  const vp = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+  if (vp && !/viewport-fit\s*=\s*cover/i.test(vp.content)) {
+    const was = vp.content;
+    const rest = was.split(',').map((x) => x.trim()).filter((x) => x && !/^viewport-fit\s*=/i.test(x));
+    vp.content = [...rest, 'viewport-fit=cover'].join(', ');
+    undo.push(() => { vp.content = was; });
+  }
+  return () => undo.reverse().forEach((f) => f());
+}
+
 function pseudoFull(on: boolean) {
   const els = [document.documentElement, document.body];
   if (on && !pseudoEl && fullTarget) {
     pseudoEl = fullTarget;
-    pseudoWas = els.map((el) => [el.style.overflow, el.style.overscrollBehavior] as const);
-    els.forEach((el) => { el.style.overflow = 'hidden'; el.style.overscrollBehavior = 'none'; });
+    pseudoWas = els.map((el) => [el.style.overflow, el.style.overscrollBehavior, el.style.getPropertyValue('background-color'), el.style.getPropertyPriority('background-color')] as const);
+    els.forEach((el) => { el.style.overflow = 'hidden'; el.style.overscrollBehavior = 'none'; el.style.setProperty('background-color', '#000', 'important'); });
+    pseudoMeta = blackChrome();
     pseudoEl.classList.add('vsp--pseudofull');
   } else if (!on && pseudoEl) {
     pseudoEl.classList.remove('vsp--pseudofull');
-    els.forEach((el, i) => { el.style.overflow = pseudoWas[i]?.[0] ?? ''; el.style.overscrollBehavior = pseudoWas[i]?.[1] ?? ''; });
+    els.forEach((el, i) => { el.style.overflow = pseudoWas[i]?.[0] ?? ''; el.style.overscrollBehavior = pseudoWas[i]?.[1] ?? ''; el.style.removeProperty('background-color'); if (pseudoWas[i]?.[2]) el.style.setProperty('background-color', pseudoWas[i][2], pseudoWas[i][3]); });
+    pseudoMeta?.();
+    pseudoMeta = null;
     pseudoEl = null;
   } else return;
   document.dispatchEvent(new Event(PSEUDO_EVENT));
