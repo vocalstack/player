@@ -57,7 +57,7 @@ export function lineEnd(r: Row | undefined, from: number, dur: number): number {
   return dur > from ? dur : from + 4;
 }
 
-export interface YtLead { muted: boolean; onInfo: (i: { t?: number; state?: number; ready?: boolean; muted?: boolean; liveEnd?: number }) => void; bind: (cmd: ((func: string, args?: unknown[]) => void) | null) => void }
+export interface YtLead { muted: boolean; onInfo: (i: { t?: number; state?: number; ready?: boolean; muted?: boolean; liveEnd?: number; liveAt?: { t: number; wall: number } }) => void; bind: (cmd: ((func: string, args?: unknown[]) => void) | null) => void }
 
 export function YtFollow({ busy = false, ytId, title, t, playing: wantPlay, seekN, onToggle, onAd, endT, onGone, onKnown, lead, onTime, waiting = false }: { busy?: boolean; waiting?: boolean; onTime?: (t: number) => void; lead?: YtLead; ytId: string; title: string; t: number; playing: boolean; seekN: number; onToggle?: () => void; onAd?: (on: boolean) => void; endT?: number | null; onGone?: () => void; onKnown?: (gone: boolean) => void }) {
   const ref = useRef<HTMLIFrameElement>(null);
@@ -137,7 +137,7 @@ export function YtFollow({ busy = false, ytId, title, t, playing: wantPlay, seek
   useEffect(() => {
     const on = (m: MessageEvent) => {
       if (m.source !== ref.current?.contentWindow || typeof m.data !== 'string') return;
-      let d: { event?: string; info?: { currentTime?: number; duration?: number; videoData?: { isLive?: boolean }; muted?: boolean; playerState?: number; progressState?: { seekableStart?: number; seekableEnd?: number } | null } } | null = null;
+      let d: { event?: string; info?: { currentTime?: number; duration?: number; videoData?: { isLive?: boolean }; muted?: boolean; playerState?: number; progressState?: { seekableStart?: number; seekableEnd?: number; current?: number; ingestionTime?: number | null } | null } } | null = null;
       try { d = JSON.parse(m.data); } catch { return; }
       if (d?.info?.videoData?.isLive) liveVideo.current = true;
       const dur = d?.info?.duration;
@@ -152,7 +152,7 @@ export function YtFollow({ busy = false, ytId, title, t, playing: wantPlay, seek
       if (ps && typeof ps.seekableStart === 'number' && typeof ps.seekableEnd === 'number' && ps.seekableEnd > ps.seekableStart) {
         const first = win.current == null;
         win.current = { start: ps.seekableStart, end: ps.seekableEnd };
-        if (liveVideo.current) leadRef.current?.onInfo({ liveEnd: ps.seekableEnd });
+        if (liveVideo.current) leadRef.current?.onInfo({ liveEnd: ps.seekableEnd, ...(typeof ps.current === 'number' && ps.current > 0 && typeof ps.ingestionTime === 'number' && ps.ingestionTime > 1e9 ? { liveAt: { t: ps.current, wall: ps.ingestionTime } } : {}) });
         if (first && !playingRef.current) { cmd('pauseVideo'); if (!outside(tRef.current)) cmd('seekTo', [tRef.current, true]); }
         if (!goneSaid.current && endRef.current != null) {
           goneSaid.current = true;
@@ -295,8 +295,10 @@ const NO_GAPS: readonly Gap[] = [];
 const HOLD_NEAR_S = 6;
 const HOLD_TRIES = 5;
 const HOLD_RETRY_MS = 1200;
+const FLOOR_MS = 15000;
+const FLOOR_PAST_S = 0.25;
 
-export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edgeS: number | null, gaps: readonly Gap[] = NO_GAPS, liveStartMs: number | null = null): { player: TxPlayer; lead: YtLead; setVideoSound: (on: boolean) => void; offset: number } {
+export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edgeS: number | null, gaps: readonly Gap[] = NO_GAPS, liveStartMs: number | null = null, liveMediaAtMs: number | null = null, liveRec = false): { player: TxPlayer; lead: YtLead; setVideoSound: (on: boolean) => void; offset: number } {
   const cmdRef = useRef<((func: string, args?: unknown[]) => void) | null>(null);
   const readyRef = useRef(false);
   const pending = useRef(false);
@@ -309,21 +311,39 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
   const [t, setT] = useState(0);
   const tRef = useRef(0); tRef.current = t;
   const base = useRef<{ t: number; at: number }>({ t: 0, at: 0 });
+  const floor = useRef<{ t: number; until: number } | null>(null);
   const [liveOff, setLiveOff] = useState<number | null>(null);
   const liveOffRef = useRef<number | null>(null);
   const liveStart = useRef(liveStartMs); liveStart.current = liveStartMs;
+  const liveMediaAt = useRef(liveMediaAtMs); liveMediaAt.current = liveMediaAtMs;
+  const [mediaOff, setMediaOff] = useState<number | null>(null);
+  const mediaOffRef = useRef<number | null>(null);
+  const liveRecRef = useRef(liveRec); liveRecRef.current = liveRec;
+  const lastLiveAt = useRef<{ t: number; wall: number } | null>(null);
+  const lastSeek = useRef<{ t: number; at: number } | null>(null);
   useEffect(() => { liveOffRef.current = null; setLiveOff(null); }, [liveStartMs]);
-  const effOff = offsetS > 0 || liveStartMs == null ? offsetS : liveOff ?? 0;
-  const offset = useRef(effOff); offset.current = offsetS > 0 || liveStart.current == null ? offsetS : liveOffRef.current ?? 0;
+  useEffect(() => { mediaOffRef.current = null; setMediaOff(null); if (liveMediaAtMs != null && lastLiveAt.current) lead.onInfo({ liveAt: lastLiveAt.current }); }, [liveMediaAtMs]); // eslint-disable-line react-hooks/exhaustive-deps
+  const effOff = mediaOff ?? (offsetS > 0 || liveStartMs == null ? offsetS : liveOff ?? 0);
+  const offset = useRef(effOff); offset.current = mediaOffRef.current ?? (offsetS > 0 || liveStart.current == null ? offsetS : liveOffRef.current ?? 0);
   const gapsRef = useRef(gaps); gapsRef.current = gaps;
   const ytOf = (t: number) => toStream(t, offset.current, gapsRef.current);
   const edgeRef = useRef(edgeS); edgeRef.current = edgeS;
   const [edgeWait, setEdgeWait] = useState(false);
   const edgeWaitRef = useRef(false);
   const setWait = (w: boolean) => { edgeWaitRef.current = w; setEdgeWait(w); };
+  const uncal = () => liveRecRef.current && offset.current === 0;
+  const recal = (wasUncal: boolean) => {
+    const ls = lastSeek.current;
+    const want = wasUncal ? tRef.current : ls && performance.now() - ls.at < 30000 ? ls.t : null;
+    if (want == null) { if (hold.current) hold.current.at = 0; return; }
+    hold.current = { t: want, tries: 0, at: 0 };
+    base.current = { t: want, at: performance.now() };
+    setT(want);
+    if (readyRef.current) holdSeek();
+  };
   const holdSeek = () => {
     const h = hold.current;
-    if (!h || performance.now() - h.at < HOLD_RETRY_MS) return;
+    if (!h || uncal() || performance.now() - h.at < HOLD_RETRY_MS) return;
     h.at = performance.now(); h.tries += 1;
     send('seekTo', [ytOf(h.t), true]);
   };
@@ -335,10 +355,17 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
     muted: true,
     bind: (c) => { cmdRef.current = c; if (!c) readyRef.current = false; },
     onInfo: (i) => {
-      if (typeof i.liveEnd === 'number' && liveOffRef.current == null && liveStart.current != null && offset.current === 0) {
+      if (i.liveAt) lastLiveAt.current = i.liveAt;
+      if (i.liveAt && mediaOffRef.current == null && liveMediaAt.current != null) {
+        const was = uncal();
+        const o = Math.max(0, i.liveAt.t - (i.liveAt.wall - liveMediaAt.current / 1000));
+        mediaOffRef.current = o; offset.current = o; setMediaOff(o);
+        recal(was);
+      }
+      if (typeof i.liveEnd === 'number' && mediaOffRef.current == null && liveOffRef.current == null && liveStart.current != null && offset.current === 0) {
         const o = Math.max(0, i.liveEnd - (Date.now() - liveStart.current) / 1000);
         liveOffRef.current = o; offset.current = o; setLiveOff(o);
-        if (hold.current) hold.current.at = 0;
+        recal(true);
       }
       if (i.ready && readyRef.current) { hold.current = { t: tRef.current, tries: 0, at: 0 }; played.current = false; }
       if (i.state === 1) played.current = true;
@@ -351,8 +378,11 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
         if ((played.current && Math.abs(i.t - ytOf(h.t)) <= HOLD_NEAR_S) || h.tries >= HOLD_TRIES) hold.current = null;
         else { if (stateRef.current === 1) holdSeek(); return; }
       }
-      if (typeof i.t === 'number') {
+      if (typeof i.t === 'number' && !uncal()) {
         const at = fromStream(i.t, offset.current, gapsRef.current);
+        const f = floor.current;
+        if (f && at <= f.t + FLOOR_PAST_S && f.t - at <= HOLD_NEAR_S + 2 && performance.now() < f.until) { base.current = { t: f.t, at: performance.now() }; if (tRef.current !== f.t) setT(f.t); return; }
+        if (f && (at > f.t + FLOOR_PAST_S || performance.now() >= f.until)) floor.current = null;
         base.current = { t: at, at: performance.now() };
         if (!(at < tRef.current && tRef.current - at < 0.35)) setT(Math.max(0, at));
       }
@@ -390,6 +420,8 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
   const seek = (s0: number) => {
     const s = Math.max(0, edgeRef.current != null ? Math.min(s0, Math.max(0, edgeRef.current - 0.5)) : s0);
     hold.current = { t: s, tries: 0, at: 0 };
+    floor.current = { t: s, until: performance.now() + FLOOR_MS };
+    lastSeek.current = { t: s, at: performance.now() };
     if (readyRef.current) holdSeek();
     base.current = { t: s, at: performance.now() };
     setT(s); setSeekN((n) => n + 1);

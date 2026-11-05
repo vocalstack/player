@@ -338,7 +338,14 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const ytTitle = useYtTitle(ytId);
   const gaps = useMemo(() => (liveRec ? spanGaps(model.spans) : []), [liveRec, model.spans]);
   const recStartMs = liveRec && rec?.startedAt ? Date.parse(rec.startedAt) : NaN;
-  const yt = useYtLead(rows, lenS, shared?.job?.crop?.startS ?? 0, edgeS, gaps, Number.isFinite(recStartMs) ? recStartMs : null);
+  const recMediaMs = liveRec ? Date.parse((rec as { ingest?: { mediaAt?: string | null } | null } | null)?.ingest?.mediaAt ?? '') : NaN;
+  const yt = useYtLead(rows, lenS, shared?.job?.crop?.startS ?? 0, edgeS, gaps, Number.isFinite(recStartMs) ? recStartMs : null, Number.isFinite(recMediaMs) ? recMediaMs : null, recLive);
+  const clockReads = useRef(0);
+  useEffect(() => {
+    if (!ytId || !recLive || (Number.isFinite(recStartMs) && Number.isFinite(recMediaMs)) || clockReads.current >= 100) return;
+    const h = window.setTimeout(() => { clockReads.current += 1; props.reread(); }, 3000);
+    return () => window.clearTimeout(h);
+  }, [ytId, recLive, recStartMs, recMediaMs, shared]); // eslint-disable-line react-hooks/exhaustive-deps
   const videoLed = !!ytId;
   const srcPlayer = videoLed ? yt.player : audioPlayer;
   const langs = useLanguages();
@@ -605,12 +612,14 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     startAt.current = null;
     if (Math.abs(player.t - t0) > 2) startSeek(t0);
   }, [player.playing]); // eslint-disable-line react-hooks/exhaustive-deps
-  const seekTo = (t0: number) => { autoplayDone.current = true; startAt.current = null; startSeek(Math.max(0, t0)); };
+  const sought = useRef(false);
+  const seekTo = (t0: number) => { autoplayDone.current = true; startAt.current = null; sought.current = true; startSeek(Math.max(0, t0)); };
+  const playNow = () => { const at = sought.current; sought.current = false; if (listening && !playerRef.current.playing) { if (!at) toLive(); playerRef.current.toggle(); } };
   props.handle.current = {
     seek: (t0) => seekTo(t0),
-    play: () => { autoplayDone.current = true; if (listening && !playerRef.current.playing) { toLive(); playerRef.current.toggle(); } },
-    pause: () => { autoplayDone.current = true; playerRef.current.pause(); },
-    toggle: () => { autoplayDone.current = true; if (listening || playerRef.current.playing) { toLive(); playerRef.current.toggle(); } },
+    play: () => { autoplayDone.current = true; if (sought.current) window.setTimeout(playNow, 0); else playNow(); },
+    pause: () => { autoplayDone.current = true; sought.current = false; playerRef.current.pause(); },
+    toggle: () => { autoplayDone.current = true; const at = sought.current; sought.current = false; if (listening || playerRef.current.playing) { if (!at) toLive(); playerRef.current.toggle(); } },
     toggleMute: () => { setSoundTip(false); playerRef.current.toggleMute(); },
   };
   useEffect(() => () => { props.handle.current = null; }, []); // eslint-disable-line react-hooks/exhaustive-deps
