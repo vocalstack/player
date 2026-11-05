@@ -7,7 +7,10 @@ export function FileFollow({ src, setup, t, playing, seekN, onToggle, seekOver =
   const ref = useRef<HTMLVideoElement>(null);
   const [ready, setReady] = useState(false);
   const [gone, setGone] = useState(false);
+  const [loading, setLoading] = useState(false);
   const tRef = useRef(t); tRef.current = t;
+  const playRef = useRef(playing); playRef.current = playing;
+  const unlocked = useRef(false);
   useEffect(() => { setReady(false); setGone(false); }, [src, setup]);
   useEffect(() => {
     const v = ref.current;
@@ -16,9 +19,23 @@ export function FileFollow({ src, setup, t, playing, seekN, onToggle, seekOver =
   }, [setup]);
   useEffect(() => {
     const v = ref.current;
-    if (!v || !ready) return;
+    if (!v || !(loading || ready)) return;
     if (playing) v.play().catch(() => {}); else v.pause();
-  }, [playing, ready]);
+  }, [playing, loading, ready]);
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || !(loading || ready) || unlocked.current) return;
+    const off = () => { document.removeEventListener('touchend', kick, true); document.removeEventListener('click', kick, true); };
+    const kick = () => {
+      if (unlocked.current) { off(); return; }
+      if (!v.paused) return;
+      const at = v.currentTime;
+      v.play().then(() => { if (!playRef.current) { v.pause(); v.currentTime = at; } }).catch(() => {});
+    };
+    document.addEventListener('touchend', kick, true);
+    document.addEventListener('click', kick, true);
+    return off;
+  }, [loading, ready]);
   useEffect(() => {
     const v = ref.current;
     if (!v || !ready) return;
@@ -48,7 +65,9 @@ export function FileFollow({ src, setup, t, playing, seekN, onToggle, seekOver =
       playsInline
       preload="auto"
       disablePictureInPicture
+      onLoadStart={() => setLoading(true)}
       onLoadedData={() => setReady(true)}
+      onPlaying={() => { unlocked.current = true; setReady(true); }}
       onError={() => { if (src) setGone(true); }}
       aria-hidden="true"
     />
