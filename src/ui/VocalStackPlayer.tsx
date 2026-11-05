@@ -337,7 +337,8 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const ytLed = !!ytId && !audioUrl;
   const ytTitle = useYtTitle(ytId);
   const gaps = useMemo(() => (liveRec ? spanGaps(model.spans) : []), [liveRec, model.spans]);
-  const yt = useYtLead(rows, lenS, shared?.job?.crop?.startS ?? 0, edgeS, gaps);
+  const recStartMs = liveRec && rec?.startedAt ? Date.parse(rec.startedAt) : NaN;
+  const yt = useYtLead(rows, lenS, shared?.job?.crop?.startS ?? 0, edgeS, gaps, Number.isFinite(recStartMs) ? recStartMs : null);
   const videoLed = !!ytId;
   const srcPlayer = videoLed ? yt.player : audioPlayer;
   const langs = useLanguages();
@@ -465,7 +466,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const onVisible = useViewportTranslation(recordingId, askLang, rows, mergeTranslations);
   const sharedSummary = useSummaryIn(summaryOf(rec), recordingId, voice.readLang);
   const anyExport = canDownload || canExport;
-  const ytAt = toStream(pictureT(player, rows), shared?.job?.crop?.startS ?? 0, gaps);
+  const ytAt = toStream(pictureT(player, rows), yt.offset, gaps);
   const listening = mode === 'listen';
   const watching = listening && (!!ytId || locked);
   const pickMode = (m: 'read' | 'listen') => { srcPlayer.pause(); voice.player.pause(); setMode(m); if (m === 'read' && full) { browserFull(false); setFull(false); } };
@@ -551,7 +552,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const thumbUrl = stillThumb((shared?.job?.source as { thumbnailUrl?: string | null } | undefined)?.thumbnailUrl ?? null);
   const failedTx = status === 'failed' && rows.length === 0;
   const thumbPic = thumbUrl && /^https:\/\//.test(thumbUrl) ? <div className={`vsp-thumbpic${(shared?.job?.source as { site?: string | null } | undefined)?.site === 'x' ? ` vsp-thumbpic--pan${player.playing ? ' vsp-thumbpic--on' : ''}` : ''}`} aria-hidden="true" style={{ backgroundImage: `url(${JSON.stringify(thumbUrl)})` }} /> : null;
-  const picture = !ytId ? (locked ? <><div className="vsp-idle__pic vsp-idle__pic--brand" />{thumbPic}{failedTx ? null : baseTap}<div className={failedTx ? 'vsp-pics vsp-failed' : 'vsp-pics'} style={{ display: 'contents' }}>{embedPic}{fileVideo}{linkVideo}</div></> : null) : <>{<YtFollow busy={videoLed && (!!yt.player.preparing || (autoWait && !player.playing && locked && !!full && props.autoplay !== false && !autoplayDone.current))} ytId={ytId} title={name} t={ytAt} playing={player.playing && !voiceHolds} waiting={voice.on && !!player.timed && !!player.preparing} seekN={player.seekN} onTime={(y) => player.videoAt?.(fromStream(y, shared?.job?.crop?.startS ?? 0, gaps))} onToggle={player.has ? tapPicture : undefined} onAd={setAdOn} lead={videoLed ? yt.lead : undefined} />}<div className="vsp-poster" aria-hidden="true" style={{ opacity: posterGone ? 0 : 1 }}><div className="vsp-poster__img" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${ytId}/hqdefault.jpg)` }} /><span className="txyt__pausedplay">{posterSpin ? <span className="gfull__spin txyt__spin" /> : <PlayGlyph size={44} />}</span></div></>;
+  const picture = !ytId ? (locked ? <><div className="vsp-idle__pic vsp-idle__pic--brand" />{thumbPic}{failedTx ? null : baseTap}<div className={failedTx ? 'vsp-pics vsp-failed' : 'vsp-pics'} style={{ display: 'contents' }}>{embedPic}{fileVideo}{linkVideo}</div></> : null) : <>{<YtFollow busy={videoLed && (!!yt.player.preparing || (autoWait && !player.playing && locked && !!full && props.autoplay !== false && !autoplayDone.current))} ytId={ytId} title={name} t={ytAt} playing={player.playing && !voiceHolds} waiting={voice.on && !!player.timed && !!player.preparing} seekN={player.seekN} onTime={(y) => player.videoAt?.(fromStream(y, yt.offset, gaps))} onToggle={player.has ? tapPicture : undefined} onAd={setAdOn} lead={videoLed ? yt.lead : undefined} />}<div className="vsp-poster" aria-hidden="true" style={{ opacity: posterGone ? 0 : 1 }}><div className="vsp-poster__img" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${ytId}/hqdefault.jpg)` }} /><span className="txyt__pausedplay">{posterSpin ? <span className="gfull__spin txyt__spin" /> : <PlayGlyph size={44} />}</span></div></>;
   const video = watching && ytId && !full ? (
     <LiveVideo ytId={ytId} title={name} radius={14} large style={desk ? undefined : { margin: '8px 20px 2px' }} picture={picture}>
       <MiniPlayer pos={pos} transport={transport} chip={chipFor({ ...glassChip, width: 64, height: 28, minHeight: 28, padding: '0 8px' }, 'sm')} voices={voicesBtn} onFull={() => { browserFull(true); setFull(true); }} copied={null} />

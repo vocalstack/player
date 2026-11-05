@@ -57,7 +57,7 @@ export function lineEnd(r: Row | undefined, from: number, dur: number): number {
   return dur > from ? dur : from + 4;
 }
 
-export interface YtLead { muted: boolean; onInfo: (i: { t?: number; state?: number; ready?: boolean; muted?: boolean }) => void; bind: (cmd: ((func: string, args?: unknown[]) => void) | null) => void }
+export interface YtLead { muted: boolean; onInfo: (i: { t?: number; state?: number; ready?: boolean; muted?: boolean; liveEnd?: number }) => void; bind: (cmd: ((func: string, args?: unknown[]) => void) | null) => void }
 
 export function YtFollow({ busy = false, ytId, title, t, playing: wantPlay, seekN, onToggle, onAd, endT, onGone, onKnown, lead, onTime, waiting = false }: { busy?: boolean; waiting?: boolean; onTime?: (t: number) => void; lead?: YtLead; ytId: string; title: string; t: number; playing: boolean; seekN: number; onToggle?: () => void; onAd?: (on: boolean) => void; endT?: number | null; onGone?: () => void; onKnown?: (gone: boolean) => void }) {
   const ref = useRef<HTMLIFrameElement>(null);
@@ -152,6 +152,7 @@ export function YtFollow({ busy = false, ytId, title, t, playing: wantPlay, seek
       if (ps && typeof ps.seekableStart === 'number' && typeof ps.seekableEnd === 'number' && ps.seekableEnd > ps.seekableStart) {
         const first = win.current == null;
         win.current = { start: ps.seekableStart, end: ps.seekableEnd };
+        if (liveVideo.current) leadRef.current?.onInfo({ liveEnd: ps.seekableEnd });
         if (first && !playingRef.current) { cmd('pauseVideo'); if (!outside(tRef.current)) cmd('seekTo', [tRef.current, true]); }
         if (!goneSaid.current && endRef.current != null) {
           goneSaid.current = true;
@@ -295,7 +296,7 @@ const HOLD_NEAR_S = 6;
 const HOLD_TRIES = 5;
 const HOLD_RETRY_MS = 1200;
 
-export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edgeS: number | null, gaps: readonly Gap[] = NO_GAPS): { player: TxPlayer; lead: YtLead; setVideoSound: (on: boolean) => void } {
+export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edgeS: number | null, gaps: readonly Gap[] = NO_GAPS, liveStartMs: number | null = null): { player: TxPlayer; lead: YtLead; setVideoSound: (on: boolean) => void; offset: number } {
   const cmdRef = useRef<((func: string, args?: unknown[]) => void) | null>(null);
   const readyRef = useRef(false);
   const pending = useRef(false);
@@ -308,7 +309,12 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
   const [t, setT] = useState(0);
   const tRef = useRef(0); tRef.current = t;
   const base = useRef<{ t: number; at: number }>({ t: 0, at: 0 });
-  const offset = useRef(offsetS); offset.current = offsetS;
+  const [liveOff, setLiveOff] = useState<number | null>(null);
+  const liveOffRef = useRef<number | null>(null);
+  const liveStart = useRef(liveStartMs); liveStart.current = liveStartMs;
+  useEffect(() => { liveOffRef.current = null; setLiveOff(null); }, [liveStartMs]);
+  const effOff = offsetS > 0 || liveStartMs == null ? offsetS : liveOff ?? 0;
+  const offset = useRef(effOff); offset.current = offsetS > 0 || liveStart.current == null ? offsetS : liveOffRef.current ?? 0;
   const gapsRef = useRef(gaps); gapsRef.current = gaps;
   const ytOf = (t: number) => toStream(t, offset.current, gapsRef.current);
   const edgeRef = useRef(edgeS); edgeRef.current = edgeS;
@@ -329,6 +335,11 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
     muted: true,
     bind: (c) => { cmdRef.current = c; if (!c) readyRef.current = false; },
     onInfo: (i) => {
+      if (typeof i.liveEnd === 'number' && liveOffRef.current == null && liveStart.current != null && offset.current === 0) {
+        const o = Math.max(0, i.liveEnd - (Date.now() - liveStart.current) / 1000);
+        liveOffRef.current = o; offset.current = o; setLiveOff(o);
+        if (hold.current) hold.current.at = 0;
+      }
       if (i.ready && readyRef.current) { hold.current = { t: tRef.current, tries: 0, at: 0 }; played.current = false; }
       if (i.state === 1) played.current = true;
       if (i.ready && !readyRef.current) { readyRef.current = true; if (pending.current) { pending.current = false; send(lead.muted ? 'mute' : 'unMute'); send('playVideo'); } }
@@ -445,7 +456,7 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
     pause,
     setVolume: (v: number) => send('setVolume', [Math.round(v * 100)]),
   };
-  return { player, lead, setVideoSound };
+  return { player, lead, setVideoSound, offset: effOff };
 }
 
 export function useTxPlayer(url: string | null, available: boolean, rows: Row[], lenS: number | null, offsetS = 0, edgeS: number | null = null): TxPlayer {
