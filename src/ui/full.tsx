@@ -304,6 +304,8 @@ export function FullVideo({ topLeft, modal, compact = false, noFull = false, pag
   }, []);
   const swipeFull = useMemo(() => page && noBrowserFull(), [page]);
   const [barsUp, setBarsUp] = useState(swipeFull);
+  const [loud, setLoud] = useState(false);
+  useEffect(() => { if (!barsUp) setLoud(false); }, [barsUp]);
   useEffect(() => {
     if (!page) return;
     const els = [document.documentElement, document.body];
@@ -317,7 +319,7 @@ export function FullVideo({ topLeft, modal, compact = false, noFull = false, pag
     strip.style.cssText = 'position:absolute;top:0;left:0;width:1px;height:calc(100lvh + 160px);pointer-events:none';
     document.body.appendChild(strip);
     document.documentElement.style.overscrollBehavior = 'none';
-    const onScroll = () => { if (window.scrollY > 24) setBarsUp(false); };
+    const onScroll = () => setBarsUp(window.scrollY <= 24);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       window.removeEventListener('scroll', onScroll);
@@ -462,6 +464,7 @@ export function FullVideo({ topLeft, modal, compact = false, noFull = false, pag
       {voicesBtn && <VoicesButton v={voicesBtn} size={big ? 20 : mini ? 15 : 18} />}
       {onShare && glass('Share', D.share, 1.6, onShare, { transform: 'translateX(-2px)' })}
       {canFull() && !noFull && glass(isFull ? 'Exit full screen' : 'Full screen', isFull ? ICON_EXIT : ICON_FULL, 1.7, () => realFull(!isFull))}
+      {swipeFull && barsUp && !noFull && !canFull() && glass('Full screen', ICON_FULL, 1.7, () => setLoud(true))}
       {onClose && glass('Close player', D.close, 1.7, onClose)}
     </div>
   );
@@ -475,7 +478,7 @@ export function FullVideo({ topLeft, modal, compact = false, noFull = false, pag
   return (
     <div ref={rootRef} className={`gfull${big ? ' gfull--desk' : ''}${mini ? ' gfull--mini' : ''}${small ? ' gfull--small' : ''}${swipeFull || pseudoSwipe ? ' gfull--swipe' : ''}${ad ? ' gfull--ad' : ''}${calm ? ' gfull--calm' : ''}`} data-theme="dark" role="dialog" aria-label={title} onPointerMove={onMove} onPointerDownCapture={(e) => { if (calm) swallow.current = true; setTouchN((n) => n + 1); if (!(e.target as Element).closest?.('[aria-label="Exit full screen"], [aria-label="Full screen"], [aria-label="Close player"]')) onTouch(); }}
       onClickCapture={(e) => { if (swallow.current) { swallow.current = false; e.stopPropagation(); e.preventDefault(); } }}>
-      {(pseudoSwipe ? pseudoBars : swipeFull && barsUp) && <div className="gfull__swipe" aria-live="polite"><Icon d="m4.5 15.75 7.5-7.5 7.5 7.5" size={14} sw={2} />Swipe up for full screen</div>}
+      {(pseudoSwipe ? pseudoBars : swipeFull && barsUp) && <div className={`gfull__swipe${loud && !pseudoSwipe ? ' gfull__swipe--loud' : ''}`} aria-live="polite"><Icon d="m4.5 15.75 7.5-7.5 7.5 7.5" size={14} sw={2} />Swipe up for full screen</div>}
       <div className={`gfull__frame${land ? ' gfull__frame--land' : ''}`}>
         {picture}
         <div className="gfull__shade" aria-hidden="true" />

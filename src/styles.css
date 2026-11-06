@@ -1130,6 +1130,7 @@
 .vsp .listenerlive--pub .pubprog--desk{margin:10px auto 0}
 .vsp .dev-radio.is-on{border-color:var(--vs-switch-thumb-bg)}
 .vsp .dev-radio.is-on::after{content:"";width:9px;height:9px;border-radius:50%;background:var(--vs-switch-thumb-bg)}
+.vsp .gfull__swipe--loud{background:var(--brand);color:#fff;animation-duration:.8s}
 @keyframes gfull-nudge{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,-4px)}}
 @keyframes vs-tab-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .vsp .gfull .gfull__sub>.pwait{box-sizing:border-box;display:flex;flex-direction:column;gap:8px;width:min(100%,400px);max-width:100%;max-height:none;overflow:visible;padding:14px 16px;border-radius:14px;background:rgba(5,6,21,.8);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:0 0 0 1px rgba(234,236,250,.12);text-align:left;font-size:14px;font-weight:400;line-height:1.4;letter-spacing:0;color:#eef0f8;pointer-events:auto;cursor:default}
