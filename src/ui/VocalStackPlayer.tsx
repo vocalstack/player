@@ -666,7 +666,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const subsBack = (
     <span className="vs-sheet__title" style={{ position: 'relative' }}>
       {'\u00a0'}
-      <button type="button" onClick={() => setPage('main')} aria-label="Back" style={{ position: 'absolute', left: -6, top: '50%', transform: 'translateY(-50%)', display: 'inline-flex', alignItems: 'center', gap: 2, padding: '4px 6px 4px 0', border: 0, background: 'none', color: 'var(--ink-96)', fontFamily: 'var(--vs-font-sans)', fontSize: 15, fontWeight: 600, letterSpacing: 0, lineHeight: 1, whiteSpace: 'nowrap', cursor: 'pointer' }}>
+      <button type="button" onClick={() => { voice.langPage.setOpen(false); setPage('main'); }} aria-label="Back" style={{ position: 'absolute', left: -6, top: '50%', transform: 'translateY(-50%)', display: 'inline-flex', alignItems: 'center', gap: 2, padding: '4px 6px 4px 0', border: 0, background: 'none', color: 'var(--ink-96)', fontFamily: 'var(--vs-font-sans)', fontSize: 15, fontWeight: 600, letterSpacing: 0, lineHeight: 1, whiteSpace: 'nowrap', cursor: 'pointer' }}>
         <Icon d={D.chevronLeft} size={18} sw={1.8} />Back
       </button>
     </span>
@@ -674,10 +674,12 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const chev = <Icon d={D.chevronRight} size={17} sw={1.6} style={{ flex: 'none', color: 'var(--ink-45)' }} />;
   const sheetTitle = { main: 'SETTINGS', subs: 'SUBTITLES', audio: 'AUDIO', export: 'EXPORT' }[page];
   const pageBody: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 2, paddingBottom: 14 };
+  const langOn = voice.langPage.open;
+  useEffect(() => { if (!settings) voice.langPage.setOpen(false); }, [settings]); // eslint-disable-line react-hooks/exhaustive-deps
   const settingsSheet = locked ? (
-    <Sheet open={settings} onClose={() => setSettings(false)} title={sheetTitle} titleNode={page === 'main' ? undefined : subsBack} doneLabel={t.done} kind={page === 'main' ? 'settings' : 'settings vs-sheet--page'} sticky>
+    <Sheet open={settings} onClose={() => setSettings(false)} title={langOn ? 'LANGUAGE' : sheetTitle} titleNode={page === 'main' && !langOn ? undefined : subsBack} doneLabel={t.done} kind={page === 'main' && !langOn ? 'settings' : 'settings vs-sheet--page'} header={langOn ? voice.langPage.search : undefined} sticky>
       <GrowBox>
-      {page === 'subs' ? (
+      {langOn ? voice.langPage.list : page === 'subs' ? (
         <div style={pageBody}>
           <div className="srow">
             <div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">Show subtitles</div><div className="srow__s">Captions over the video</div></div>
@@ -718,7 +720,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
         <div style={pageBody}>
           {[
             meta.can && ctl.language && (
-              <div key="lang" className="srow srow--tap" role="button" onClick={() => { setSettings(false); meta.onClick(); }}>
+              <div key="lang" className="srow srow--tap" role="button" onClick={() => voice.langPage.setOpen(true)}>
                 <div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">Language</div><div className="srow__s">{askLang ? `Translated to ${meta.label ?? askLang.toUpperCase()}` : 'Original language'}</div></div>
                 <span style={{ fontSize: 18, lineHeight: 1 }}>{meta.flag}</span>
                 {chev}

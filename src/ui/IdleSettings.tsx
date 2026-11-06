@@ -52,7 +52,7 @@ const HINT_CODES = ['es', 'fr', 'ro', 'ja', 'pt'];
 
 export const IDLE_DEFAULTS: IdlePrefs = { lang: null, subtitles: true, speakerLabels: false, wordHighlight: true, translateAudio: true, voices: 'synthetic', removeBackground: false, muted: false, spoken: null, speakers: 'off' };
 
-type Page = 'main' | 'subs' | 'audio' | 'tx';
+type Page = 'main' | 'subs' | 'audio' | 'tx' | 'lang';
 
 export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) => void, pre = false) {
   const langs = useLanguages();
@@ -62,7 +62,7 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
   const meta = langMeta(langs, prefs.lang);
   const languages = useMemo(() => pickerLanguages(langs, 'translation'), [langs]);
   const pick = (c: string | null) => { set({ lang: c }); pushRecent(c); };
-  const list = useLanguageList({ open: sheet === 'lang', onClose: () => setSheet(null), value: prefs.lang, onSelect: pick, languages, none: 'Original', pinned: prefs.lang ? [prefs.lang] : [], recent });
+  const list = useLanguageList({ open: sheet === 'lang' || (sheet === 'settings' && page === 'lang'), onClose: () => (sheet === 'settings' ? setPage('main') : setSheet(null)), value: prefs.lang, onSelect: pick, languages, none: 'Original', pinned: prefs.lang ? [prefs.lang] : [], recent });
   const close = () => { setSheet(null); setPage('main'); };
   const spokenLangs = useMemo(() => pickerLanguages(langs, 'transcription').map((l) => ({ ...l, voice: false })), [langs]);
   const spokenMeta = langMeta(langs, prefs.spoken);
@@ -141,7 +141,7 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
       {row('Speaker labels', prefs.speakers === 'off' ? 'The transcript is plain text' : prefs.speakers === 'on' ? 'Each line is labelled with its speaker' : 'Labelled only when more than one person speaks', <Switch<'auto' | 'on' | 'off'> value={prefs.speakers} onChange={setSpeakers} size="sm" options={[{ value: 'auto', label: 'When needed' }, { value: 'on', label: 'On' }, { value: 'off', label: 'Off' }]} />)}
     </div>
   );
-  const settingsBody = page === 'tx' ? txBody : page === 'subs' ? (
+  const settingsBody = page === 'lang' ? list.list : page === 'tx' ? txBody : page === 'subs' ? (
     <div style={body}>
       {row('Show subtitles', 'Captions over the video', <Toggle checked={prefs.subtitles} onChange={(v) => set({ subtitles: v })} label="Show subtitles" />)}
       {row('Show speaker labels', 'Who is speaking, before each line', <Toggle checked={prefs.speakerLabels} onChange={(v) => set({ speakerLabels: v })} label="Show speaker labels" />)}
@@ -161,7 +161,7 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
         </div>
         <div className="sdiv" />
       </>}
-      <div className="srow srow--tap" role="button" onClick={openLang}>
+      <div className="srow srow--tap" role="button" onClick={() => setPage('lang')}>
         <div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">Language</div><div className="srow__s">{prefs.lang ? `Translated to ${meta.label}` : 'Original language'}</div></div>
         <span style={{ fontSize: 18, lineHeight: 1 }}>{prefs.lang ? meta.flag : null}</span>{chev}
       </div>
@@ -183,7 +183,7 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
       <Sheet open={sheet === 'spoken'} onClose={backToTx} title="SPOKEN LANGUAGE" kind="picker" header={spokenList.search} sticky>
         <GrowBox>{spokenList.list}</GrowBox>
       </Sheet>
-      <Sheet open={sheet === 'settings'} onClose={close} title={{ main: 'SETTINGS', subs: 'SUBTITLES', audio: 'AUDIO', tx: 'TRANSCRIPTION' }[page]} titleNode={page === 'main' ? undefined : back} kind={page === 'main' ? 'settings' : 'settings vs-sheet--page'} sticky>
+      <Sheet open={sheet === 'settings'} onClose={close} title={{ main: 'SETTINGS', subs: 'SUBTITLES', audio: 'AUDIO', tx: 'TRANSCRIPTION', lang: 'LANGUAGE' }[page]} titleNode={page === 'main' ? undefined : back} kind={page === 'main' ? 'settings' : 'settings vs-sheet--page'} header={page === 'lang' ? list.search : undefined} sticky>
         <GrowBox>{settingsBody}</GrowBox>
       </Sheet>
     </>

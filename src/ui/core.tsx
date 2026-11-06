@@ -5,7 +5,7 @@ import { D, Icon, PlayGlyph, Spinner } from '../ds/Icons';
 import { isNotCaptured } from '../core/noAudio';
 import { pickerLanguages, useRecentLangs } from '../data/prefs';
 import { useVoicePreview } from '../data/voicePreview';
-import { LanguagePicker } from '../ds/LanguagePicker';
+import { useLanguageList } from '../ds/LanguagePicker';
 import { explainAudioError, mediaErrorText, reportMediaError, type MediaCred } from '../core/audio';
 import { clock } from '../core/format';
 import { describe, useAsync, type ErrorLike } from '../data/transcript';
@@ -1001,6 +1001,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const [recent, pushRecent] = useRecentLangs();
   const [picked, setPicked] = useState<string | null>(null);
   const [picker, setPicker] = useState(false);
+  const [langInline, setLangInline] = useState(false);
   const [sheet, setSheet] = useState(false);
   const [fromVoices, setFromVoices] = useState(false);
   const [want, setWant] = useState(false);
@@ -1148,8 +1149,11 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
             : gvPicked
               ? gvPicked.name
               : t.vcNoVoice + meta.label;
+  const langList = useLanguageList({ open: picker || langInline, onClose: langInline ? () => setLangInline(false) : closePicker, keepOpen: !langInline && !!side && !fromVoices, value: original ? null : lang, onSelect: selectLang, languages: trLangs, searchPlaceholder: t.search, none: 'Original', pinned: (original ? srcLang : lang) ? [(original ? srcLang : lang)!] : [], recent, requireVoice: !langInline && fromVoices, busy: pickerBusy });
   const pickerEl = (
-      <LanguagePicker open={picker} onClose={closePicker} keepOpen={!!side && !fromVoices} value={original ? null : lang} onSelect={selectLang} languages={trLangs} title={side?.title ?? 'LANGUAGE'} note={side?.note ?? TX_PICKER_NOTE} searchPlaceholder={t.search} none="Original" pinned={(original ? srcLang : lang) ? [(original ? srcLang : lang)!] : []} recent={recent} requireVoice={fromVoices} sticky={stickyPicker} busy={pickerBusy} />
+    <Sheet open={picker} onClose={closePicker} title={side?.title ?? 'LANGUAGE'} note={side?.note ?? TX_PICKER_NOTE} drawer={false} sticky={stickyPicker} kind="picker" header={langList.search}>
+      {langList.list}
+    </Sheet>
   );
   const savedClones = useMemo(() => gvList.filter((v) => v.cloned && !v.auto), [gvList]);
   const savedFor = (sp: CastMember) => (sp.voiceId ? savedClones.find((v) => v.id === `clone:${sp.voiceId}`) ?? null : null);
@@ -1256,6 +1260,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     wordTimes: arch.track?.wordTimes,
     setNear: arch.setNear,
     closePicker: () => { if (pickerMine) closePicker(); },
+    langPage: { open: langInline, setOpen: (on: boolean) => { if (on) setPicker(false); setLangInline(on); }, search: langList.search, list: langList.list },
   };
 }
 
