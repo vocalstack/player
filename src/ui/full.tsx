@@ -316,13 +316,28 @@ export function FullVideo({ topLeft, modal, compact = false, noFull = false, pag
     }
     const strip = document.createElement('div');
     strip.setAttribute('aria-hidden', 'true');
-    strip.style.cssText = 'position:absolute;top:0;left:0;width:1px;height:calc(100lvh + 160px);pointer-events:none';
+    strip.style.cssText = 'position:absolute;top:0;left:0;width:1px;height:calc(100lvh + 6000px);pointer-events:none';
     document.body.appendChild(strip);
     document.documentElement.style.overscrollBehavior = 'none';
-    const onScroll = () => setBarsUp(window.scrollY <= 24);
+    let settle = 0;
+    let held = 0;
+    const later = () => {
+      window.clearTimeout(settle);
+      settle = window.setTimeout(() => { if (!held && window.scrollY > 600) window.scrollTo(0, 200); }, 400);
+    };
+    const onScroll = () => { setBarsUp(window.scrollY <= 24); later(); };
+    const down = (e: TouchEvent) => { held = e.touches.length; window.clearTimeout(settle); };
+    const up = (e: TouchEvent) => { held = e.touches.length; if (!held) later(); };
     window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('touchstart', down, { passive: true, capture: true });
+    window.addEventListener('touchend', up, { passive: true, capture: true });
+    window.addEventListener('touchcancel', up, { passive: true, capture: true });
     return () => {
+      window.clearTimeout(settle);
       window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('touchstart', down, true);
+      window.removeEventListener('touchend', up, true);
+      window.removeEventListener('touchcancel', up, true);
       strip.remove();
       document.documentElement.style.overscrollBehavior = was[0][1];
       window.scrollTo(0, 0);
@@ -464,7 +479,7 @@ export function FullVideo({ topLeft, modal, compact = false, noFull = false, pag
       {voicesBtn && <VoicesButton v={voicesBtn} size={big ? 20 : mini ? 15 : 18} />}
       {onShare && glass('Share', D.share, 1.6, onShare, { transform: 'translateX(-2px)' })}
       {canFull() && !noFull && glass(isFull ? 'Exit full screen' : 'Full screen', isFull ? ICON_EXIT : ICON_FULL, 1.7, () => realFull(!isFull))}
-      {swipeFull && barsUp && !noFull && !canFull() && glass('Full screen', ICON_FULL, 1.7, () => setLoud(true))}
+      {swipeFull && !noFull && !canFull() && glass(barsUp ? 'Full screen' : 'Exit full screen', barsUp ? ICON_FULL : ICON_EXIT, 1.7, () => (barsUp ? setLoud(true) : window.scrollTo(0, 0)))}
       {onClose && glass('Close player', D.close, 1.7, onClose)}
     </div>
   );
