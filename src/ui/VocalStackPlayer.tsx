@@ -4,6 +4,9 @@ import { D, Icon, Logo, PlayGlyph, Spinner } from '../ds/Icons';
 import { mediaKind } from '../core/voiceplayer';
 import { audioDownloadUrl, audioSealed, backgroundAudioUrl, deliveryAudioUrl } from '../core/audio';
 import { FileFollow } from './FileFollow';
+import { HlsFollow } from './HlsFollow';
+
+const NO_GAP_LIST: never[] = [];
 import { EmbedFollow } from './EmbedFollow';
 import { DailymotionFollow } from './DailymotionFollow';
 import { VimeoFollow } from './VimeoFollow';
@@ -337,12 +340,14 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const audioPlayer = useTxPlayer(audioUrl, (hasAudio || sourceAudio) && !!shared?.allowDownload, rows, lenS, sourceAudio ? shared?.job?.crop?.startS ?? 0 : 0, edgeS);
   const srcVideoUrl = sourceVideoUrl(shared?.job?.source as Parameters<typeof sourceVideoUrl>[0]);
   const ytId = srcVideoUrl && siteOf(srcVideoUrl)?.id === 'youtube' ? ytIdOf(srcVideoUrl) : null;
-  const videoLed = !!ytId && !audioUrl;
+  const [ownGone, setOwnGone] = useState(false);
+  const ownLive = !ytId && locked && liveRec && !!recordingId && !!shared?.allowDownload && isRtmp(src?.kind === 'url' ? src.url : null) && !ownGone && !audioUrl;
+  const videoLed = (!!ytId || ownLive) && !audioUrl;
   const ytTitle = useYtTitle(ytId);
   const gaps = useMemo(() => (liveRec ? spanGaps(model.spans) : []), [liveRec, model.spans]);
   const recStartMs = liveRec && rec?.startedAt ? Date.parse(rec.startedAt) : NaN;
   const recMediaMs = liveRec ? Date.parse((rec as { ingest?: { mediaAt?: string | null } | null } | null)?.ingest?.mediaAt ?? '') : NaN;
-  const yt = useYtLead(rows, lenS, shared?.job?.crop?.startS ?? 0, edgeS, gaps, Number.isFinite(recStartMs) ? recStartMs : null, Number.isFinite(recMediaMs) ? recMediaMs : null, recLive);
+  const yt = useYtLead(rows, lenS, ownLive ? 0 : shared?.job?.crop?.startS ?? 0, edgeS, ownLive ? NO_GAP_LIST : gaps, ownLive ? null : Number.isFinite(recStartMs) ? recStartMs : null, ownLive ? null : Number.isFinite(recMediaMs) ? recMediaMs : null, ownLive ? false : recLive);
   const clockReads = useRef(0);
   useEffect(() => {
     if (!ytId || !recLive || (Number.isFinite(recStartMs) && Number.isFinite(recMediaMs)) || clockReads.current >= 100) return;
@@ -562,7 +567,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const thumbUrl = stillThumb((shared?.job?.source as { thumbnailUrl?: string | null } | undefined)?.thumbnailUrl ?? null);
   const failedTx = status === 'failed' && rows.length === 0;
   const thumbPic = thumbUrl && /^https:\/\//.test(thumbUrl) ? <div className={`vsp-thumbpic${(shared?.job?.source as { site?: string | null } | undefined)?.site === 'x' ? ` vsp-thumbpic--pan${player.playing ? ' vsp-thumbpic--on' : ''}` : ''}`} aria-hidden="true" style={{ backgroundImage: `url(${JSON.stringify(thumbUrl)})` }} /> : null;
-  const picture = !ytId ? (locked ? <><div className="vsp-idle__pic vsp-idle__pic--brand" />{thumbPic}{failedTx ? null : baseTap}<div className={failedTx ? 'vsp-pics vsp-failed' : 'vsp-pics'} style={{ display: 'contents' }}>{embedPic}{fileVideo}{linkVideo}</div></> : null) : <>{<YtFollow busy={videoLed && (!!yt.player.preparing || (autoWait && !player.playing && locked && !!full && props.autoplay !== false && !autoplayDone.current))} ytId={ytId} title={name} t={ytAt} playing={player.playing && !voiceHolds} waiting={voice.on && !!player.timed && !!player.preparing} seekN={player.seekN} onTime={(y) => player.videoAt?.(fromStream(y, yt.offset, gaps))} onToggle={player.has ? tapPicture : undefined} onAd={setAdOn} lead={videoLed ? yt.lead : undefined} info={yt.lead.onInfo} />}<div className="vsp-poster" aria-hidden="true" style={{ opacity: posterGone ? 0 : 1 }}><div className="vsp-poster__img" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${ytId}/hqdefault.jpg)` }} /><span className="txyt__pausedplay">{posterSpin ? <span className="gfull__spin txyt__spin" /> : <PlayGlyph size={44} />}</span></div></>;
+  const picture = !ytId ? (locked ? <><div className="vsp-idle__pic vsp-idle__pic--brand" />{thumbPic}{failedTx ? null : baseTap}<div className={failedTx ? 'vsp-pics vsp-failed' : 'vsp-pics'} style={{ display: 'contents' }}>{embedPic}{ownLive ? <HlsFollow key={recordingId} src={`${audioDownloadUrl(api.origin, recordingId!, 'video', api.cred)}&format=hls`} lead={yt.lead} onGone={() => setOwnGone(true)} onToggle={player.has ? tapPicture : undefined} /> : fileVideo}{linkVideo}</div></> : null) : <>{<YtFollow busy={videoLed && (!!yt.player.preparing || (autoWait && !player.playing && locked && !!full && props.autoplay !== false && !autoplayDone.current))} ytId={ytId} title={name} t={ytAt} playing={player.playing && !voiceHolds} waiting={voice.on && !!player.timed && !!player.preparing} seekN={player.seekN} onTime={(y) => player.videoAt?.(fromStream(y, yt.offset, gaps))} onToggle={player.has ? tapPicture : undefined} onAd={setAdOn} lead={videoLed ? yt.lead : undefined} info={yt.lead.onInfo} />}<div className="vsp-poster" aria-hidden="true" style={{ opacity: posterGone ? 0 : 1 }}><div className="vsp-poster__img" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${ytId}/hqdefault.jpg)` }} /><span className="txyt__pausedplay">{posterSpin ? <span className="gfull__spin txyt__spin" /> : <PlayGlyph size={44} />}</span></div></>;
   const video = watching && ytId && !full ? (
     <LiveVideo ytId={ytId} title={name} radius={14} large style={desk ? undefined : { margin: '8px 20px 2px' }} picture={picture}>
       <MiniPlayer pos={pos} transport={transport} chip={chipFor({ ...glassChip, width: 64, height: 28, minHeight: 28, padding: '0 8px' }, 'sm')} voices={voicesBtn} onFull={() => { browserFull(true); setFull(true); }} copied={null} />
