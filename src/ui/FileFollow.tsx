@@ -3,10 +3,30 @@ import { PlayGlyph } from '../ds/Icons';
 
 export type FollowSetup = (v: HTMLVideoElement, fail: () => void) => (() => void) | void;
 
-export function FileFollow({ src, setup, t, playing, seekN, onToggle, seekOver = 0.4 }: { src?: string; setup?: FollowSetup; t: number; playing: boolean; seekN: number; onToggle?: () => void; seekOver?: number }) {
+export function FileFollow({ src, hls, setup, t, playing, seekN, onToggle, seekOver = 0.4 }: { src?: string; hls?: string; setup?: FollowSetup; t: number; playing: boolean; seekN: number; onToggle?: () => void; seekOver?: number }) {
   const ref = useRef<HTMLVideoElement>(null);
   const [ready, setReady] = useState(false);
   const [gone, setGone] = useState(false);
+  const [plain, setPlain] = useState(!hls);
+  useEffect(() => { setPlain(!hls); }, [hls, src]);
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || !hls || plain) return;
+    if (v.canPlayType('application/vnd.apple.mpegurl')) { v.src = hls; return () => { v.removeAttribute('src'); v.load(); }; }
+    let alive = true;
+    let player: { destroy: () => void } | null = null;
+    import('hls.js').then((mod) => {
+      const Hls = mod.default;
+      if (!alive) return;
+      if (!Hls?.isSupported()) { setPlain(true); return; }
+      const h = new Hls({ maxBufferLength: 30, startFragPrefetch: true });
+      player = h;
+      h.on(Hls.Events.ERROR, (_e, d) => { if (d.fatal) { h.destroy(); player = null; if (alive) setPlain(true); } });
+      h.loadSource(hls);
+      h.attachMedia(v);
+    }).catch(() => { if (alive) setPlain(true); });
+    return () => { alive = false; player?.destroy(); };
+  }, [hls, plain]);
   const [loading, setLoading] = useState(false);
   const tRef = useRef(t); tRef.current = t;
   const playRef = useRef(playing); playRef.current = playing;
@@ -60,7 +80,7 @@ export function FileFollow({ src, setup, t, playing, seekN, onToggle, seekOver =
       ref={ref}
       className="vsp-file"
       style={{ opacity: ready ? 1 : 0 }}
-      src={src}
+      src={plain || !hls ? src : undefined}
       muted
       playsInline
       preload="auto"
@@ -68,7 +88,7 @@ export function FileFollow({ src, setup, t, playing, seekN, onToggle, seekOver =
       onLoadStart={() => setLoading(true)}
       onLoadedData={() => setReady(true)}
       onPlaying={() => { unlocked.current = true; setReady(true); }}
-      onError={() => { if (src) setGone(true); }}
+      onError={() => { if (hls && !plain) setPlain(true); else if (src) setGone(true); }}
       aria-hidden="true"
     />
     {ready && <div aria-hidden="true" className="txyt__tap" onClick={onToggle} style={{ cursor: onToggle ? 'pointer' : 'default' }} />}
