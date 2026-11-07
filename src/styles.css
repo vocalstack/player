@@ -1475,3 +1475,4 @@
 .vsp .vsp-thumbpic--pan{background-size:cover;animation:vsp-pan 14s ease-in-out infinite alternate;animation-play-state:paused}
 .vsp .vsp-thumbpic--pan.vsp-thumbpic--on{animation-play-state:running}
 @media (prefers-reduced-motion:reduce){.vsp .vsp-thumbpic--pan{animation:none}}
+.vsp .badge--newspk{color:var(--brand);background:var(--brand-tint);cursor:default}

@@ -96,6 +96,8 @@ export interface Model {
   spans: { wallStart: number; wallEnd?: number | null; mediaStart: number; mediaEnd?: number | null }[];
   held?: { fromMediaS: number; language?: string } | null;
   numbers?: Map<number, number>;
+  assigned?: Map<number, number>;
+  returning?: Set<number>;
 }
 
 export function empty(): Model {
@@ -192,6 +194,10 @@ export function fromSnapshot(snap: TranscriptSnapshot, base?: Model): Model {
   m.speakers = Object.fromEntries(
     snap.speakers.filter((s) => !!s.name).map((s) => [s.speaker, s.name]),
   );
+  const told = snap.speakers as { speaker: number; number?: number | null; returning?: boolean | null }[];
+  const assigned = told.filter((s) => typeof s.number === 'number').map((s) => [s.speaker, s.number as number] as [number, number]);
+  m.assigned = assigned.length ? new Map(assigned) : undefined;
+  m.returning = new Set(told.filter((s) => s.returning).map((s) => s.speaker));
   m.speakerSpeechS = Object.fromEntries(
     snap.speakers.filter((s) => typeof s.speechS === 'number').map((s) => [s.speaker, s.speechS as number]),
   );
@@ -396,6 +402,13 @@ export function applyFrame(m: Model, f: any): Model {
       if (f.name) m.speakers[f.speaker] = f.name;
       else delete m.speakers[f.speaker];
       break;
+    case 'transcript.speakerNumbers': {
+      const told = (f.speakers ?? []) as { speaker: number; number: number; returning?: boolean }[];
+      m.assigned = new Map(told.map((s) => [s.speaker, s.number]));
+      m.returning = new Set(told.filter((s) => s.returning).map((s) => s.speaker));
+      delete m.numbers;
+      break;
+    }
     case 'transcript.speakerGender':
       if (f.gender === 'male' || f.gender === 'female') m.speakerSex[f.speaker] = f.gender;
       break;
@@ -519,7 +532,15 @@ export function speakerNumbers(m: Model): Map<number, number> {
   const rest = [...new Set([...Object.keys(m.speakers), ...Object.keys(m.speakerIds)].map(Number))]
     .filter((k) => k >= 0 && !first.has(k))
     .sort((a, b) => a - b);
-  m.numbers = new Map([...order, ...rest].map((k, i) => [k, i + 1]));
+  const local = [...order, ...rest];
+  if (m.assigned?.size) {
+    const out = new Map(m.assigned);
+    let top = Math.max(0, ...out.values());
+    for (const k of local) if (!out.has(k)) out.set(k, ++top);
+    m.numbers = out;
+  } else {
+    m.numbers = new Map(local.map((k, i) => [k, i + 1]));
+  }
   return m.numbers;
 }
 
@@ -596,4 +617,17 @@ export function showLabels(m: Model, rows: { speaker: number }[], fallback?: { s
   const seen = new Set<number>();
   for (const r of rows) if (r.speaker >= 0) { seen.add(r.speaker); if (seen.size > 1) return true; }
   return false;
+}
+
+export function newSpeakerRows(rows: readonly { speaker: number }[], returning: ReadonlySet<number> = new Set()): Set<number> {
+  const seen = new Set<number>();
+  const out = new Set<number>();
+  let first = returning.size === 0;
+  rows.forEach((r, i) => {
+    if (r.speaker < 0 || seen.has(r.speaker)) return;
+    seen.add(r.speaker);
+    if (!first && !returning.has(r.speaker)) out.add(i);
+    first = false;
+  });
+  return out;
 }

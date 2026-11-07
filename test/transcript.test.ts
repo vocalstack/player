@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyFrame, empty, fromSnapshot, heldLine, rows, speakerInitial, speakerLabel, speakerLook, speakerName, speakerNumber } from '../src/core/transcript.ts';
+import { applyFrame, empty, fromSnapshot, heldLine, newSpeakerRows, rows, speakerInitial, speakerLabel, speakerLook, speakerName, speakerNumber } from '../src/core/transcript.ts';
 
 const committed = (seq: number, start: number, text: string) => ({
   type: 'transcript.committed',
@@ -158,4 +158,14 @@ test('a snapshot reads speakerId and speakerColor first, voiceId and voiceColor 
   assert.deepEqual([m.speakerIds[0].speakerId, m.speakerIds[0].cloneId, m.speakerIds[0].color], ['s1', 'c1', '#ff0000']);
   assert.deepEqual([m.speakerIds[1].speakerId, m.speakerIds[1].cloneId, m.speakerIds[1].color], ['v2', 'v2', '2']);
   assert.equal(m.speakerIds[2], undefined);
+});
+
+test('the server numbers speakers for the whole transcription, and a returning one is not new', () => {
+  let m = empty();
+  m = applyFrame(m, { type: 'transcript.speakerNumbers', speakers: [{ speaker: 0, number: 2, returning: true }, { speaker: 1, number: 3 }] });
+  assert.equal(speakerNumber(m, 0), 2);
+  assert.equal(speakerNumber(m, 1), 3);
+  assert.equal(speakerNumber(m, 2), 4);
+  assert.deepEqual([...newSpeakerRows([{ speaker: 0 }, { speaker: 1 }, { speaker: 0 }, { speaker: 2 }], m.returning)], [1, 3]);
+  assert.deepEqual([...newSpeakerRows([{ speaker: 5 }, { speaker: -1 }, { speaker: 6 }])], [2]);
 });

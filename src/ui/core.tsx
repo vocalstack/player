@@ -11,7 +11,7 @@ import { clock } from '../core/format';
 import { describe, useAsync, type ErrorLike } from '../data/transcript';
 import { usePlayerApi } from '../data/context';
 import { strings } from '../data/i18n';
-import { confClass, fixedSlots, lane, speakerInitial, speakerLabel, speakerLook, type Model, type Row, type Word } from '../core/transcript';
+import { confClass, fixedSlots, lane, newSpeakerRows, speakerInitial, speakerLabel, speakerLook, type Model, type Row, type Word } from '../core/transcript';
 import { ClipQueue, newMediaElement, readCursor, VoiceNotStarted, type ReadPos, type VoiceClip } from '../core/voiceplayer';
 import { placePosition, snapPosition, type PlayPos } from '../core/playPosition';
 import { findCount, findMatches, matchAt, stepMatch } from '../core/find';
@@ -1329,7 +1329,7 @@ interface RowActs {
 interface TxRowProps {
   model: Model; next: Row | undefined; r: Row; i: number; on: boolean; held: boolean; t: number; clipPos: ReadPos | null; wordSync: boolean; playing: boolean;
   fixing: boolean; dim: number; hovered: boolean; warm: boolean; lang: string | null; hitTerms: string; applied?: Correction[]; fixed?: Set<string>;
-  listener: boolean; desk: boolean; showLabels: boolean; marks: boolean; fixBadges: boolean; fixMode: boolean; wordHl: boolean; canSeekWord: boolean;
+  listener: boolean; desk: boolean; showLabels: boolean; marks: boolean; fixBadges: boolean; fixMode: boolean; wordHl: boolean; canSeekWord: boolean; arrives: boolean;
   has: { fixOpen: boolean; word: boolean; fix: boolean }; act: RowActs;
 }
 
@@ -1341,7 +1341,7 @@ const sameRow = (a: TxRowProps, b: TxRowProps) => {
   return true;
 };
 
-const TxRow = memo(function TxRow({ model, next, r, i, on, held, t, clipPos, wordSync, playing, fixing, dim, hovered, warm, lang, hitTerms: hitKey, applied, fixed, listener, desk, showLabels, marks, fixBadges, fixMode, wordHl, canSeekWord, has, act }: TxRowProps) {
+const TxRow = memo(function TxRow({ arrives, model, next, r, i, on, held, t, clipPos, wordSync, playing, fixing, dim, hovered, warm, lang, hitTerms: hitKey, applied, fixed, listener, desk, showLabels, marks, fixBadges, fixMode, wordHl, canSeekWord, has, act }: TxRowProps) {
   const hitTerms = hitKey ? hitKey.split(' ') : [];
   const onFixOpen = has.fixOpen ? act.fixOpen : undefined;
   const onWord = has.word ? act.word : undefined;
@@ -1367,6 +1367,7 @@ const TxRow = memo(function TxRow({ model, next, r, i, on, held, t, clipPos, wor
             <div className={`lanechip bg-lane-${ln}`} style={look.soft ? { background: look.soft, color: look.fg } : undefined}>{speakerInitial(model, r.speaker)}</div>
             <span className={`txline__who lane-${ln}`} style={look.fg ? { color: look.fg } : undefined}>{who}</span>
             {look.hasSavedSpeaker && <VoiceIdGlyph color={look.fg ?? `var(--lane-${ln})`} />}
+            {arrives && <span className="badge badge--newspk" title="This speaker has just made their first appearance">{desk ? 'NEW SPEAKER' : 'NEW'}</span>}
           </>
         )}
         {on && <span title="Playing" style={{ flex: 'none', display: 'inline-flex', alignItems: 'center' }}><Icon d={D.headphones} size={desk ? 15 : 14} sw={1.6} stroke={showLabels && r.speaker >= 0 ? look.fg ?? `var(--lane-${ln})` : 'var(--ink-45)'} /></span>}
@@ -1405,6 +1406,7 @@ const TxRow = memo(function TxRow({ model, next, r, i, on, held, t, clipPos, wor
 
 export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord, onFix, fixMode, fixingId, marks = true, fixBadges = true, tail, tailFg, running, desk, feedRef, listener, showLabels, find, findOpen, lang, warm, onVisible, wordHl = true }: { model: Model; rows: Row[]; player: TxPlayer; fixed?: Set<string>; applied?: Correction[]; onFixOpen?: (r: Row, hist: boolean) => void; onWord?: (r: Row, w: Word) => void; onFix?: (r: Row) => void; fixMode?: boolean; fixingId?: string | null; marks?: boolean; fixBadges?: boolean; tail: string; tailFg: string; running?: boolean; desk: boolean; feedRef: React.RefObject<HTMLDivElement>; listener?: boolean; showLabels: boolean; find?: string; findOpen?: boolean; lang?: string | null ; warm?: boolean; onVisible?: (ids: number[]) => void; wordHl?: boolean }) {
   const { playing, engaged, t, idx, seekN, wordSync, clipPos } = player;
+  const arrivals = useMemo(() => newSpeakerRows(rows, model.returning), [rows, model.returning]);
   useDragScroll(true, feedRef);
   const thumbRef = useRef<HTMLDivElement>(null);
   useFeedBar(feedRef, thumbRef);
@@ -1513,7 +1515,7 @@ export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord
         const fixing = !!fixingId && fixingId === r.id;
         const dim = needle && !r.text.toLowerCase().includes(needle) && !(lang && r.translations[lang]?.toLowerCase().includes(needle)) ? 0.22 : !engaged || i <= idx || fixing ? 1 : 0.38;
         return (
-          <TxRow key={r.id} model={model} next={rows[i + 1]} r={r} i={i} on={on} held={held} t={held ? t : 0} clipPos={held ? clipPos ?? null : null} wordSync={wordSync} playing={playing} fixing={fixing} dim={dim} hovered={hovId === r.id} warm={!!warm} lang={lang ?? null} hitTerms={hitKey} applied={applied} fixed={fixed} listener={!!listener} desk={desk} showLabels={showLabels} marks={marks} fixBadges={fixBadges} fixMode={!!fixMode} wordHl={wordHl} canSeekWord={!!player.seekWord} has={has} act={act} />
+          <TxRow key={r.id} arrives={arrivals.has(i)} model={model} next={rows[i + 1]} r={r} i={i} on={on} held={held} t={held ? t : 0} clipPos={held ? clipPos ?? null : null} wordSync={wordSync} playing={playing} fixing={fixing} dim={dim} hovered={hovId === r.id} warm={!!warm} lang={lang ?? null} hitTerms={hitKey} applied={applied} fixed={fixed} listener={!!listener} desk={desk} showLabels={showLabels} marks={marks} fixBadges={fixBadges} fixMode={!!fixMode} wordHl={wordHl} canSeekWord={!!player.seekWord} has={has} act={act} />
         );
       })}
       {running
