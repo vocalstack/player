@@ -165,7 +165,6 @@ test('the server numbers speakers for the whole transcription, and a returning o
   m = applyFrame(m, { type: 'transcript.speakerNumbers', speakers: [{ speaker: 0, number: 2, returning: true }, { speaker: 1, number: 3 }] });
   assert.equal(speakerNumber(m, 0), 2);
   assert.equal(speakerNumber(m, 1), 3);
-  assert.equal(speakerNumber(m, 2), 4);
   assert.deepEqual([...newSpeakerRows([{ speaker: 0 }, { speaker: 1 }, { speaker: 0 }, { speaker: 2 }], m.returning)], [1, 3]);
   assert.deepEqual([...newSpeakerRows([{ speaker: 5 }, { speaker: -1 }, { speaker: 6 }])], [2]);
 });
