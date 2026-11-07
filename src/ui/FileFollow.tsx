@@ -12,20 +12,23 @@ export function FileFollow({ src, hls, setup, t, playing, seekN, onToggle, seekO
   useEffect(() => {
     const v = ref.current;
     if (!v || !hls || plain) return;
-    if (v.canPlayType('application/vnd.apple.mpegurl')) { v.src = hls; return () => { v.removeAttribute('src'); v.load(); }; }
     let alive = true;
     let player: { destroy: () => void } | null = null;
+    let native = false;
     import('hls.js').then((mod) => {
       const Hls = mod.default;
       if (!alive) return;
-      if (!Hls?.isSupported()) { setPlain(true); return; }
+      if (!Hls?.isSupported()) {
+        if (v.canPlayType('application/vnd.apple.mpegurl')) { native = true; v.src = hls; } else setPlain(true);
+        return;
+      }
       const h = new Hls({ maxBufferLength: 30, startFragPrefetch: true });
       player = h;
       h.on(Hls.Events.ERROR, (_e, d) => { if (d.fatal) { h.destroy(); player = null; if (alive) setPlain(true); } });
       h.loadSource(hls);
       h.attachMedia(v);
     }).catch(() => { if (alive) setPlain(true); });
-    return () => { alive = false; player?.destroy(); };
+    return () => { alive = false; player?.destroy(); if (native) { v.removeAttribute('src'); v.load(); } };
   }, [hls, plain]);
   const [loading, setLoading] = useState(false);
   const tRef = useRef(t); tRef.current = t;

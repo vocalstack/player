@@ -33,14 +33,14 @@ export function HlsFollow({ src, lead, onGone, onToggle }: { src: string; lead: 
       else if (func === 'setPlaybackRate') v.playbackRate = n || 1;
     });
     const gone = () => { if (alive) goneRef.current?.(); };
-    if (v.canPlayType('application/vnd.apple.mpegurl')) {
-      v.src = src;
-      v.addEventListener('error', gone);
-    } else {
+    {
       import('hls.js').then((mod) => {
         const Hls = mod.default;
         if (!alive) return;
-        if (!Hls?.isSupported()) { gone(); return; }
+        if (!Hls?.isSupported()) {
+          if (v.canPlayType('application/vnd.apple.mpegurl')) { v.src = src; v.addEventListener('error', gone); } else gone();
+          return;
+        }
         const h = new Hls({ maxBufferLength: 30, manifestLoadingMaxRetry: 60, manifestLoadingRetryDelay: 2000, manifestLoadingMaxRetryTimeout: 4000, levelLoadingMaxRetry: 10, fragLoadingMaxRetry: 6 }) as unknown as HlsLike;
         hls = h;
         h.on(Hls.Events.ERROR, (_e, d) => {
