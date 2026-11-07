@@ -249,7 +249,7 @@ function GlassBrand({ live, mini, desk, pct, mark }: { live: boolean; mini?: boo
 }
 
 function VoicesButton({ v, size }: { v: VoicesBtn; size: number }) {
-  return <button type="button" className="gfull__btn" aria-label="Voices" aria-busy={v.busy || undefined} title={v.busy ? 'Preparing the voice…' : v.title} disabled={!v.on} style={{ position: 'relative', opacity: v.on || v.busy ? 1 : 0.45, cursor: v.on ? 'pointer' : 'default' }} onClick={v.on ? v.onClick : undefined}><Icon d={D.headphones} size={size} sw={1.6} />{v.busy && <span aria-hidden="true" style={{ position: 'absolute', inset: 0, boxSizing: 'border-box', borderRadius: '50%', border: '2px solid var(--fill-12)', borderTopColor: 'var(--brand)', animation: 'vs-spin .7s linear infinite', pointerEvents: 'none' }} />}</button>;
+  return <button type="button" className="gfull__btn" aria-label="Speakers" aria-busy={v.busy || undefined} title={v.busy ? 'Preparing the voice…' : v.title} disabled={!v.on} style={{ position: 'relative', opacity: v.on || v.busy ? 1 : 0.45, cursor: v.on ? 'pointer' : 'default' }} onClick={v.on ? v.onClick : undefined}><Icon d={D.headphones} size={size} sw={1.6} />{v.busy && <span aria-hidden="true" style={{ position: 'absolute', inset: 0, boxSizing: 'border-box', borderRadius: '50%', border: '2px solid var(--fill-12)', borderTopColor: 'var(--brand)', animation: 'vs-spin .7s linear infinite', pointerEvents: 'none' }} />}</button>;
 }
 
 export function MiniPlayer({ pos, transport, chip, voices, onShare, onFull, copied }: { pos: PlayerPos; transport: PlayerTransport; chip: React.ReactNode; voices: VoicesBtn; onShare?: () => void; onFull: () => void; copied: React.ReactNode }) {

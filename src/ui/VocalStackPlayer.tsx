@@ -529,7 +529,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const chipFor = (style: React.CSSProperties, size?: 'sm') => !meta.can || !ctl.language ? null : locked
     ? <button type="button" className="gfull__btn" title={langBusy ? `Language: ${meta.label ?? meta.code}, still being prepared` : `Language: ${meta.label ?? meta.code}`} aria-label={`Language: ${meta.label ?? meta.code}`} aria-busy={langBusy || undefined} onClick={() => { setSettings(false); meta.onClick(); }} style={{ position: 'relative' }}><span style={{ fontSize: size === 'sm' ? 17 : 21, lineHeight: 1 }}>{meta.flag}</span>{langBusy && <span style={{ position: 'absolute', right: 2, bottom: 2, display: 'flex', borderRadius: 999, background: 'rgba(5,6,21,.7)', padding: 1 }}><Spinner size={11} color="#eef0f8" track="rgba(255,255,255,.25)" /></span>}</button>
     : <LanguageChip flag={meta.flag} code={meta.code} label={meta.label} bordered={false} size={size} onClick={meta.onClick} style={style} />;
-  const voicesBtn = { on: false, title: 'Voices', onClick: () => {}, busy: voice.voiceWaiting || voiceHolds };
+  const voicesBtn = { on: false, title: 'Speakers', onClick: () => {}, busy: voice.voiceWaiting || voiceHolds };
   const [posterGone, setPosterGone] = useState(false);
   const [autoWait, setAutoWait] = useState(true);
   useEffect(() => { if (!autoWait) return; const id = setTimeout(() => setAutoWait(false), 12_000); return () => clearTimeout(id); }, [autoWait]);
