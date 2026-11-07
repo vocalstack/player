@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyFrame, empty, heldLine, rows, speakerInitial, speakerLabel, speakerLook, speakerName, speakerNumber } from '../src/core/transcript.ts';
+import { applyFrame, empty, fromSnapshot, heldLine, rows, speakerInitial, speakerLabel, speakerLook, speakerName, speakerNumber } from '../src/core/transcript.ts';
 
 const committed = (seq: number, start: number, text: string) => ({
   type: 'transcript.committed',
@@ -121,13 +121,41 @@ test('an automatic clone named after the raw id does not bring the raw number ba
   let m = empty();
   m = applyFrame(m, spoken(1, 0, 4));
   m = applyFrame(m, spoken(2, 5, 27));
-  m = applyFrame(m, { type: 'transcript.speakerIdentified', speaker: 27, name: 'Speaker 28', voiceId: 'v1' });
+  m = applyFrame(m, { type: 'transcript.speakerIdentified', speaker: 27, name: 'Speaker 28', speakerId: 'v1' });
   assert.equal(speakerLabel(m, 27), 'Speaker 2');
   assert.equal(speakerInitial(m, 27), 'S2');
   assert.equal(speakerName(m, 27), undefined);
-  assert.equal(speakerLook(m, 27).hasVoice, true, 'still linked to its voice');
+  assert.equal(speakerLook(m, 27).hasSavedSpeaker, true, 'still linked to its saved speaker');
   m = applyFrame(m, { type: 'transcript.speakerNamed', speaker: 27, name: 'Speaker 28' });
   assert.equal(speakerLabel(m, 27), 'Speaker 2');
   m = applyFrame(m, { type: 'transcript.speakerNamed', speaker: 27, name: 'Speakers Corner' });
   assert.equal(speakerLabel(m, 27), 'Speakers Corner');
+});
+
+test('a recognised speaker is read from speakerId, or from voiceId on a server before the rename', () => {
+  let m = empty();
+  m = applyFrame(m, { type: 'transcript.speakerIdentified', speaker: 1, name: 'Maria', speakerId: 's1', color: '3' });
+  m = applyFrame(m, { type: 'transcript.speakerIdentified', speaker: 2, name: 'Ion', voiceId: 'v2' });
+  assert.deepEqual([m.speakerIds[1].speakerId, m.speakerIds[1].cloneId, m.speakerIds[1].color], ['s1', 's1', '3']);
+  assert.deepEqual([m.speakerIds[2].speakerId, m.speakerIds[2].cloneId], ['v2', 'v2']);
+  assert.equal(speakerLook(m, 2).hasSavedSpeaker, true);
+});
+
+test('a snapshot reads speakerId and speakerColor first, voiceId and voiceColor as a fallback, and the clone id from the nested voice', () => {
+  const snap = {
+    state: 'finalized',
+    lastSeq: 0,
+    spans: [],
+    segments: [],
+    sentences: [],
+    speakers: [
+      { speaker: 0, name: 'Maria', speakerId: 's1', speakerColor: '#ff0000', voice: { id: 'c1' } },
+      { speaker: 1, name: 'Ion', voiceId: 'v2', voiceColor: '2' },
+      { speaker: 2, name: 'Ana' },
+    ],
+  } as never;
+  const m = fromSnapshot(snap);
+  assert.deepEqual([m.speakerIds[0].speakerId, m.speakerIds[0].cloneId, m.speakerIds[0].color], ['s1', 'c1', '#ff0000']);
+  assert.deepEqual([m.speakerIds[1].speakerId, m.speakerIds[1].cloneId, m.speakerIds[1].color], ['v2', 'v2', '2']);
+  assert.equal(m.speakerIds[2], undefined);
 });

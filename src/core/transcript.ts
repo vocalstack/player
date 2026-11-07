@@ -89,7 +89,7 @@ export interface Model {
   speakers: Record<number, string>;
   speakerSpeechS: Record<number, number>;
   speakerSex: Record<number, 'male' | 'female'>;
-  speakerIds: Record<number, { name: string; voiceId?: string; color?: string; confidence?: number; tone?: boolean }>;
+  speakerIds: Record<number, { name: string; speakerId?: string; cloneId?: string; color?: string; confidence?: number; tone?: boolean }>;
   labels?: 'auto' | 'on' | 'off';
   lastSeq: number;
   state: string;
@@ -123,6 +123,21 @@ export function mediaToWall(m: Model, media: number): number {
 
 function toWords(seq: number, raw: any[] | undefined): Word[] {
   return (raw ?? []).map((w, i) => ({ text: String(w.text ?? ''), prob: w.prob ?? null, start: w.start ?? 0, end: w.end ?? 0, alts: w.alts, ...(w.script === true ? { script: true } : {}), ...(w.script === true && typeof w.recognized === 'string' ? { recognized: w.recognized } : {}), seq, idx: i }));
+}
+
+export interface SavedSpeakerRef {
+  speakerId?: string | null;
+  voiceId?: string | null;
+  speakerColor?: string | null;
+  voiceColor?: string | null;
+  color?: string | null;
+  voice?: { id?: string | null } | null;
+}
+
+export function savedSpeakerOf(s: SavedSpeakerRef): { speakerId?: string; cloneId?: string; color?: string } {
+  const speakerId = s.speakerId ?? s.voiceId ?? undefined;
+  const cloneId = s.voice?.id ?? speakerId;
+  return { speakerId, cloneId, color: s.speakerColor ?? s.voiceColor ?? s.color ?? undefined };
 }
 
 export function fromSnapshot(snap: TranscriptSnapshot, base?: Model): Model {
@@ -185,13 +200,15 @@ export function fromSnapshot(snap: TranscriptSnapshot, base?: Model): Model {
   );
   m.speakerIds = Object.fromEntries(
     snap.speakers
-      .filter((s) => !!s.identified || !!s.voiceId || !!s.voiceColor)
-      .map((s) => [
+      .map((s) => ({ s, saved: savedSpeakerOf(s as SavedSpeakerRef) }))
+      .filter(({ s, saved }) => !!s.identified || !!saved.speakerId || !!saved.color)
+      .map(({ s, saved }) => [
         s.speaker,
         {
           name: s.name ?? '',
-          voiceId: s.voiceId ?? undefined,
-          color: s.voiceColor ?? undefined,
+          speakerId: saved.speakerId,
+          cloneId: saved.cloneId,
+          color: saved.color,
           confidence: s.identifiedConfidence ?? undefined,
         },
       ]),
@@ -384,10 +401,12 @@ export function applyFrame(m: Model, f: any): Model {
       break;
     case 'transcript.speakerIdentified':
       if (f.name) {
+        const saved = savedSpeakerOf(f);
         m.speakerIds[f.speaker] = {
           name: f.name,
-          voiceId: f.voiceId,
-          color: f.color,
+          speakerId: saved.speakerId,
+          cloneId: saved.cloneId,
+          color: saved.color,
           confidence: f.confidence,
           tone: !!f.tone,
         };
@@ -538,24 +557,24 @@ export function speakerInitial(m: Model, speaker: number): string {
   return (initials || `S${speakerNumber(m, speaker)}`).toUpperCase();
 }
 
-export function speakerColor(voiceColor?: string | null): { fg: string; soft: string } | undefined {
-  if (!voiceColor) return undefined;
-  if (voiceColor.startsWith('#')) {
-    return { fg: voiceColor, soft: `color-mix(in srgb, ${voiceColor} 16%, transparent)` };
+export function speakerColor(color?: string | null): { fg: string; soft: string } | undefined {
+  if (!color) return undefined;
+  if (color.startsWith('#')) {
+    return { fg: color, soft: `color-mix(in srgb, ${color} 16%, transparent)` };
   }
-  if (!/^[1-6]$/.test(voiceColor)) return undefined;
-  return { fg: `var(--vx-${voiceColor})`, soft: `var(--vx-${voiceColor}-soft)` };
+  if (!/^[1-6]$/.test(color)) return undefined;
+  return { fg: `var(--vx-${color})`, soft: `var(--vx-${color}-soft)` };
 }
 
 export function speakerLook(m: Model, speaker: number): {
   fg?: string;
   soft?: string;
   lane: Lane;
-  hasVoice: boolean;
+  hasSavedSpeaker: boolean;
 } {
   const id = m.speakerIds[speaker];
   const c = speakerColor(id?.color);
-  return { fg: c?.fg, soft: c?.soft, lane: lane(speakerNumber(m, speaker) - 1), hasVoice: !!id };
+  return { fg: c?.fg, soft: c?.soft, lane: lane(speakerNumber(m, speaker) - 1), hasSavedSpeaker: !!id };
 }
 
 export function latestLatency(m: Model): number | undefined {

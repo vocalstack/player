@@ -202,7 +202,7 @@ export function SpeakerTag({ model, speaker, showLabels, pending, diarized }: { 
       <span className={`line__who lane-${l}`} style={look.fg ? { color: look.fg } : undefined}>
         {speakerLabel(model, speaker)}
       </span>
-      {look.hasVoice && <VoiceIdGlyph color={look.fg ?? `var(--lane-${l})`} />}
+      {look.hasSavedSpeaker && <VoiceIdGlyph color={look.fg ?? `var(--lane-${l})`} />}
     </>
   );
 }
@@ -432,7 +432,7 @@ export interface AvailableVoice {
 }
 
 export function voiceDetail(v: AvailableVoice): string {
-  return v.live || v.auto ? 'From this session' : v.cloned ? (v.library === false ? 'This transcription only' : 'Saved in Voices') : '';
+  return v.live || v.auto ? 'From this session' : v.cloned ? (v.library === false ? 'This transcription only' : 'Saved in Speakers') : '';
 }
 
 function groupOf(v: AvailableVoice, t: Strings): { rank: number; head: string } {
@@ -465,14 +465,19 @@ export function voiceGroups(list: AvailableVoice[], t: Strings): VoiceGroupRow[]
 
 export interface CastMember {
   key: number;
-  voiceId?: string | null;
+  speakerId?: string | null;
+  cloneId?: string | null;
   name: string;
   initial: string;
   lane: Lane | null;
   sex?: 'male' | 'female' | null;
   fg?: string;
   soft?: string;
-  hasVoice?: boolean;
+  hasSavedSpeaker?: boolean;
+}
+
+export function savedCloneKey(sp: Pick<CastMember, 'cloneId'>): string | null {
+  return sp.cloneId ? `clone:${sp.cloneId}` : null;
 }
 
 export function speakerRoster(rows: { speaker: number }[], model: Model, unknownLabel: string): CastMember[] {
@@ -488,10 +493,11 @@ export function speakerRoster(rows: { speaker: number }[], model: Model, unknown
         initial: speakerInitial(model, sp),
         lane: look.lane,
         sex: model.speakerSex[sp] ?? null,
-        voiceId: model.speakerIds[sp]?.voiceId ?? null,
+        speakerId: model.speakerIds[sp]?.speakerId ?? null,
+        cloneId: model.speakerIds[sp]?.cloneId ?? null,
         fg: look.fg,
         soft: look.soft,
-        hasVoice: look.hasVoice,
+        hasSavedSpeaker: look.hasSavedSpeaker,
       };
     });
   if (unknown) out.push({ key: -1, name: unknownLabel, initial: '?', lane: null, sex: null });
@@ -525,8 +531,9 @@ export function autoCast(roster: CastMember[], voices: AvailableVoice[], clones 
   const used = new Set<string>();
   const out = new Map<number, string>();
   for (const sp of roster) {
-    const saved = sp.voiceId ? voices.find((v) => v.cloned && !v.auto && v.consent !== 'pending' && v.id === `clone:${sp.voiceId}`) : undefined;
-    const own = saved ?? (!clones ? undefined : (sp.voiceId ? voices.find((v) => v.cloned && v.consent !== 'pending' && v.id === `clone:${sp.voiceId}`) : undefined)
+    const key = savedCloneKey(sp);
+    const saved = key ? voices.find((v) => v.cloned && !v.auto && v.consent !== 'pending' && v.id === key) : undefined;
+    const own = saved ?? (!clones ? undefined : (key ? voices.find((v) => v.cloned && v.consent !== 'pending' && v.id === key) : undefined)
       ?? (sp.key >= 0 ? voices.find((v) => v.cloned && v.auto && v.consent !== 'pending' && v.speaker === sp.key) : undefined));
     if (own) {
       out.set(sp.key, own.id);
@@ -563,7 +570,7 @@ export function SpeakerCast({ roster, selected, onSelect, noClone, building, sho
         const alert = p.key >= 0 ? warn?.(p) ?? null : null;
         const busy = p.key >= 0 && !alert && !!building?.(p);
         const dot = p.key >= 0 && !alert && !busy && noClone(p);
-        const few = p.key >= 0 && !alert && !busy && !dot && !p.hasVoice && !!short?.(p);
+        const few = p.key >= 0 && !alert && !busy && !dot && !p.hasSavedSpeaker && !!short?.(p);
         return (
           <button
             type="button"
@@ -580,7 +587,7 @@ export function SpeakerCast({ roster, selected, onSelect, noClone, building, sho
               {p.initial}
             </span>
             <span style={{ fontSize: 12.5, fontWeight: 500, color: on ? 'var(--ink-96)' : 'var(--ink-62)', whiteSpace: 'nowrap' }}>{p.name}</span>
-            {p.hasVoice && !alert && <VoiceIdGlyph color={p.fg ?? (on ? 'var(--ink-62)' : 'var(--ink-45)')} />}
+            {p.hasSavedSpeaker && !alert && <VoiceIdGlyph color={p.fg ?? (on ? 'var(--ink-62)' : 'var(--ink-45)')} />}
             {alert && <span title={alert} aria-label={alert} style={{ flex: 'none', width: 15, height: 15, marginRight: -2, borderRadius: '50%', background: '#c27c00', color: '#fff', font: '900 10.5px/1 system-ui, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>!</span>}
             {few && <span title="Not enough audio to clone" aria-label="Not enough audio to clone" style={{ flex: 'none', display: 'flex', marginRight: -2, color: on ? 'var(--ink-45)' : 'var(--ink-35)' }}><Icon d={D.micOff} size={13} sw={1.7} /></span>}
             {(dot || busy) && (

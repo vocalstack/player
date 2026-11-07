@@ -19,7 +19,7 @@ import { voiceWait, VOICE_WAIT_TITLE } from '../core/voiceWait';
 import { fromStream, toStream, type Gap } from '../core/streamTime';
 import { useHeld } from './wait';
 import { lineSpeechEnd, spreadWords } from '../core/readalong';
-import { type AvailableVoice, type CastMember, FixBadges, FixPen, rowFixes, FeedBar, NO_VOICE_TIP, feedInset, SpeakerCast, VoiceIdGlyph, VoiceSheetBody, autoCast, castKey, langMeta, namedCount, rowKey, speakerRoster, useArchiveVoice, useFeedBar, useVoiceCatalogue, useDragScroll } from './shared';
+import { type AvailableVoice, type CastMember, FixBadges, FixPen, rowFixes, FeedBar, NO_VOICE_TIP, feedInset, SpeakerCast, VoiceIdGlyph, VoiceSheetBody, autoCast, castKey, langMeta, namedCount, rowKey, savedCloneKey, speakerRoster, useArchiveVoice, useFeedBar, useVoiceCatalogue, useDragScroll } from './shared';
 
 export function lineWords(rows: Row[], i: number, lang?: string | null): Word[] {
   const r = rows[i];
@@ -1157,11 +1157,11 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     </Sheet>
   );
   const savedClones = useMemo(() => gvList.filter((v) => v.cloned && !v.auto), [gvList]);
-  const savedFor = (sp: CastMember) => (sp.voiceId ? savedClones.find((v) => v.id === `clone:${sp.voiceId}`) ?? null : null);
+  const savedFor = (sp: CastMember) => { const key = savedCloneKey(sp); return key ? savedClones.find((v) => v.id === key) ?? null : null; };
   const people = useMemo(() => spkRoster.filter((p2) => p2.key >= 0), [spkRoster]);
   const sheetList = useMemo(() => {
     const stock = gvList.filter((v) => !v.cloned);
-    if (!spkCastOn) return [...stock, ...(ended && people.length === 1 ? savedClones.filter((v) => v.id === `clone:${people[0].voiceId}`) : [])];
+    if (!spkCastOn) return [...stock, ...(ended && people.length === 1 ? savedClones.filter((v) => v.id === savedCloneKey(people[0])) : [])];
     const own: AvailableVoice[] = [];
     for (const sp of people) {
       if (savedFor(sp)) continue;
@@ -1178,7 +1178,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const selSex = selSp ? selSp.sex ?? genderOf(cast.get(selSp.key)) : null;
   const shownList = useMemo(() => {
     if (!selSp) return sheetList;
-    return sheetList.filter((v) => (v.cloned ? (v.live ? v.speaker === selSp.key : v.id === `clone:${selSp.voiceId}`) : true));
+    return sheetList.filter((v) => (v.cloned ? (v.live ? v.speaker === selSp.key : v.id === savedCloneKey(selSp)) : true));
   }, [sheetList, selSp, selSex, people]); // eslint-disable-line react-hooks/exhaustive-deps
   const autoOf = (key: number) => gvList.find((v) => v.cloned && v.auto && v.speaker === key) ?? null;
   const ctx: VoiceSheetCtx = { people, gvList, autoOf, savedFor };
@@ -1366,7 +1366,7 @@ const TxRow = memo(function TxRow({ model, next, r, i, on, held, t, clipPos, wor
           <>
             <div className={`lanechip bg-lane-${ln}`} style={look.soft ? { background: look.soft, color: look.fg } : undefined}>{speakerInitial(model, r.speaker)}</div>
             <span className={`txline__who lane-${ln}`} style={look.fg ? { color: look.fg } : undefined}>{who}</span>
-            {look.hasVoice && <VoiceIdGlyph color={look.fg ?? `var(--lane-${ln})`} />}
+            {look.hasSavedSpeaker && <VoiceIdGlyph color={look.fg ?? `var(--lane-${ln})`} />}
           </>
         )}
         {on && <span title="Playing" style={{ flex: 'none', display: 'inline-flex', alignItems: 'center' }}><Icon d={D.headphones} size={desk ? 15 : 14} sw={1.6} stroke={showLabels && r.speaker >= 0 ? look.fg ?? `var(--lane-${ln})` : 'var(--ink-45)'} /></span>}
