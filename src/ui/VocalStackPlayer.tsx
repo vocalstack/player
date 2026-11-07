@@ -28,7 +28,7 @@ import { downloadVoiceTrack, exportTranscript, jobLengthS, progressOf, rowStatus
 import { ytIdOf } from '../core/youtube';
 import { subtitleShown } from '../core/readalong';
 import { fromStream, spanGaps, toStream } from '../core/streamTime';
-import { PlayerApiProvider, isLiveRecording, useApi, useMediaToken, useSource, withMedia, type Listen, type PlayerApi, type PlayerSource as LoadedSource, type TokenSource } from '../data/context';
+import { PlayerApiProvider, isLiveRecording, isRtmp, useApi, useMediaToken, useSource, withMedia, type Listen, type PlayerApi, type PlayerSource as LoadedSource, type TokenSource } from '../data/context';
 import { SideFrame, SidePanels, useSideTabs } from './SideColumn';
 import { ExportPanel, LiveVideo, ReplayScrub, SummaryPanel, shareLink, summaryOf, TabBar, Toast, useSummaryIn, useViewportTranslation, type TabSpec } from './shared';
 import { MuteButton, NO_SEEK, PAUSE_D, PLAY_D, PUB_SIDE, TxFind, TxLines, YtFollow, lineEnd, lineWords, pictureT, spokenWordOf, useDuck, useFindPull, useFlash, useTxPlayer, useTxVoice, useYtLead } from './core';
@@ -536,7 +536,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   useEffect(() => { if (player.playing || posterGone) setAutoWait(false); }, [player.playing, posterGone]);
   const posterSpin = videoLed && (yt.player.preparing || player.playing || (autoWait && locked && !!full && props.autoplay !== false && !autoplayDone.current));
   useEffect(() => { if (player.t > 0.3) setPosterGone(true); }, [player.t]);
-  const fileVideo = !ytId && locked && recordingId && shared?.allowDownload && !running && shared?.job?.hasVideo !== false && shared?.job?.source?.kind !== 'url' ? <FileFollow key={recordingId} src={audioDownloadUrl(api.origin, recordingId, 'video', api.cred)} t={pictureT(player, rows)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} /> : null;
+  const fileVideo = !ytId && locked && recordingId && shared?.allowDownload && !running && shared?.job?.hasVideo !== false && (shared?.job?.source?.kind !== 'url' || isRtmp(shared.job.source.url)) ? <FileFollow key={recordingId} src={audioDownloadUrl(api.origin, recordingId, 'video', api.cred)} t={pictureT(player, rows)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} /> : null;
   const linkFile = shared?.job?.source?.kind === 'url' ? linkVideoFile(shared.job.source.url) : null;
   const linkVideo = !ytId && locked && linkFile ? <FileFollow key={linkFile} src={linkFile} t={pictureT(player, rows) + (shared?.job?.crop?.startS ?? 0)} playing={player.playing && !voiceHolds} seekN={player.seekN} onToggle={player.has ? tapPicture : undefined} /> : null;
   const embedSrc = !ytId && locked && srcVideoUrl && hasEmbed(srcVideoUrl) ? srcVideoUrl : null;

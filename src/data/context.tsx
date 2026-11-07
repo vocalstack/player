@@ -112,12 +112,17 @@ export function streamOffsetS(ingest: { mediaAt?: string | null; streamStartedAt
   return Number.isFinite(s) && s > 0 ? s : 0;
 }
 
+export function isRtmp(url: string | null | undefined): boolean {
+  return !!url && /^rtmps?:\/\//i.test(url.trim());
+}
+
 export function liveJob(recording: Recording, url: string | null | undefined): TranscriptionJob | null {
   const r = recording as Recording & { ingest?: { url?: string | null; mediaAt?: string | null; streamStartedAt?: string | null } | null };
   const link = url ?? r.ingest?.url ?? null;
   if (!link) return null;
   const done = r.state === 'finalized';
-  return { recordingId: r.id, state: done ? 'done' : 'transcribing', hasAudio: done, hasVideo: false, source: { kind: 'url', url: link }, crop: { startS: streamOffsetS(r.ingest) } } as unknown as TranscriptionJob;
+  const hasVideo = isRtmp(link) && !!(r as Recording & { media?: { kind: string; state: string }[] }).media?.some((m) => m.kind === 'video' && m.state === 'sealed');
+  return { recordingId: r.id, state: done ? 'done' : 'transcribing', hasAudio: done, hasVideo, source: { kind: 'url', url: link }, crop: { startS: streamOffsetS(r.ingest) } } as unknown as TranscriptionJob;
 }
 
 export async function loadSource(api: PlayerApi, id: string, recordingId?: string | null): Promise<PlayerSource> {
