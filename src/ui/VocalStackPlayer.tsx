@@ -328,15 +328,16 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const sourceAudio = !hasAudio && !!src && (src.kind !== 'url' || src.bytes != null) && (status === 'transcribing' || status === 'queued' || status === 'done');
   const deliveryUrl = recordingId && shared?.allowDownload && hasAudio ? deliveryAudioUrl(api.origin, recordingId, api.cred) : null;
   const sourceStored = !!src && (src.kind !== 'url' || src.bytes != null);
-  const sealed = useSealed(deliveryUrl && sourceStored ? deliveryUrl : null);
-  const audioUrl = deliveryUrl && (!sourceStored || sealed === 'yes') ? deliveryUrl
-    : deliveryUrl && sealed === 'unknown' ? null
+  const probeSealed = sourceStored || liveRec;
+  const sealed = useSealed(deliveryUrl && probeSealed ? deliveryUrl : null);
+  const audioUrl = deliveryUrl && (!probeSealed || sealed === 'yes') ? deliveryUrl
+    : deliveryUrl && (sealed === 'unknown' || liveRec) ? null
     : recordingId && shared?.allowDownload && (sourceAudio || (hasAudio && sourceStored)) ? audioDownloadUrl(api.origin, recordingId, 'source', api.cred) : null;
   const edgeS = locked && running && !(recLive && rows.length === 0) ? Math.max(doneTo, progress?.processedS ?? 0) : null;
   const audioPlayer = useTxPlayer(audioUrl, (hasAudio || sourceAudio) && !!shared?.allowDownload, rows, lenS, sourceAudio ? shared?.job?.crop?.startS ?? 0 : 0, edgeS);
   const srcVideoUrl = sourceVideoUrl(shared?.job?.source as Parameters<typeof sourceVideoUrl>[0]);
   const ytId = srcVideoUrl && siteOf(srcVideoUrl)?.id === 'youtube' ? ytIdOf(srcVideoUrl) : null;
-  const ytLed = !!ytId && !audioUrl;
+  const videoLed = !!ytId && !audioUrl;
   const ytTitle = useYtTitle(ytId);
   const gaps = useMemo(() => (liveRec ? spanGaps(model.spans) : []), [liveRec, model.spans]);
   const recStartMs = liveRec && rec?.startedAt ? Date.parse(rec.startedAt) : NaN;
@@ -348,11 +349,10 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     const h = window.setTimeout(() => { clockReads.current += 1; props.reread(); }, 3000);
     return () => window.clearTimeout(h);
   }, [ytId, recLive, recStartMs, recMediaMs, shared]); // eslint-disable-line react-hooks/exhaustive-deps
-  const videoLed = !!ytId;
   const srcPlayer = videoLed ? yt.player : audioPlayer;
   const langs = useLanguages();
   const langBusyRef = useRef<string | null>(null);
-  const voice = useTxVoice({ forcedVoice: props.voice ?? null, recordingId, model, rows, lenS, ended: !!recordingId && !running, cred: api.cred, langs, srcLang: langCode, canTranslate: !!shared?.allowTranslate, pickedLang: txLang, setPickedLang: setTxLang, side: desk && !full ? PUB_SIDE : undefined, hearOriginal, timed: !!ytId, stockVoices: locked && !cloning, consent: cloning, cloneIfOffered: cloneOn, stickyPicker: locked, pickerBusy: langBusyRef.current });
+  const voice = useTxVoice({ forcedVoice: props.voice ?? null, recordingId, model, rows, lenS, ended: !!recordingId && !running, cred: api.cred, langs, srcLang: langCode, canTranslate: !!shared?.allowTranslate, pickedLang: txLang, setPickedLang: setTxLang, side: desk && !full ? PUB_SIDE : undefined, hearOriginal, timed: videoLed, stockVoices: locked && !cloning, consent: cloning, cloneIfOffered: cloneOn, stickyPicker: locked, pickerBusy: langBusyRef.current });
   useEffect(() => { if (voice.hasClone && recordingId) setClonedRec(recordingId); }, [voice.hasClone, recordingId]);
   const langSent = useRef<string | null>(null);
   useEffect(() => { if (!recordingId || langSent.current === askLang) return; langSent.current = askLang; setLanguage(askLang); }, [askLang, recordingId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -426,7 +426,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const tail = running ? 'MORE TO COME…' : 'END OF TRANSCRIPT';
   const tailFg = running ? 'var(--brand)' : 'var(--ink-28)';
   const segs = segsLabel(progress, rows.length);
-  const playable = player.has && (!voice.relang || !!ytId);
+  const playable = player.has && (!voice.relang || videoLed);
   const playerRef = useRef(player); playerRef.current = player;
   const placeKey = `${askLang ?? ''}|${voice.on ? 'voice' : 'source'}`;
   const placeRef = useRef({ key: placeKey, idx: 0, t: 0, playing: false, until: 0 });
@@ -505,7 +505,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const speakAvail = voice.canSpeak && !voice.error && !voiceFailed;
   const waitLangName = askLang ? (langs?.languages.find((l) => l.code === askLang)?.name ?? meta.label) : '';
   const waitState = full ? playerWaitOf({ lang: askLang, langName: waitLangName, translating: translating && !!askLang, translateFailed, voiceFailed, relang: voice.relang, starting: voice.on ? player.starting : null, slowLine, lineSince }) : null;
-  const softWait = !!ytId && !!waitState && (waitState.kind === 'translating' || (waitState.kind === 'voice' && voice.relang));
+  const softWait = videoLed && !!waitState && (waitState.kind === 'translating' || (waitState.kind === 'voice' && voice.relang));
   const [hushed, setHushed] = useState<string | null>(null);
   const hushKey = waitLangName || 'voice';
   const hushBtn = <button type="button" className="gfull__toastx" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); setHushed(hushKey); }}><Icon d={D.close} size={12} sw={2} /></button>;
@@ -562,7 +562,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const thumbUrl = stillThumb((shared?.job?.source as { thumbnailUrl?: string | null } | undefined)?.thumbnailUrl ?? null);
   const failedTx = status === 'failed' && rows.length === 0;
   const thumbPic = thumbUrl && /^https:\/\//.test(thumbUrl) ? <div className={`vsp-thumbpic${(shared?.job?.source as { site?: string | null } | undefined)?.site === 'x' ? ` vsp-thumbpic--pan${player.playing ? ' vsp-thumbpic--on' : ''}` : ''}`} aria-hidden="true" style={{ backgroundImage: `url(${JSON.stringify(thumbUrl)})` }} /> : null;
-  const picture = !ytId ? (locked ? <><div className="vsp-idle__pic vsp-idle__pic--brand" />{thumbPic}{failedTx ? null : baseTap}<div className={failedTx ? 'vsp-pics vsp-failed' : 'vsp-pics'} style={{ display: 'contents' }}>{embedPic}{fileVideo}{linkVideo}</div></> : null) : <>{<YtFollow busy={videoLed && (!!yt.player.preparing || (autoWait && !player.playing && locked && !!full && props.autoplay !== false && !autoplayDone.current))} ytId={ytId} title={name} t={ytAt} playing={player.playing && !voiceHolds} waiting={voice.on && !!player.timed && !!player.preparing} seekN={player.seekN} onTime={(y) => player.videoAt?.(fromStream(y, yt.offset, gaps))} onToggle={player.has ? tapPicture : undefined} onAd={setAdOn} lead={videoLed ? yt.lead : undefined} />}<div className="vsp-poster" aria-hidden="true" style={{ opacity: posterGone ? 0 : 1 }}><div className="vsp-poster__img" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${ytId}/hqdefault.jpg)` }} /><span className="txyt__pausedplay">{posterSpin ? <span className="gfull__spin txyt__spin" /> : <PlayGlyph size={44} />}</span></div></>;
+  const picture = !ytId ? (locked ? <><div className="vsp-idle__pic vsp-idle__pic--brand" />{thumbPic}{failedTx ? null : baseTap}<div className={failedTx ? 'vsp-pics vsp-failed' : 'vsp-pics'} style={{ display: 'contents' }}>{embedPic}{fileVideo}{linkVideo}</div></> : null) : <>{<YtFollow busy={videoLed && (!!yt.player.preparing || (autoWait && !player.playing && locked && !!full && props.autoplay !== false && !autoplayDone.current))} ytId={ytId} title={name} t={ytAt} playing={player.playing && !voiceHolds} waiting={voice.on && !!player.timed && !!player.preparing} seekN={player.seekN} onTime={(y) => player.videoAt?.(fromStream(y, yt.offset, gaps))} onToggle={player.has ? tapPicture : undefined} onAd={setAdOn} lead={videoLed ? yt.lead : undefined} info={yt.lead.onInfo} />}<div className="vsp-poster" aria-hidden="true" style={{ opacity: posterGone ? 0 : 1 }}><div className="vsp-poster__img" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${ytId}/hqdefault.jpg)` }} /><span className="txyt__pausedplay">{posterSpin ? <span className="gfull__spin txyt__spin" /> : <PlayGlyph size={44} />}</span></div></>;
   const video = watching && ytId && !full ? (
     <LiveVideo ytId={ytId} title={name} radius={14} large style={desk ? undefined : { margin: '8px 20px 2px' }} picture={picture}>
       <MiniPlayer pos={pos} transport={transport} chip={chipFor({ ...glassChip, width: 64, height: 28, minHeight: 28, padding: '0 8px' }, 'sm')} voices={voicesBtn} onFull={() => { browserFull(true); setFull(true); }} copied={null} />

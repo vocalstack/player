@@ -59,7 +59,7 @@ export function lineEnd(r: Row | undefined, from: number, dur: number): number {
 
 export interface YtLead { muted: boolean; onInfo: (i: { t?: number; state?: number; ready?: boolean; muted?: boolean; liveEnd?: number; liveAt?: { t: number; wall: number } }) => void; bind: (cmd: ((func: string, args?: unknown[]) => void) | null) => void }
 
-export function YtFollow({ busy = false, ytId, title, t, playing: wantPlay, seekN, onToggle, onAd, endT, onGone, onKnown, lead, onTime, waiting = false }: { busy?: boolean; waiting?: boolean; onTime?: (t: number) => void; lead?: YtLead; ytId: string; title: string; t: number; playing: boolean; seekN: number; onToggle?: () => void; onAd?: (on: boolean) => void; endT?: number | null; onGone?: () => void; onKnown?: (gone: boolean) => void }) {
+export function YtFollow({ busy = false, ytId, title, t, playing: wantPlay, seekN, onToggle, onAd, endT, onGone, onKnown, lead, info, onTime, waiting = false }: { busy?: boolean; waiting?: boolean; onTime?: (t: number) => void; lead?: YtLead; info?: YtLead['onInfo']; ytId: string; title: string; t: number; playing: boolean; seekN: number; onToggle?: () => void; onAd?: (on: boolean) => void; endT?: number | null; onGone?: () => void; onKnown?: (gone: boolean) => void }) {
   const ref = useRef<HTMLIFrameElement>(null);
   const [held, setHeld] = useState(false);
   useEffect(() => {
@@ -83,6 +83,7 @@ export function YtFollow({ busy = false, ytId, title, t, playing: wantPlay, seek
   const adByStall = useRef(false);
   const toggleRef = useRef(onToggle); toggleRef.current = onToggle;
   const leadRef = useRef(lead); leadRef.current = lead;
+  const infoRef = useRef(lead?.onInfo ?? info); infoRef.current = lead?.onInfo ?? info;
   const adCb = useRef(onAd); adCb.current = onAd;
   const resumeAfterAd = useRef(false);
   const adCheck = () => {
@@ -146,13 +147,13 @@ export function YtFollow({ busy = false, ytId, title, t, playing: wantPlay, seek
         else { adByDur.current = Math.abs(dur - contentDur.current) > 1.5; adCheck(); }
       }
       if (d?.event === 'onReady' && !apiUp.current) { apiUp.current = true; const q = queued.current; queued.current = []; for (const [f, a] of q) cmd(f, a); }
-      if (d?.event === 'onReady') { if (!leadRef.current || leadRef.current.muted) cmd('mute'); noCaptionsSoon(); leadRef.current?.onInfo({ ready: true }); }
-      if (typeof d?.info?.playerState === 'number') { if (d.info.playerState !== ytState.current && (d.info.playerState === 1 || d.info.playerState === 2)) noCaptionsSoon(); ytState.current = d.info.playerState; setYtPaused(d.info.playerState !== 1 && d.info.playerState !== 3); leadRef.current?.onInfo({ state: d.info.playerState }); }
+      if (d?.event === 'onReady') { if (!leadRef.current || leadRef.current.muted) cmd('mute'); noCaptionsSoon(); infoRef.current?.({ ready: true }); }
+      if (typeof d?.info?.playerState === 'number') { if (d.info.playerState !== ytState.current && (d.info.playerState === 1 || d.info.playerState === 2)) noCaptionsSoon(); ytState.current = d.info.playerState; setYtPaused(d.info.playerState !== 1 && d.info.playerState !== 3); infoRef.current?.({ state: d.info.playerState }); }
       const ps = d?.info?.progressState;
       if (ps && typeof ps.seekableStart === 'number' && typeof ps.seekableEnd === 'number' && ps.seekableEnd > ps.seekableStart) {
         const first = win.current == null;
         win.current = { start: ps.seekableStart, end: ps.seekableEnd };
-        if (liveVideo.current) leadRef.current?.onInfo({ liveEnd: ps.seekableEnd, ...(typeof ps.current === 'number' && ps.current > 0 && typeof ps.ingestionTime === 'number' && ps.ingestionTime > 1e9 ? { liveAt: { t: ps.current, wall: ps.ingestionTime } } : {}) });
+        if (liveVideo.current) infoRef.current?.({ liveEnd: ps.seekableEnd, ...(typeof ps.current === 'number' && ps.current > 0 && typeof ps.ingestionTime === 'number' && ps.ingestionTime > 1e9 ? { liveAt: { t: ps.current, wall: ps.ingestionTime } } : {}) });
         if (first && !playingRef.current) { cmd('pauseVideo'); if (!outside(tRef.current)) cmd('seekTo', [tRef.current, true]); }
         if (!goneSaid.current && endRef.current != null) {
           goneSaid.current = true;
@@ -161,9 +162,9 @@ export function YtFollow({ busy = false, ytId, title, t, playing: wantPlay, seek
           if (all) goneRef.current?.();
         }
       }
-      if (typeof d?.info?.currentTime === 'number') { ytT.current = d.info.currentTime; leadRef.current?.onInfo({ t: d.info.currentTime }); if (!adRef.current && ytState.current === 1) timeCb.current?.(d.info.currentTime); }
+      if (typeof d?.info?.currentTime === 'number') { ytT.current = d.info.currentTime; infoRef.current?.({ t: d.info.currentTime }); if (!adRef.current && ytState.current === 1) timeCb.current?.(d.info.currentTime); }
       if (d?.info?.muted === false && !leadRef.current) cmd('mute');
-      if (typeof d?.info?.muted === 'boolean') leadRef.current?.onInfo({ muted: d.info.muted });
+      if (typeof d?.info?.muted === 'boolean') infoRef.current?.({ muted: d.info.muted });
     };
     window.addEventListener('message', on);
     return () => window.removeEventListener('message', on);
