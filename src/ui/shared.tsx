@@ -793,6 +793,15 @@ export function namedCount(model: Model): number {
 }
 
 
+type VoiceList = { recordingId: string; lang: string; rows: VoiceTrackRow[] };
+const VOICE_LISTS = new Map<string, VoiceList>();
+function rememberVoiceList(v: VoiceList) {
+  const k = `${v.recordingId}|${v.lang}`;
+  VOICE_LISTS.delete(k);
+  VOICE_LISTS.set(k, v);
+  while (VOICE_LISTS.size > 24) VOICE_LISTS.delete(VOICE_LISTS.keys().next().value!);
+}
+
 export function useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice, sentenceIds, consent = true }: {
   consent?: boolean;
   recordingId: string | null;
@@ -803,11 +812,14 @@ export function useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice, s
   sentenceIds?: number[];
 }) {
   const api = usePlayerApi();
-  const { data: listed, reload } = useAsync(async () => {
+  const { data: fetched, reload } = useAsync(async () => {
     if (!recordingId || !lang) return null;
     const got = (await api.client.recordings.voice(recordingId, lang, api.readAs).catch(() => [])) as unknown as VoiceTrackRow[];
-    return { recordingId, lang, rows: got.filter((x) => x.lang === lang) };
+    const v = { recordingId, lang, rows: got.filter((x) => x.lang === lang) };
+    rememberVoiceList(v);
+    return v;
   }, [recordingId, lang, api, ended]);
+  const listed = fetched && fetched.lang === lang && fetched.recordingId === recordingId ? fetched : recordingId && lang ? VOICE_LISTS.get(`${recordingId}|${lang}`) ?? null : null;
   const rows = useMemo(
     () => (listed && listed.lang === lang && listed.recordingId === recordingId ? listed.rows : []),
     [listed, lang, recordingId],

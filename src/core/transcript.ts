@@ -100,6 +100,21 @@ export interface Model {
   returning?: Set<number>;
 }
 
+export function sameLang(a: string | null | undefined, b: string | null | undefined): boolean {
+  const base = (x: string) => x.trim().toLowerCase().split(/[-_]/)[0];
+  return !!a && !!b && base(a) === base(b);
+}
+
+export function hasLanguage(m: Model, lang: string): boolean {
+  let any = false;
+  for (const s of m.sentences.values()) {
+    if (!s.text?.trim()) continue;
+    any = true;
+    if (!s.translations?.[lang]?.trim()) return false;
+  }
+  return any;
+}
+
 export function empty(): Model {
   return {
     segments: new Map(),

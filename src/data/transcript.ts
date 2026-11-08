@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LanguageLists, Subscription } from '@vocalstack/js-sdk';
-import { applyFrame, empty, fromSnapshot, type Model } from '../core/transcript';
+import { applyFrame, empty, fromSnapshot, hasLanguage, type Model } from '../core/transcript';
 import { describe, type ErrorLike } from './errors';
 import { usePlayerApi, type PlayerApi } from './context';
 
@@ -135,8 +135,14 @@ export function useTranscript(recordingId: string | null, opts: { lang?: string 
     langRef.current = lang;
     subRef.current?.setLanguage(lang);
     if (!recordingId) return;
-    const client = apiRef.current.client;
     const turn = ++langTurn.current;
+    if (lang == null || hasLanguage(modelRef.current, lang)) {
+      setTranslateFailed(null);
+      setTranslating(false);
+      setShownLang(lang);
+      return;
+    }
+    const client = apiRef.current.client;
     setTranslating(true);
     setTranslateFailed(null);
     const fetchOnce = (again: number) => client.recordings.transcript(recordingId, { lang: lang ?? undefined, ...apiRef.current.readAs, asListener: !apiRef.current.owner })

@@ -168,3 +168,26 @@ test('the server numbers speakers for the whole transcription, and a returning o
   assert.deepEqual([...newSpeakerRows([{ speaker: 0 }, { speaker: 1 }, { speaker: 0 }, { speaker: 2 }], m.returning)], [1, 3]);
   assert.deepEqual([...newSpeakerRows([{ speaker: 5 }, { speaker: -1 }, { speaker: 6 }])], [2]);
 });
+
+test('a language that is the recording\'s own is the original, whatever its region', async () => {
+  const { sameLang } = await import('../src/core/transcript.ts');
+  assert.equal(sameLang('ro', 'ro'), true);
+  assert.equal(sameLang('en-US', 'en'), true);
+  assert.equal(sameLang('EN', 'en-gb'), true);
+  assert.equal(sameLang('en', 'ro'), false);
+  assert.equal(sameLang(null, 'ro'), false);
+});
+
+test('a switch to a language the transcript already holds needs no fetch', async () => {
+  const { hasLanguage, empty } = await import('../src/core/transcript.ts');
+  const m = empty();
+  const row = (id: number, text: string, translations: Record<string, string>) => ({ sentenceId: id, text, translations, seqs: [] }) as never;
+  m.sentences.set(1, row(1, 'Bună ziua', { en: 'Good day' }));
+  m.sentences.set(2, row(2, 'Mulțumesc', { en: 'Thank you' }));
+  m.sentences.set(3, row(3, '', {}));
+  assert.equal(hasLanguage(m, 'en'), true, 'every sentence with words has English');
+  assert.equal(hasLanguage(m, 'fr'), false);
+  m.sentences.set(4, row(4, 'Încă una', {}));
+  assert.equal(hasLanguage(m, 'en'), false, 'one sentence still lacks English');
+  assert.equal(hasLanguage(empty(), 'en'), false, 'nothing to show yet');
+});

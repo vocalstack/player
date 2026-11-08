@@ -11,7 +11,7 @@ import { clock } from '../core/format';
 import { describe, useAsync, type ErrorLike } from '../data/transcript';
 import { usePlayerApi } from '../data/context';
 import { strings } from '../data/i18n';
-import { confClass, fixedSlots, lane, newSpeakerRows, speakerInitial, speakerLabel, speakerLook, type Model, type Row, type Word } from '../core/transcript';
+import { confClass, fixedSlots, lane, newSpeakerRows, sameLang, speakerInitial, speakerLabel, speakerLook, type Model, type Row, type Word } from '../core/transcript';
 import { ClipQueue, newMediaElement, readCursor, VoiceNotStarted, type ReadPos, type VoiceClip } from '../core/voiceplayer';
 import { placePosition, snapPosition, type PlayPos } from '../core/playPosition';
 import { findCount, findMatches, matchAt, stepMatch } from '../core/find';
@@ -1006,9 +1006,10 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const [sheet, setSheet] = useState(false);
   const [fromVoices, setFromVoices] = useState(false);
   const [want, setWant] = useState(false);
-  const lang = pickedLang ?? srcLang;
-  const original = pickedLang === null;
-  const on = pickedLang != null || picked != null;
+  const asSource = pickedLang != null && sameLang(pickedLang, srcLang);
+  const lang = asSource ? srcLang : pickedLang ?? srcLang;
+  const original = pickedLang === null || asSource;
+  const on = (pickedLang != null && !asSource) || picked != null;
   const speakable = (c: string | null | undefined) => !!c && !!langs?.voice.includes(c);
   const vLang = speakable(original ? srcLang : lang) ? (original ? srcLang : lang) : 'en';
   const preview = useVoicePreview(vLang);
@@ -1046,7 +1047,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     () => rows.filter((r) => !r.suppressed && !r.unclear).map((r) => r.sentenceId).filter((id): id is number => id != null),
     [rows],
   );
-  const arch = useArchiveVoice({ consent: consent || hostClones, recordingId, lang, ended, cred, pickedVoice: forcedVoice || (castKeyStr ?? picked), sentenceIds: ended && speakHere ? sentenceIds : undefined });
+  const arch = useArchiveVoice({ consent: consent || hostClones, recordingId, lang: original && picked == null ? null : lang, ended, cred, pickedVoice: forcedVoice || (castKeyStr ?? picked), sentenceIds: ended && speakHere ? sentenceIds : undefined });
   const gvPicked = gvList.find((v) => v.id === picked) ?? gvList.find((v) => v.id === arch.track?.voice) ?? gvList.find((v) => v.default) ?? gvList[0] ?? null;
   const gvId = gvPicked?.id ?? null;
 
@@ -1083,7 +1084,8 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
 
   const openPicker = () => setPicker(true);
   const closePicker = () => { setPicker(false); setSheet(fromVoices); setFromVoices(false); };
-  const selectLang = (c: string | null) => {
+  const selectLang = (chosen: string | null) => {
+    const c = chosen != null && sameLang(chosen, srcLang) ? null : chosen;
     setPickedLang(c);
     pushRecent(c);
     if (side && !fromVoices) return;
