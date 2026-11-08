@@ -257,7 +257,18 @@ export function mediaErrorText(e: MediaError | null, report = true): string {
   return `The audio could not be played: ${what}.`;
 }
 
-export function reportMediaError(e: MediaError | null): void {
+export function reportMediaError(e: MediaError | null, what?: string): void {
   const code = e?.code ?? 0;
-  if (code !== 1) reportError(new Error(`media error ${code}${e?.message ? `: ${e.message}` : ''}`));
+  if (code !== 1) reportError(new Error(`media error ${code}${e?.message ? `: ${e.message}` : ''}${what ? ` (${what})` : ''}`));
+}
+
+export function mediaKindOf(url: string): string {
+  try {
+    const u = new URL(url, 'https://x.invalid');
+    const q = u.searchParams;
+    const tail = u.pathname.split('/').filter(Boolean).slice(-1)[0] ?? '';
+    return [q.get('kind') ?? tail, q.get('format'), q.get('lang')].filter(Boolean).join(' ');
+  } catch {
+    return '';
+  }
 }

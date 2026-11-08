@@ -2,11 +2,10 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, useLayoutEffec
 import type { Correction, LanguageLists } from '@vocalstack/js-sdk';
 import { LanguageChip, Sheet, Switch } from '../ds/Controls';
 import { D, Icon, PlayGlyph, Spinner } from '../ds/Icons';
-import { isNotCaptured } from '../core/noAudio';
 import { pickerLanguages, useRecentLangs } from '../data/prefs';
 import { useVoicePreview } from '../data/voicePreview';
 import { useLanguageList } from '../ds/LanguagePicker';
-import { explainAudioError, mediaErrorText, reportMediaError, type MediaCred } from '../core/audio';
+import { explainAudioError, mediaErrorText, mediaKindOf, reportMediaError, type MediaCred } from '../core/audio';
 import { clock } from '../core/format';
 import { describe, useAsync, type ErrorLike } from '../data/transcript';
 import { usePlayerApi } from '../data/context';
@@ -496,6 +495,9 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
   return { player, lead, setVideoSound, offset: effOff };
 }
 
+const MEDIA_RETRIES = 4;
+const MEDIA_RETRY_MS = 3000;
+
 export function useTxPlayer(url: string | null, available: boolean, rows: Row[], lenS: number | null, offsetS = 0, edgeS: number | null = null): TxPlayer {
   const audio = useRef<HTMLMediaElement | null>(null);
   const [buffering, setBuffering] = useState(false);
@@ -509,6 +511,8 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
   const offset = useRef(offsetS); offset.current = offsetS;
   const carry = useRef<{ t: number; playing: boolean; asked?: boolean } | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const retries = useRef(0);
+  useEffect(() => { retries.current = 0; }, [url]);
   useEffect(() => {
     setReady(false);
     const from = carry.current;
@@ -536,8 +540,14 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
       const err = a.error;
       const fallback = mediaErrorText(err, false);
       void explainAudioError(url).then((why) => {
-        if (!isNotCaptured(why?.message)) reportMediaError(err);
+        if (!why) reportMediaError(err, mediaKindOf(url));
         if (audio.current !== a) return;
+        if (why && !why.permanent && retries.current < MEDIA_RETRIES) {
+          retries.current += 1;
+          audio.current = null;
+          window.setTimeout(() => setAttempt((n) => n + 1), MEDIA_RETRY_MS * retries.current);
+          return;
+        }
         setError({ message: why?.message ?? fallback });
         if (!why?.permanent) audio.current = null;
       });
