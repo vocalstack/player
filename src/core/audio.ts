@@ -154,9 +154,13 @@ export class LivePlayer {
   }
 }
 
+export function pickDeliveryFormat(o: { vendor: string; caf: string }): 'ogg' | 'caf' {
+  return /^Apple/.test(o.vendor) && o.caf === 'probably' ? 'caf' : 'ogg';
+}
+
 export function deliveryFormat(): 'ogg' | 'caf' {
   try {
-    return document.createElement('audio').canPlayType('audio/x-caf; codecs=opus') === 'probably' ? 'caf' : 'ogg';
+    return pickDeliveryFormat({ vendor: navigator.vendor ?? '', caf: document.createElement('audio').canPlayType('audio/x-caf; codecs=opus') });
   } catch {
     return 'ogg';
   }
