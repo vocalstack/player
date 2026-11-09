@@ -17,6 +17,17 @@ export function Video() {
 
 `id` is the share code from a VocalStack share link (`vocalstack.com/v/<code>`). Shared transcriptions need no key.
 
+Or play a YouTube video by its link:
+
+```tsx
+import { VocalStackPlayer } from '@vocalstack/player';
+import '@vocalstack/player/style.css';
+
+export function Video() {
+  return <VocalStackPlayer src="https://www.youtube.com/watch?v=<id>" />;
+}
+```
+
 ## Props
 
 | Prop | Default | |
@@ -62,7 +73,7 @@ export function Video() {
   onSettingsChange={(s) => console.log(s)}
 />
 
-<VocalStackPlayer src="https://www.youtube.com/watch?v=QWCLiPOgeuw" />
+<VocalStackPlayer src="https://www.youtube.com/watch?v=<id>" />
 ```
 
 Follow and drive it from your page:
