@@ -75,10 +75,12 @@ export function useVoicePreview(lang: string | null) {
       }
       if (!res.ok) {
         setDlId(null);
-        const body = await res.json().catch(() => null) as { code?: string } | null;
+        const body = await res.json().catch(() => null) as { code?: string; message?: string } | null;
         setError(body?.code === 'language_unavailable'
           ? { message: 'No voice can speak this language yet.', status: res.status }
-          : { message: `This voice could not be previewed (${res.status}).`, status: res.status });
+          : body?.code === 'invalid_state' && body.message
+            ? { message: body.message, status: res.status }
+            : { message: `This voice could not be previewed (${res.status}).`, status: res.status });
         return;
       }
       const blob = await res.blob();
