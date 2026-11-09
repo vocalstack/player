@@ -1008,9 +1008,9 @@ export function TabBar<K extends string>({ tabs, current, onPick, gap, fold = tr
 }
 
 const DL_D = 'M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3';
-const MUSIC_D = 'm9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z';
+const AUDIO_D = 'M3.75 10.5v3M7.5 7.5v9M11.25 4.5v15M15 8.25v7.5M18.75 6v12M22.5 10.5v3';
 
-type Download = { name: string; meta: string; onClick: () => void | Promise<unknown> };
+type Download = { name: string; meta: string; icon?: ReactNode; onClick: () => void | Promise<unknown> };
 
 export function ExportPanel({ audio, video, formats, onExport }: { audio?: Download | null; video?: Download | null; formats?: boolean; onExport: (k: ExportFormat) => void | Promise<unknown> }) {
   const [done, setDone] = useState<string | null>(null);
@@ -1041,20 +1041,20 @@ export function ExportPanel({ audio, video, formats, onExport }: { audio?: Downl
     <>
       <Eyebrow style={{ letterSpacing: '.12em', color: 'var(--ink-35)' }}>{label}</Eyebrow>
       <button type="button" className="dlrow" disabled={busy != null} aria-busy={busy === k || undefined} onClick={() => save(k, dl)} style={busy && busy !== k ? { opacity: 0.45 } : undefined}>
-        {busy === k
-          ? <Spinner size={17} color="var(--brand)" track="var(--fill-12)" />
-          : <Icon d={icon} size={17} sw={1.5} style={{ flex: 'none', color: 'var(--ink-70)' }} />}
+        <span style={{ display: 'inline-flex', flex: 'none', color: 'var(--ink-70)' }}>{dl.icon ?? <Icon d={icon} size={17} sw={1.5} />}</span>
         <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1, textAlign: 'left' }}>
           <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-96)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dl.name}</span>
           <span style={{ font: '500 9.5px var(--vs-font-mono)', color: 'var(--ink-40)', letterSpacing: '.04em' }}>{dl.meta}</span>
         </span>
-        <Icon d={done === k ? D.check : DL_D} size={17} sw={1.6} style={{ flex: 'none', color: done === k ? 'var(--brand)' : 'var(--ink-62)' }} />
+        {busy === k
+          ? <Spinner size={17} color="var(--brand)" track="var(--fill-12)" />
+          : <Icon d={done === k ? D.check : DL_D} size={17} sw={1.6} style={{ flex: 'none', color: done === k ? 'var(--brand)' : 'var(--ink-62)' }} />}
       </button>
     </>
   );
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {audio && row('audio', audio, MUSIC_D, 'DOWNLOAD AUDIO')}
+      {audio && row('audio', audio, AUDIO_D, 'DOWNLOAD AUDIO')}
       {video && row('video', video, D.video, 'DOWNLOAD VIDEO')}
       {formats !== false && (
         <>
