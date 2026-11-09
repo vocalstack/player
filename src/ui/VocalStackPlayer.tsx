@@ -20,7 +20,7 @@ import { siteOf } from '../core/sites';
 import { SiteIcon } from './SiteIcon';
 import { loomSetup } from '../core/loomStream';
 import { displayName, useYtTitle } from '../data/title';
-import { bedNote, REMOVE_BG_LABEL, removeBgFromQuery, trackPlan, useBackgroundBed, useSeparatedTrack, withRemoveBg } from '../core/background';
+import { bedNote, originalSound, REMOVE_BG_LABEL, removeBgFromQuery, trackPlan, useBackgroundBed, useSeparatedTrack, withRemoveBg } from '../core/background';
 import { useVoiceFollow } from '../core/voiceFollow';
 import { useMediaKeys } from '../core/mediaKeys';
 import { clock, durationLabel } from '../core/format';
@@ -356,8 +356,11 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   }, [ytId, recLive, recStartMs, recMediaMs, shared]); // eslint-disable-line react-hooks/exhaustive-deps
   const srcPlayer = videoLed ? yt.player : audioPlayer;
   const langs = useLanguages();
+  const [speechState, setSpeechState] = useState<'off' | 'making' | 'ready' | 'unavailable'>('off');
+  const speechUrl = locked && removeBg && !!shared?.allowDownload && !!recordingId && (!running || !!audioUrl) ? backgroundAudioUrl(api.origin, recordingId, api.cred, 'speech') : null;
+  const origBySpeech = !!speechUrl && originalSound(removeBg, speechState) === 'speech';
   const langBusyRef = useRef<string | null>(null);
-  const voice = useTxVoice({ forcedVoice: props.voice ?? null, recordingId, model, rows, lenS, ended: !!recordingId && !running, cred: api.cred, langs, srcLang: langCode, canTranslate: !!shared?.allowTranslate, pickedLang: txLang, setPickedLang: setTxLang, side: desk && !full ? PUB_SIDE : undefined, hearOriginal, timed: videoLed, stockVoices: locked && !cloning, consent: cloning, cloneIfOffered: cloneOn, stickyPicker: locked, pickerBusy: langBusyRef.current, originalSrc: audioUrl, originalOffset: sourceAudio ? shared?.job?.crop?.startS ?? 0 : 0 });
+  const voice = useTxVoice({ forcedVoice: props.voice ?? null, recordingId, model, rows, lenS, ended: !!recordingId && !running, cred: api.cred, langs, srcLang: langCode, canTranslate: !!shared?.allowTranslate, pickedLang: txLang, setPickedLang: setTxLang, side: desk && !full ? PUB_SIDE : undefined, hearOriginal, timed: videoLed, stockVoices: locked && !cloning, consent: cloning, cloneIfOffered: cloneOn, stickyPicker: locked, pickerBusy: langBusyRef.current, originalSrc: origBySpeech ? speechUrl : audioUrl, originalOffset: !origBySpeech && sourceAudio ? shared?.job?.crop?.startS ?? 0 : 0 });
   useEffect(() => { if (voice.hasClone && recordingId) setClonedRec(recordingId); }, [voice.hasClone, recordingId]);
   const langSent = useRef<string | null>(null);
   useEffect(() => { if (!recordingId || langSent.current === askLang) return; langSent.current = askLang; setLanguage(askLang); }, [askLang, recordingId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -516,13 +519,15 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const hushBtn = <button type="button" className="gfull__toastx" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); setHushed(hushKey); }}><Icon d={D.close} size={12} sw={2} /></button>;
   const softNote = !softWait || !waitState ? null : waitState.kind === 'translating' ? `Translating into ${waitLangName || 'the new language'}…` : `Preparing the ${waitLangName || 'translated'} voice…`;
   const voiceHolds = !softWait && (waitState?.kind === 'voice' || waitState?.kind === 'starting');
-  const plan = trackPlan(removeBg, voice.on);
-  const bedUrl = locked && plan.bed && canDownload && !!recordingId && (!running || !!audioUrl) ? backgroundAudioUrl(api.origin, recordingId, api.cred) : null;
-  const bed = useBackgroundBed(bedUrl, { t: pictureT(player, rows), playing: player.playing && !voiceHolds && !(player.timed && !!player.preparing), muted: player.muted });
-  const speechUrl = locked && plan.speech && canDownload && !!recordingId && (!running || !!audioUrl) ? backgroundAudioUrl(api.origin, recordingId, api.cred, 'speech') : null;
-  const speechTrack = useSeparatedTrack(speechUrl, { t: pictureT(player, rows), playing: !voice.on && player.playing, muted: player.muted });
+  const originalRow = voice.on && (videoLed ? follow.original : !!player.original);
+  const plan = trackPlan(removeBg, voice.on, originalRow);
+  const bedUrl = locked && trackPlan(removeBg, voice.on).bed && canDownload && !!recordingId && (!running || !!audioUrl) ? backgroundAudioUrl(api.origin, recordingId, api.cred) : null;
+  const bed = useBackgroundBed(bedUrl, { t: pictureT(player, rows), playing: plan.bed && player.playing && !voiceHolds && !(player.timed && !!player.preparing), muted: player.muted });
+  const speechTrack = useSeparatedTrack(speechUrl, { t: pictureT(player, rows), playing: plan.speech && (!voice.on || videoLed) && player.playing, muted: player.muted });
+  useEffect(() => { setSpeechState(speechTrack.state); }, [speechTrack.state]);
   const speechOver = !voice.on && speechTrack.on;
-  useEffect(() => { yt.setVideoSound(!(videoLed && ((voice.on && !follow.original) || speechOver))); audioPlayer.silence?.(!videoLed && speechOver); }, [videoLed, voice.on, follow.original, speechOver, audioUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+  const videoMuted = videoLed && (voice.on ? !follow.original || (removeBg && speechTrack.on) : speechOver);
+  useEffect(() => { yt.setVideoSound(!videoMuted); audioPlayer.silence?.(!videoLed && speechOver); }, [videoMuted, videoLed, speechOver, audioUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   const bgState = !canDownload ? 'unavailable' : voice.on ? bed : speechTrack.state;
   const speaking = speakOn && speakAvail && !!askLang;
   const audioSummary = !speaking ? (removeBg && bgState !== 'unavailable' ? 'Original speech, background removed' : 'Original sound') : [`Translated${voice.hasClone ? (cloning ? ', cloned voices' : ', synthetic voices') : ''}`, !removeBg && canDownload && bed !== 'unavailable' ? 'with background sound' : null].filter(Boolean).join(' ');

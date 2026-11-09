@@ -42,8 +42,12 @@ export interface TrackPlan {
   speech: boolean;
 }
 
-export function trackPlan(removeBg: boolean, voiceOn: boolean): TrackPlan {
-  return { bed: voiceOn && !removeBg, speech: !voiceOn && removeBg };
+export function trackPlan(removeBg: boolean, voiceOn: boolean, originalRow = false): TrackPlan {
+  return { bed: voiceOn && !removeBg && !originalRow, speech: removeBg && (!voiceOn || originalRow) };
+}
+
+export function originalSound(removeBg: boolean, speech: BedState): 'speech' | 'source' {
+  return removeBg && speech === 'ready' ? 'speech' : 'source';
 }
 
 export function removeBgOf(stored: boolean | null, oldKeep: boolean | null): boolean {

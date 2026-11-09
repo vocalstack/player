@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bedNote, bedRetryS, followBed, partAt, partsOf, removeBgFromQuery, removeBgOf, slotsFor, trackPlan, withRemoveBg, type BedMedia, type SepPart } from '../src/core/background.ts';
+import { bedNote, bedRetryS, followBed, originalSound, partAt, partsOf, removeBgFromQuery, removeBgOf, slotsFor, trackPlan, withRemoveBg, type BedMedia, type SepPart } from '../src/core/background.ts';
 
 function media(t = 0, paused = true): BedMedia & { plays: number; pauses: number } {
   const m = {
@@ -114,4 +114,14 @@ test('the next part is loaded beside the playing one so the hand-over at its sta
   assert.deepEqual(plan, { play: 0, load: [] });
   plan = slotsFor(parts, 0, [60, 30], 0);
   assert.deepEqual(plan, { play: 0, load: [[0, 0]] }, 'a seek back reloads the playing slot and keeps the next part');
+});
+
+test('a line played in its original audio during a reading never doubles the background', () => {
+  assert.deepEqual(trackPlan(false, true, true), { bed: false, speech: false }, 'background kept: the full original plays and the bed pauses under that line');
+  assert.deepEqual(trackPlan(true, true, true), { bed: false, speech: true }, 'background removed: the line plays the speech-only track');
+  assert.deepEqual(trackPlan(false, true, false), { bed: true, speech: false }, 'the voiced lines keep their bed');
+  assert.equal(originalSound(true, 'ready'), 'speech');
+  assert.equal(originalSound(true, 'making'), 'source', 'speech track not ready yet (503 retryAfterS): the full original plays, with no bed under it');
+  assert.equal(originalSound(true, 'unavailable'), 'source');
+  assert.equal(originalSound(false, 'ready'), 'source', 'with the background kept, the original is the full source');
 });
