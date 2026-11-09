@@ -340,3 +340,74 @@ test('joining a line mid-speech (a language switch) stays silent through it, nev
   mock.timers.tick(500);
   assert.deepEqual(played, ['c3']);
 });
+
+function readingQueue(held: number[], original: number[]) {
+  const q = new ClipQueue();
+  q.finite = true;
+  q.gapBefore = () => 0;
+  q.silentSpan = (_id, frac) => ({ fromS: (frac ?? 0) * 4, ms: (1 - (frac ?? 0)) * 4000 });
+  q.setOriginal(original);
+  for (const id of held) q.add(clip(id));
+  return q;
+}
+
+test('a reading in the language a line was spoken in plays that line in its original audio, between the voiced lines, in order', () => {
+  const q = readingQueue([1, 3], [2]);
+  q.play(1);
+  assert.deepEqual(played, ['c1']);
+  el(q).finish(2);
+  assert.deepEqual(q.resting(), { sentenceId: 2, s: 0, silent: true, original: true }, 'line 2 is its original audio, not skipped');
+  assert.equal(q.playing, true);
+  mock.timers.tick(3999);
+  assert.deepEqual(played, ['c1'], 'line 3 waits for the original line to end');
+  mock.timers.tick(1);
+  assert.deepEqual(played, ['c1', 'c3']);
+  el(q).finish(2);
+  assert.equal(q.playing, false, 'the reading ends after the last line');
+});
+
+test('pausing on an original line holds it; resuming continues it, then the next voiced line plays', () => {
+  const q = readingQueue([1, 3], [2]);
+  q.play(1);
+  el(q).finish(2);
+  mock.timers.tick(1000);
+  q.pause();
+  mock.timers.tick(30_000);
+  assert.ok(Math.abs((q.resting()?.s ?? 0) - 1) < 0.01);
+  assert.equal(q.resume(2), true);
+  mock.timers.tick(3000);
+  assert.deepEqual(played, ['c1', 'c3']);
+});
+
+test('a seek into an original line starts there, from the point sought', () => {
+  const q = readingQueue([1, 3], [2]);
+  q.play(1);
+  q.startWithin(2, 0.5);
+  q.seek(2);
+  assert.deepEqual(q.resting(), { sentenceId: 2, s: 2, silent: true, original: true });
+  mock.timers.tick(2000);
+  assert.deepEqual(played, ['c1', 'c3']);
+});
+
+test('original lines after the last voiced one still play, and a reading of only original lines plays through', () => {
+  const q = readingQueue([1], [2, 3]);
+  q.play(1);
+  el(q).finish(2);
+  assert.equal(q.resting()?.sentenceId, 2);
+  mock.timers.tick(4000);
+  assert.equal(q.resting()?.sentenceId, 3);
+  mock.timers.tick(4000);
+  assert.equal(q.playing, false);
+  const only = readingQueue([], [5, 6]);
+  only.play(6);
+  assert.equal(only.resting()?.sentenceId, 6, 'starting on an original line beyond every clip starts there');
+  assert.equal(only.resting()?.original, true);
+});
+
+test('with a video to follow, an original line is marked so the video sound can play under it', () => {
+  const q = flowQueue([1, 3]);
+  q.setOriginal([2]);
+  q.play(1);
+  el(q).finish(2);
+  assert.deepEqual(q.resting(), { sentenceId: 2, s: 0, silent: true, original: true });
+});

@@ -5,13 +5,13 @@ import { D, Icon, PlayGlyph, Spinner } from '../ds/Icons';
 import { pickerLanguages, useRecentLangs } from '../data/prefs';
 import { useVoicePreview } from '../data/voicePreview';
 import { useLanguageList } from '../ds/LanguagePicker';
-import { explainAudioError, mediaErrorText, mediaKindOf, reportMediaError, type MediaCred } from '../core/audio';
+import { deliveryAudioUrl, explainAudioError, mediaErrorText, mediaKindOf, reportMediaError, type MediaCred } from '../core/audio';
 import { clock } from '../core/format';
 import { describe, useAsync, type ErrorLike } from '../data/transcript';
 import { usePlayerApi } from '../data/context';
 import { strings } from '../data/i18n';
 import { confClass, fixedSlots, lane, newSpeakerRows, sameLang, speakerInitial, speakerLabel, speakerLook, type Model, type Row, type Word } from '../core/transcript';
-import { ClipQueue, newMediaElement, readCursor, VoiceNotStarted, type ReadPos, type VoiceClip } from '../core/voiceplayer';
+import { ClipQueue, newMediaElement, originalLines, readCursor, readsAllOriginal, voicedLines, VoiceNotStarted, type ReadPos, type VoiceClip } from '../core/voiceplayer';
 import { placePosition, snapPosition, type PlayPos } from '../core/playPosition';
 import { findCount, findMatches, matchAt, stepMatch } from '../core/find';
 import { voiceWait, VOICE_WAIT_TITLE } from '../core/voiceWait';
@@ -247,6 +247,7 @@ export interface TxPlayer {
   autoplay?: () => Promise<boolean | null>;
   edgeWait?: boolean;
   silent?: boolean;
+  original?: boolean;
   joinAt?: (t: number) => void;
   error: ErrorLike | null;
   seekN: number;
@@ -667,9 +668,21 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
   };
 }
 
-function useTxVoicePlayer(clips: VoiceClip[], rows: Row[], lenS: number | null, key: string, muted?: Set<number>, wordTimes?: Record<string, [number, number][]>, timed = false, coming?: ReadonlySet<number>): TxPlayer {
+export interface OriginalAudio { ids: ReadonlySet<number>; src: string | null; offset?: number }
+const NO_ORIGINAL: OriginalAudio = { ids: new Set(), src: null };
+
+function useTxVoicePlayer(clips: VoiceClip[], rows: Row[], lenS: number | null, key: string, muted?: Set<number>, wordTimes?: Record<string, [number, number][]>, timed = false, coming?: ReadonlySet<number>, original: OriginalAudio = NO_ORIGINAL): TxPlayer {
   const comingRef = useRef<ReadonlySet<number>>(new Set());
   comingRef.current = coming ?? comingRef.current;
+  const origOn = original.ids.size > 0 && (timed || !!original.src);
+  const origIds = origOn ? original.ids : NO_ORIGINAL.ids;
+  const origList = useMemo(() => [...origIds].sort((a, b) => a - b), [origIds]);
+  const origRef = useRef(original); origRef.current = original;
+  const origEl = useRef<HTMLMediaElement | null>(null);
+  const origSrc = useRef<string | null>(null);
+  const [onOriginal, setOnOriginal] = useState(false);
+  const [restOriginal, setRestOriginal] = useState(false);
+  const hushOriginal = () => { origEl.current?.pause(); };
   const q = useRef<ClipQueue | null>(null);
   const [playing, setPlaying] = useState(false);
   const [pos, setPos] = useState(0);
@@ -724,7 +737,7 @@ function useTxVoicePlayer(clips: VoiceClip[], rows: Row[], lenS: number | null, 
       return Math.max(0, b.start - lineEnd(a, a.start, a.start + 4));
     };
     queue.flow = timedRef.current;
-    queue.silentSpan = (id) => {
+    queue.silentSpan = (id, frac) => {
       const rs = rowsRef.current;
       const i = rs.findIndex((r) => r.sentenceId === id);
       const r = rs[i];
@@ -732,7 +745,7 @@ function useTxVoicePlayer(clips: VoiceClip[], rows: Row[], lenS: number | null, 
       const end = rs[i + 1]?.start ?? lineEnd(r, r.start, r.start + 4);
       const span = Math.max(0, end - r.start);
       const v = videoRef.current;
-      const now = v && Date.now() - v.at < 2000 ? v.t + (Date.now() - v.at) / 1000 * (queue.rate || 1) : r.start;
+      const now = frac != null ? r.start + frac * span : v && Date.now() - v.at < 2000 ? v.t + (Date.now() - v.at) / 1000 * (queue.rate || 1) : r.start;
       const fromS = Math.max(0, Math.min(span, now - r.start));
       return { fromS, ms: ((span - fromS) * 1000) / (queue.rate || 1) };
     };
@@ -743,6 +756,7 @@ function useTxVoicePlayer(clips: VoiceClip[], rows: Row[], lenS: number | null, 
       return !r || !m.has(r.speaker);
     };
   }, []);
+  const origListRef = useRef(origList); origListRef.current = origList;
   const keyRef = useRef<string | null>(null);
   const snapRef = useRef<PlayPos | null>(null);
   const pendingRef = useRef<PlayPos | null>(null);
@@ -765,6 +779,8 @@ function useTxVoicePlayer(clips: VoiceClip[], rows: Row[], lenS: number | null, 
       q.current = new ClipQueue();
       wire(q.current);
       q.current.setSequence(lineIdsRef.current);
+      q.current.setOriginal(origListRef.current);
+      hushOriginal();
       setPlaying(false);
       setPos(0);
       setError(null);
@@ -776,18 +792,39 @@ function useTxVoicePlayer(clips: VoiceClip[], rows: Row[], lenS: number | null, 
     queue.setMuted(quietRef.current);
     for (const c of clips) queue.add(c);
     const p = pendingRef.current;
-    if (p && (timedRef.current || clips.some((c) => c.sentenceId >= (p.sentenceId ?? 0)))) { park(null); applyRef.current(p); }
-  }, [key, clips]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (p && (timedRef.current || clips.some((c) => c.sentenceId >= (p.sentenceId ?? 0)) || origListRef.current.some((id) => id >= (p.sentenceId ?? 0)))) { park(null); applyRef.current(p); }
+  }, [key, clips, origList]); // eslint-disable-line react-hooks/exhaustive-deps
   const lineIds = useMemo(() => (timed ? rows.map((r) => r.sentenceId).filter((id): id is number => id != null) : []), [rows, timed]);
   lineIdsRef.current = lineIds;
   useEffect(() => { q.current?.setSequence(lineIds); }, [lineIds, key]);
-  useEffect(() => () => { q.current?.stop(); q.current = null; keyRef.current = null; }, []);
+  useEffect(() => { q.current?.setOriginal(origList); }, [origList, key]);
+  useEffect(() => () => { q.current?.stop(); q.current = null; keyRef.current = null; const a = origEl.current; if (a) { a.pause(); a.removeAttribute('src'); } origEl.current = null; }, []);
+  const syncOriginal = (rest: { sentenceId: number; s: number; original?: true } | null) => {
+    const o = origRef.current;
+    const on = !!rest?.original && !!q.current?.playing;
+    if (!on || timedRef.current || !o.src) { hushOriginal(); return on; }
+    const r = rowsRef.current.find((x) => x.sentenceId === rest!.sentenceId);
+    if (!r) { hushOriginal(); return on; }
+    let a = origEl.current;
+    if (!a) { a = newMediaElement(); a.preload = 'auto'; origEl.current = a; origSrc.current = null; }
+    if (origSrc.current !== o.src) { origSrc.current = o.src; a.src = o.src; }
+    a.muted = quietRef.current;
+    a.volume = q.current?.volume ?? 1;
+    a.playbackRate = q.current?.rate || 1;
+    const want = r.start + rest!.s + (o.offset ?? 0);
+    if (Math.abs(a.currentTime - want) > 0.35) { try { a.currentTime = want; } catch { } }
+    if (a.paused) void a.play().catch(() => {});
+    return on;
+  };
+  useEffect(() => { if (!playing) { hushOriginal(); setOnOriginal(false); } }, [playing]);
   const hasPos = clipPos != null || restS != null;
   useEffect(() => {
     if (!playing && !hasPos) { setClipPos(null); setRestS(null); return; }
     const tick = () => {
       const rest = q.current?.resting() ?? null;
-      setSilent(!!rest?.silent);
+      setOnOriginal(syncOriginal(rest));
+      setRestOriginal(!!rest?.original);
+      setSilent(!!rest?.silent && !rest.original);
       if (rest?.silent && aimRef.current) { aimRef.current = null; setAim(null); }
       setRestS((prev) => (rest == null ? null : prev != null && Math.abs(prev - rest.s) < 0.05 ? prev : rest.s));
       const a = aimRef.current;
@@ -806,7 +843,7 @@ function useTxVoicePlayer(clips: VoiceClip[], rows: Row[], lenS: number | null, 
     const h = setInterval(tick, 100);
     return () => clearInterval(h);
   }, [playing, hasPos]);
-  const voiced = useMemo(() => new Set(clips.map((c) => c.sentenceId)), [clips]);
+  const voiced = useMemo(() => new Set([...clips.map((c) => c.sentenceId), ...origList]), [clips, origList]);
   const heard = (i: number) => { const sid = rows[i]?.sentenceId; return sid != null && voiced.has(sid); };
   const step = (from: number, dir: 1 | -1): number | null => {
     for (let i = from; i >= 0 && i < rows.length; i += dir) if (heard(i)) return i;
@@ -836,6 +873,7 @@ function useTxVoicePlayer(clips: VoiceClip[], rows: Row[], lenS: number | null, 
   const cur = spanOf(idx);
   const speech = Math.max(0, Math.min(cur.span, lineEnd(rows[idx], cur.from, cur.from + 4) - cur.from));
   const tNow = aim ? aim.t
+    : !timed && restS != null && restOriginal ? cur.from + Math.min(cur.span, restS)
     : !timed ? (clipPos && clipPos.dur > 0 ? cur.from + Math.min(cur.span, (clipPos.t / clipPos.dur) * cur.span) : cur.from)
     : restS != null && silent ? cur.from + Math.min(cur.span, restS)
     : restS != null ? (restBase != null ? Math.min(cur.from, restBase + restS) : cur.from + Math.min(cur.span, speech + restS))
@@ -848,25 +886,26 @@ function useTxVoicePlayer(clips: VoiceClip[], rows: Row[], lenS: number | null, 
     idx, dur, muted: quiet, wordSync: false, timed, clipPos: aim ? null : clipPos,
     videoAt: (t: number) => { videoRef.current = { t, at: Date.now() }; },
     engaged: playing || clipPos != null,
-    has: clips.length > 0,
+    has: clips.length > 0 || origOn,
     preparing: waiting != null || resuming,
     silent: playing && silent,
+    original: playing && onOriginal,
     starting,
     error, seekN,
-    toggleMute: () => { const m = !quietRef.current; quietRef.current = m; q.current?.setMuted(m); setQuiet(m); },
+    toggleMute: () => { const m = !quietRef.current; quietRef.current = m; q.current?.setMuted(m); if (origEl.current) origEl.current.muted = m; setQuiet(m); },
     toggle: () => {
       if (resuming) { drop(); return; }
       drop();
-      if (playing) { q.current?.pause(); setPlaying(false); return; }
+      if (playing) { q.current?.pause(); hushOriginal(); setPlaying(false); return; }
       setError(null);
       const at = posRef.current;
       if (!aimRef.current && q.current?.resume(rows[at]?.sentenceId ?? null)) { setPlaying(true); return; }
       start(at);
     },
-    pause: () => { drop(); q.current?.pause(); setPlaying(false); },
-    stop: () => { drop(); q.current?.pause(); setPlaying(false); setPos(0); setClipPos(null); q.current?.seek(rows[0]?.sentenceId ?? null); },
+    pause: () => { drop(); q.current?.pause(); hushOriginal(); setPlaying(false); },
+    stop: () => { drop(); q.current?.pause(); hushOriginal(); setPlaying(false); setPos(0); setClipPos(null); q.current?.seek(rows[0]?.sentenceId ?? null); },
     seekRow,
-    resumeAt: (p: PlayPos) => { park(p); if (clips.some((c) => c.sentenceId >= (p.sentenceId ?? 0))) { park(null); applyRef.current(p); } },
+    resumeAt: (p: PlayPos) => { park(p); if (clips.some((c) => c.sentenceId >= (p.sentenceId ?? 0)) || origList.some((id) => id >= (p.sentenceId ?? 0))) { park(null); applyRef.current(p); } },
     seekFrac: (f: number) => {
       drop();
       const t = Math.max(0, Math.min(1, f)) * dur;
@@ -919,10 +958,10 @@ function useTxVoicePlayer(clips: VoiceClip[], rows: Row[], lenS: number | null, 
     },
     prev: () => { const i = step(idx - 1, -1); if (i != null) seekRow(i); },
     next: () => { const i = step(idx + 1, 1); if (i != null) seekRow(i); },
-    hold: () => { if (playing) { q.current?.pause(); held.current = true; } },
+    hold: () => { if (playing) { q.current?.pause(); hushOriginal(); held.current = true; } },
     release: () => { if (held.current) { held.current = false; start(posRef.current); } },
     clearError: () => setError(null),
-    setVolume: (v: number) => q.current?.setVolume(v),
+    setVolume: (v: number) => { q.current?.setVolume(v); if (origEl.current) origEl.current.volume = v; },
   };
   function joinRow(i: number) {
     const sid = rows[i]?.sentenceId;
@@ -983,7 +1022,9 @@ export interface VoiceSheetHooks {
   castWarn?: (sp: CastMember, ctx: VoiceSheetCtx) => string | null;
 }
 
-export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs, srcLang, canTranslate, pickedLang, setPickedLang, side, hearOriginal = false, timed = false, stockVoices = false, stickyPicker = false, pickerBusy = null, voiceSheet , forcedVoice = null, consent = true, cloneIfOffered = false }: {
+export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs, srcLang, canTranslate, pickedLang, setPickedLang, side, hearOriginal = false, timed = false, stockVoices = false, stickyPicker = false, pickerBusy = null, voiceSheet , forcedVoice = null, consent = true, cloneIfOffered = false, originalSrc, originalOffset = 0 }: {
+  originalSrc?: string | null;
+  originalOffset?: number;
   consent?: boolean;
   cloneIfOffered?: boolean;
   voiceSheet?: VoiceSheetHooks;
@@ -1016,10 +1057,13 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const [sheet, setSheet] = useState(false);
   const [fromVoices, setFromVoices] = useState(false);
   const [want, setWant] = useState(false);
+  const playerApi = usePlayerApi();
   const asSource = pickedLang != null && sameLang(pickedLang, srcLang);
   const lang = asSource ? srcLang : pickedLang ?? srcLang;
-  const original = pickedLang === null || asSource;
-  const on = (pickedLang != null && !asSource) || picked != null;
+  const hasLines = rows.some((r) => r.sentenceId != null && !r.suppressed && !r.unclear);
+  const whole = pickedLang != null && (hasLines ? readsAllOriginal(rows, lang, srcLang) : asSource);
+  const original = pickedLang === null || (asSource && whole);
+  const on = (pickedLang != null && !whole) || picked != null;
   const speakable = (c: string | null | undefined) => !!c && !!langs?.voice.includes(c);
   const vLang = speakable(original ? srcLang : lang) ? (original ? srcLang : lang) : 'en';
   const preview = useVoicePreview(vLang);
@@ -1053,11 +1097,13 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const sentCast = castChosen ? cast : stockCast;
   const canSpeak = !!lang && !!langs?.voice.includes(lang);
   const speakHere = canSpeak && !hearOriginal;
-  const sentenceIds = useMemo(
-    () => rows.filter((r) => !r.suppressed && !r.unclear).map((r) => r.sentenceId).filter((id): id is number => id != null),
-    [rows],
-  );
-  const arch = useArchiveVoice({ consent: consent || hostClones, recordingId, lang: original && picked == null ? null : lang, ended, cred, pickedVoice: forcedVoice || (castKeyStr ?? picked), sentenceIds: ended && speakHere ? sentenceIds : undefined });
+  const sameHere = useMemo(() => originalLines(rows, lang, srcLang), [rows, lang, srcLang]);
+  const sentenceIds = useMemo(() => voicedLines(rows, sameHere), [rows, sameHere]);
+  const arch = useArchiveVoice({ consent: consent || hostClones, recordingId, lang: (original || whole) && picked == null ? null : lang, ended, cred, pickedVoice: forcedVoice || (castKeyStr ?? picked), sentenceIds: ended && speakHere ? sentenceIds : undefined });
+  const origKey = [...sameHere, ...(arch.original ?? [])].sort((a, b) => a - b).join(',');
+  const origIds = useMemo(() => new Set(origKey ? origKey.split(',').map(Number) : []), [origKey]);
+  const origSrc = originalSrc !== undefined ? originalSrc : recordingId && ended ? deliveryAudioUrl(playerApi.origin, recordingId, cred) : null;
+  const origAudio = useMemo(() => ({ ids: origIds, src: origSrc, offset: originalOffset }), [origIds, origSrc, originalOffset]);
   const gvPicked = gvList.find((v) => v.id === picked) ?? gvList.find((v) => v.id === arch.track?.voice) ?? gvList.find((v) => v.default) ?? gvList[0] ?? null;
   const gvId = gvPicked?.id ?? null;
 
@@ -1068,7 +1114,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   }, [arch.rendering, arch.reload]);
 
   const clipKey = `${recordingId ?? ''}|${lang ?? ''}|${forcedVoice || (castKeyStr ?? picked ?? arch.track?.voiceKey ?? 'default')}`;
-  const vp = useTxVoicePlayer(arch.clips, rows, lenS, clipKey, spkMute, arch.track?.wordTimes, timed, arch.coming);
+  const vp = useTxVoicePlayer(arch.clips, rows, lenS, clipKey, spkMute, arch.track?.wordTimes, timed, arch.coming, origAudio);
   useEffect(() => { const id = rows[vp.idx]?.sentenceId; if (id != null) arch.setNear(id); }, [vp.idx]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!want || !vp.has) return;
@@ -1095,7 +1141,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const openPicker = () => setPicker(true);
   const closePicker = () => { setPicker(false); setSheet(fromVoices); setFromVoices(false); };
   const selectLang = (chosen: string | null) => {
-    const c = chosen != null && sameLang(chosen, srcLang) ? null : chosen;
+    const c = chosen != null && sameLang(chosen, srcLang) && voicedLines(rows, originalLines(rows, chosen, srcLang)).length === 0 ? null : chosen;
     setPickedLang(c);
     pushRecent(c);
     if (side && !fromVoices) return;
@@ -1262,7 +1308,9 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     sheetsOpen: picker || sheet,
     on: speaks, player, chip, voiceBtn, nearRow: arch.setNear, clipsReady: vp.has, clipFor: (id: number | null | undefined) => id != null && arch.clips.some((c) => c.sentenceId === id), voiceWaiting: busy, sheets, sidePanel, voicesMine, toggleVoices, cloningOn: cloneOn, playTitle, noVoice, noVoiceNote, relang, sampling: preview.sampleId != null, error: preview.error, clearError: () => preview.clearError(), openVoices, openPicker, original, reloadVoices: () => setCatVer((n) => n + 1), voicesVer: catVer, people, gvList, autoOf, savedFor, closeVoices, setSheet,
     selectedSpeaker: selSp, armVoice: preview.arm, resetPreview: preview.reset, armedId: preview.armId, resetCast: () => setCastByLang((m) => ({ ...m, [vLang ?? '']: {} })),
-    readLang: typeof pickedLang === 'string' && pickedLang !== srcLang ? pickedLang : null,
+    readLang: typeof pickedLang === 'string' && !whole ? pickedLang : null,
+    originalIds: origIds,
+    plays: (id: number | null | undefined) => id != null && (origIds.has(id) || arch.clips.some((c) => c.sentenceId === id)),
     readVoiceKey: forcedVoice || (castKeyStr ?? picked ?? arch.track?.voiceKey ?? ''),
     pickedVoiceKey: castKeyStr ?? picked ?? null,
     readVoiceName: gvPicked?.name ?? null,

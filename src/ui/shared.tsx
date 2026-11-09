@@ -7,7 +7,7 @@ import { D, EqBars, Icon, PauseGlyph, PlayGlyph, Spinner, StopGlyph } from '../d
 import { clock } from '../core/format';
 import { confClass, fixedSlots, lane, speakerInitial, speakerNumber, speakerLabel, speakerLook, speakerName, type Lane, type Model, type Row, type Word } from '../core/transcript';
 import { audioClipUrl, type MediaCred } from '../core/audio';
-import { archiveClips, readCursor, readTokens, rowForVoice, type ReadPos, type VoiceTrackRow } from '../core/voiceplayer';
+import { archiveClips, missingClips, readCursor, readTokens, rowForVoice, type ReadPos, type VoiceTrackRow } from '../core/voiceplayer';
 import { TX_FORMATS } from '../data/tx';
 import { describe, useAsync, type ErrorLike } from '../data/transcript';
 import { apiFetch, usePlayerApi } from '../data/context';
@@ -863,7 +863,8 @@ export function useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice, s
   const sentenceKey = sentenceIds?.join(',') ?? '';
   const [near, setNear] = useState<number | null>(null);
   const made = useMemo(() => new Set(track?.clips ?? []), [track]);
-  const missing = useMemo(() => (ended && sentenceKey ? sentenceKey.split(',').map(Number).filter((id) => !made.has(id)) : []), [ended, sentenceKey, made]);
+  const original = track?.original;
+  const missing = useMemo(() => (ended && sentenceKey ? missingClips(sentenceKey.split(',').map(Number), made, original) : []), [ended, sentenceKey, made, original]);
   const kicked = useRef<{ key: string; near: number; at: number } | null>(null);
   useEffect(() => {
     if (!ended || !recordingId || !lang || !missing.length) return;
@@ -902,7 +903,7 @@ export function useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice, s
     return archiveClips(row, recordingId, api.origin, cred, ids);
   }, [track, recordingId, api, cred, sentenceKey, lang, pickedVoice, ended, made]);
   const coming = useMemo(() => new Set(missing), [missing]);
-  return { listed, rows, track, renderVoiceId, rendering, failed, clips, requestRender, forget, reload, setNear, missing: missing.length, coming };
+  return { listed, rows, track, renderVoiceId, rendering, failed, clips, requestRender, forget, reload, setNear, missing: missing.length, coming, original: original ?? null };
 }
 
 export interface TabSpec<K extends string> { key: K; label: string; icon?: string; sw?: number }

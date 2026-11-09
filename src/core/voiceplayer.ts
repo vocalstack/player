@@ -1,5 +1,6 @@
 import { credParams, deliveryFormat, type MediaCred } from './audio';
 import type { VoiceClip } from './clipQueue';
+import { sameLang } from './transcript';
 
 export { ClipQueue, VoiceNotStarted, mediaKind, newMediaElement, type VoiceClip } from './clipQueue';
 
@@ -34,6 +35,7 @@ export interface VoiceTrackRow {
   durationS?: number | null;
   error?: string | null;
   clips: number[];
+  original?: number[];
   voice?: string | null;
   wordTimes?: Record<string, [number, number][]>;
   clipRev?: Record<string, string>;
@@ -116,4 +118,30 @@ export function tokenAt(tokens: ReadToken[], pos: number, dur: number): number {
     if (want < acc) return i;
   }
   return tokens.length - 1;
+}
+
+export interface LangLine { sentenceId?: number | null; language?: string | null; suppressed?: boolean; unclear?: boolean }
+
+const readable = (r: LangLine): r is LangLine & { sentenceId: number } => r.sentenceId != null && !r.suppressed && !r.unclear;
+
+export function originalLines(rows: readonly LangLine[], lang: string | null | undefined, spoken: string | null | undefined, listed?: readonly number[] | null): Set<number> {
+  const out = new Set<number>(listed ?? []);
+  if (!lang) return out;
+  for (const r of rows) if (readable(r) && sameLang(r.language || spoken, lang)) out.add(r.sentenceId);
+  return out;
+}
+
+export function readsAllOriginal(rows: readonly LangLine[], lang: string | null | undefined, spoken: string | null | undefined): boolean {
+  if (!lang) return false;
+  const lines = rows.filter(readable);
+  return lines.length > 0 && lines.every((r) => sameLang(r.language || spoken, lang));
+}
+
+export function voicedLines(rows: readonly LangLine[], original: ReadonlySet<number>): number[] {
+  return rows.filter(readable).map((r) => r.sentenceId).filter((id) => !original.has(id));
+}
+
+export function missingClips(sentenceIds: readonly number[], made: ReadonlySet<number>, original?: readonly number[] | null): number[] {
+  const orig = new Set(original ?? []);
+  return sentenceIds.filter((id) => !made.has(id) && !orig.has(id));
 }

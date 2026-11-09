@@ -8,6 +8,7 @@ export interface FollowClip { src: string; part: number; parts: number; duration
 export type FollowTarget =
   | { kind: 'play'; sid: number; src: string; offset: number }
   | { kind: 'missing'; sid: number }
+  | { kind: 'original'; sid: number }
   | { kind: 'done'; sid: number }
   | { kind: 'none' };
 
@@ -37,11 +38,12 @@ export function clipTimeAt(line: FollowLine, t: number, totalS: number | null, t
   return ((before + into * len(w)) / all) * totalS;
 }
 
-export function followTarget(lines: readonly FollowLine[], clips: ReadonlyMap<number, readonly FollowClip[]>, t: number, times?: FollowTimes): FollowTarget {
+export function followTarget(lines: readonly FollowLine[], clips: ReadonlyMap<number, readonly FollowClip[]>, t: number, times?: FollowTimes, original?: ReadonlySet<number>): FollowTarget {
   const k = lineAt(lines, t);
   if (k < 0) return { kind: 'none' };
   const line = lines[k];
   if (t >= line.end) return { kind: 'none' };
+  if (original?.has(line.sid)) return { kind: 'original', sid: line.sid };
   const parts = [...(clips.get(line.sid) ?? [])].sort((a, b) => a.part - b.part);
   if (!parts.length) return { kind: 'missing', sid: line.sid };
   const total = Math.max(1, ...parts.map((p) => p.parts));
@@ -77,9 +79,9 @@ export function upcomingSrcs(lines: readonly FollowLine[], clips: ReadonlyMap<nu
   return out;
 }
 
-export interface FollowState { missing: number | null; sid: number | null }
+export interface FollowState { missing: number | null; sid: number | null; original: boolean }
 
-export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; clips: readonly (FollowClip & { sentenceId: number })[]; t: number; playing: boolean; muted: boolean; times?: FollowTimes }): FollowState {
+export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; clips: readonly (FollowClip & { sentenceId: number })[]; t: number; playing: boolean; muted: boolean; times?: FollowTimes; original?: ReadonlySet<number> }): FollowState {
   const bySid = useMemo(() => {
     const m = new Map<number, FollowClip[]>();
     for (const c of o.clips) m.set(c.sentenceId, [...(m.get(c.sentenceId) ?? []), c]);
@@ -87,7 +89,7 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
   }, [o.clips]);
   const cache = useRef(new Map<string, HTMLAudioElement>());
   const cur = useRef<{ src: string; sid: number; el: HTMLAudioElement; t: number; at: number; last: number } | null>(null);
-  const [state, setState] = useState<FollowState>({ missing: null, sid: null });
+  const [state, setState] = useState<FollowState>({ missing: null, sid: null, original: false });
   const el = (src: string) => {
     let a = cache.current.get(src);
     if (!a) {
@@ -101,11 +103,14 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
   const stopCurrent = () => { cur.current?.el.pause(); cur.current = null; };
   useEffect(() => () => { for (const a of cache.current.values()) { a.pause(); a.removeAttribute('src'); } cache.current.clear(); cur.current = null; }, []);
   useEffect(() => {
-    if (!o.on) { stopCurrent(); setState((s) => (s.missing == null && s.sid == null ? s : { missing: null, sid: null })); return; }
-    const want = followTarget(o.lines, bySid, o.t, o.times);
+    if (!o.on) { stopCurrent(); setState((s) => (s.missing == null && s.sid == null && !s.original ? s : { missing: null, sid: null, original: false })); return; }
+    const want = followTarget(o.lines, bySid, o.t, o.times, o.original);
     const missing = want.kind === 'missing' ? want.sid : null;
     const sid = want.kind === 'none' ? null : want.sid;
-    setState((s) => (s.missing === missing && s.sid === sid ? s : { missing, sid }));
+    const c0 = cur.current;
+    const runsOn = want.kind === 'original' && !!c0 && o.playing && !c0.el.paused && !c0.el.ended && mayRunOn(o.lines, o.t, c0.sid);
+    const original = want.kind === 'original' && !runsOn;
+    setState((s) => (s.missing === missing && s.sid === sid && s.original === original ? s : { missing, sid, original }));
     const keep = new Set(upcomingSrcs(o.lines, bySid, o.t));
     for (const src of keep) el(src);
     const c = cur.current;
@@ -135,6 +140,6 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
     try { a.currentTime = want.offset; } catch { }
     cur.current = { src: want.src, sid: want.sid, el: a, t: o.t, at: want.offset, last: o.t };
     void a.play().catch(() => {});
-  }, [o.on, o.t, o.playing, o.muted, o.lines, bySid]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [o.on, o.t, o.playing, o.muted, o.lines, bySid, o.original]); // eslint-disable-line react-hooks/exhaustive-deps
   return state;
 }

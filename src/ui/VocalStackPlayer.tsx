@@ -357,14 +357,14 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const srcPlayer = videoLed ? yt.player : audioPlayer;
   const langs = useLanguages();
   const langBusyRef = useRef<string | null>(null);
-  const voice = useTxVoice({ forcedVoice: props.voice ?? null, recordingId, model, rows, lenS, ended: !!recordingId && !running, cred: api.cred, langs, srcLang: langCode, canTranslate: !!shared?.allowTranslate, pickedLang: txLang, setPickedLang: setTxLang, side: desk && !full ? PUB_SIDE : undefined, hearOriginal, timed: videoLed, stockVoices: locked && !cloning, consent: cloning, cloneIfOffered: cloneOn, stickyPicker: locked, pickerBusy: langBusyRef.current });
+  const voice = useTxVoice({ forcedVoice: props.voice ?? null, recordingId, model, rows, lenS, ended: !!recordingId && !running, cred: api.cred, langs, srcLang: langCode, canTranslate: !!shared?.allowTranslate, pickedLang: txLang, setPickedLang: setTxLang, side: desk && !full ? PUB_SIDE : undefined, hearOriginal, timed: videoLed, stockVoices: locked && !cloning, consent: cloning, cloneIfOffered: cloneOn, stickyPicker: locked, pickerBusy: langBusyRef.current, originalSrc: audioUrl, originalOffset: sourceAudio ? shared?.job?.crop?.startS ?? 0 : 0 });
   useEffect(() => { if (voice.hasClone && recordingId) setClonedRec(recordingId); }, [voice.hasClone, recordingId]);
   const langSent = useRef<string | null>(null);
   useEffect(() => { if (!recordingId || langSent.current === askLang) return; langSent.current = askLang; setLanguage(askLang); }, [askLang, recordingId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [onVoice, setOnVoice] = useState(false);
   const wantPlay = useRef(false);
   const rowAt = Math.max(0, onVoice ? voice.player.idx : srcPlayer.idx);
-  const voiceLate = voice.on && srcPlayer.has && !videoLed && (!voice.clipsReady || !voice.clipFor(rows[rowAt]?.sentenceId));
+  const voiceLate = voice.on && srcPlayer.has && !videoLed && (!voice.clipsReady || !voice.plays(rows[rowAt]?.sentenceId));
   useEffect(() => {
     if (!voice.on || videoLed) { if (onVoice) setOnVoice(false); return; }
     if (voiceLate && onVoice) {
@@ -388,7 +388,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   useEffect(() => { if (!voiceLate) return; const id = rows[rowAt]?.sentenceId; if (id != null) voice.nearRow(id); }, [voiceLate, rowAt]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (videoLed) { voice.player.pause(); return; } (voice.on ? srcPlayer : voice.player).pause(); }, [voice.on, videoLed]); // eslint-disable-line react-hooks/exhaustive-deps
   const followLines = useMemo(() => rows.filter((r) => r.sentenceId != null).map((r, i, a) => ({ sid: r.sentenceId as number, start: r.start, end: a[i + 1]?.start ?? lineEnd(r, r.start, r.start + 4), words: r.words.map((w) => ({ start: w.start, end: w.end, text: w.text })) })), [rows]);
-  const follow = useVoiceFollow({ on: videoLed && voice.on, lines: followLines, clips: voice.clips, t: player.t, playing: player.playing && !player.settling, muted: player.muted, times: voice.wordTimes });
+  const follow = useVoiceFollow({ on: videoLed && voice.on, lines: followLines, clips: voice.clips, t: player.t, playing: player.playing && !player.settling, muted: player.muted, times: voice.wordTimes, original: voice.originalIds });
   const langBusy = !!askLang && (translating || voice.relang || (voice.on && follow.missing != null));
   langBusyRef.current = langBusy ? askLang : null;
   useEffect(() => { if (videoLed && voice.on && follow.sid != null) voice.setNear(follow.sid); }, [follow.sid, videoLed, voice.on]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -522,7 +522,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const speechUrl = locked && plan.speech && canDownload && !!recordingId && (!running || !!audioUrl) ? backgroundAudioUrl(api.origin, recordingId, api.cred, 'speech') : null;
   const speechTrack = useSeparatedTrack(speechUrl, { t: pictureT(player, rows), playing: !voice.on && player.playing, muted: player.muted });
   const speechOver = !voice.on && speechTrack.on;
-  useEffect(() => { yt.setVideoSound(!(videoLed && (voice.on || speechOver))); audioPlayer.silence?.(!videoLed && speechOver); }, [videoLed, voice.on, speechOver, audioUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { yt.setVideoSound(!(videoLed && ((voice.on && !follow.original) || speechOver))); audioPlayer.silence?.(!videoLed && speechOver); }, [videoLed, voice.on, follow.original, speechOver, audioUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   const bgState = !canDownload ? 'unavailable' : voice.on ? bed : speechTrack.state;
   const speaking = speakOn && speakAvail && !!askLang;
   const audioSummary = !speaking ? (removeBg && bgState !== 'unavailable' ? 'Original speech, background removed' : 'Original sound') : [`Translated${voice.hasClone ? (cloning ? ', cloned voices' : ', synthetic voices') : ''}`, !removeBg && canDownload && bed !== 'unavailable' ? 'with background sound' : null].filter(Boolean).join(' ');

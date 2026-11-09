@@ -47,10 +47,31 @@ export class ClipQueue {
   coming: (sentenceId: number) => boolean = () => false;
   gapBefore: (prev: number | null, next: number) => number = () => 0;
   flow = false;
-  silentSpan: (sentenceId: number) => { fromS: number; ms: number } | null = () => null;
+  silentSpan: (sentenceId: number, frac?: number | null) => { fromS: number; ms: number } | null = () => null;
+  private originals: number[] = [];
+  private originalSet = new Set<number>();
+  setOriginal(ids: readonly number[]) {
+    const next = [...new Set(ids)].sort((a, b) => this.rank(a) - this.rank(b));
+    if (next.length === this.originals.length && next.every((id, i) => this.originals[i] === id)) return;
+    this.originals = next;
+    this.originalSet = new Set(next);
+  }
+  isOriginal(id: number): boolean { return this.originalSet.has(id); }
+  private nextOriginal(): number | null {
+    if (!this.originals.length) return null;
+    const after = this.lastRead;
+    const floor = this.rank(this.floor);
+    for (const id of this.originals) {
+      const r = this.rank(id);
+      if (after != null ? r <= this.rank(after) : r < floor) continue;
+      if (this.spoken.has(id) || !this.speakable(id)) continue;
+      return id;
+    }
+    return null;
+  }
   private lastDone: number | null = null;
   private rested = false;
-  private rest: { prev: number; totalMs: number; doneMs: number; since: number | null; timer: ReturnType<typeof setTimeout> | null; silent?: boolean; fromS?: number } | null = null;
+  private rest: { prev: number; totalMs: number; doneMs: number; since: number | null; timer: ReturnType<typeof setTimeout> | null; silent?: boolean; fromS?: number; original?: boolean } | null = null;
   private sequence: number[] = [];
   private seqAt = new Map<number, number>();
   setSequence(ids: number[]) {
@@ -58,6 +79,7 @@ export class ClipQueue {
     this.sequence = ids;
     this.seqAt = new Map(ids.map((id, i) => [id, i]));
     this.order.sort((a, b) => this.rank(a) - this.rank(b));
+    this.originals.sort((a, b) => this.rank(a) - this.rank(b));
   }
 
   private rank(id: number): number {
@@ -138,6 +160,10 @@ export class ClipQueue {
     let exp = this.lastRead != null ? this.expected(this.lastRead) : this.floorOrBefore();
     while (exp != null && (this.spoken.has(exp) || !this.speakable(exp))) exp = this.expected(exp);
     const held = this.earliestHeld();
+    if (!this.flow) {
+      const o = this.nextOriginal();
+      if (o != null && (held == null || this.rank(o) < this.rank(held)) && (exp == null || this.rank(o) <= this.rank(exp))) return { silent: o };
+    }
     if (exp != null && (held == null || this.rank(exp) < this.rank(held))) {
       if (this.piecesOf(exp).length) return { start: exp };
       if (this.flow) return { silent: exp };
@@ -186,12 +212,14 @@ export class ClipQueue {
   }
 
   private silentLine(id: number) {
-    const span = this.silentSpan(id);
+    const w = this.within && this.within.id === id ? this.within.frac : null;
+    if (w != null) this.within = null;
+    const span = this.silentSpan(id, w);
     this.clearRest();
     this.finishLine(id);
     this.started = true;
     this.lastRead = this.lastRead == null ? id : Math.max(this.lastRead, id);
-    this.rest = { prev: id, totalMs: Math.max(0, span?.ms ?? 0), doneMs: 0, since: null, timer: null, silent: true, fromS: span?.fromS ?? 0 };
+    this.rest = { prev: id, totalMs: Math.max(0, span?.ms ?? 0), doneMs: 0, since: null, timer: null, silent: true, fromS: span?.fromS ?? 0, original: this.originalSet.has(id) };
     this.runRest();
     this.onSentence(id);
   }
@@ -223,12 +251,13 @@ export class ClipQueue {
     this.rest = null;
   }
 
-  resting(): { sentenceId: number; s: number; silent: boolean } | null {
+  resting(): { sentenceId: number; s: number; silent: boolean; original?: true } | null {
     const r = this.rest;
     if (!r) return null;
     const ms = r.doneMs + (r.since != null ? Date.now() - r.since : 0);
     const s = (Math.min(ms, r.totalMs) / 1000) * (this.rate || 1);
-    return { sentenceId: r.prev, s: r.silent ? (r.fromS ?? 0) + s : s, silent: !!r.silent };
+    const out = { sentenceId: r.prev, s: r.silent ? (r.fromS ?? 0) + s : s, silent: !!r.silent };
+    return r.original ? { ...out, original: true } : out;
   }
 
   private finishLine(id: number) {
@@ -299,7 +328,10 @@ export class ClipQueue {
     return null;
   }
 
-  private edge(): number { return this.order.length ? this.order[this.order.length - 1] + 1 : 0; }
+  private edge(): number {
+    const last = Math.max(this.order.length ? this.order[this.order.length - 1] : -1, this.originals.length ? Math.max(...this.originals) : -1);
+    return last + 1;
+  }
 
   play(sentenceId: number | null) {
     this.clearRest();
