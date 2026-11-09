@@ -149,3 +149,8 @@ export type PlaybackClock = 'video' | 'audio' | 'clips';
 export function playbackClock(videoLed: boolean, audio: boolean): PlaybackClock {
   return videoLed ? 'video' : audio ? 'audio' : 'clips';
 }
+
+export function readingClock(o: { timed: boolean; ended: boolean; audio: string | null | undefined }): PlaybackClock {
+  if (o.timed) return 'video';
+  return o.ended && !!o.audio ? 'audio' : 'clips';
+}

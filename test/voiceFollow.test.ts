@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { followTarget, mayRunOn, playbackClock, upcomingSrcs, type FollowClip, type FollowLine } from '../src/core/voiceFollow.ts';
+import { followTarget, mayRunOn, playbackClock, readingClock, upcomingSrcs, type FollowClip, type FollowLine } from '../src/core/voiceFollow.ts';
 
 const lines: FollowLine[] = [
   { sid: 0, start: 10, end: 14 },
@@ -115,4 +115,23 @@ test('an audio-only mixed recording plays on the recording clock: exactly its le
     [6, 'fr3@0.00'],
     [7.5, 'quiet'],
   ], 'clip 1 starts at its line and runs on 0.7 s into the original line (under 1.5 s); clip 3 starts at 6 s; silence to the end');
+});
+
+test('a reading on a screen with no video (the Dashboard) keeps the recording clock; only live listening and a recording with no audio read back to back', () => {
+  assert.equal(readingClock({ timed: false, ended: true, audio: 'https://api/v1/recordings/r/audio?kind=delivery' }), 'audio', 'an ended recording with its audio: clips at their starts on the recording timeline');
+  assert.equal(readingClock({ timed: false, ended: false, audio: 'https://api/v1/recordings/r/audio?kind=delivery' }), 'clips', 'live listening reads as the lines arrive');
+  assert.equal(readingClock({ timed: false, ended: true, audio: null }), 'clips', 'no audio at all: back to back');
+  assert.equal(readingClock({ timed: true, ended: true, audio: 'x' }), 'video', 'a video (or the host page) owns the clock');
+});
+
+test('on the recording clock, a seek lands in a clip at the matching point, an original line or a gap, as the download has them', () => {
+  const ls: FollowLine[] = [{ sid: 1, start: 1, end: 4 }, { sid: 2, start: 4, end: 7 }, { sid: 3, start: 7, end: 9 }];
+  const c = map([[1, [clip('a', 0, 1, 2)]], [3, [clip('c', 0, 1, 2)]]]);
+  const orig = new Set([2]);
+  const at = followTarget(ls, c, 7.5, undefined, orig);
+  assert.deepEqual(at, { kind: 'play', sid: 3, src: 'c', offset: 0.5 }, 'seeking to 7.5 s plays clip 3 from 0.5 s in');
+  assert.deepEqual(followTarget(ls, c, 5, undefined, orig), { kind: 'original', sid: 2 });
+  assert.deepEqual(followTarget(ls, c, 3.5, undefined, orig), { kind: 'done', sid: 1 }, 'after a short clip, the rest of its line is the gap (bed or silence)');
+  assert.equal(mayRunOn(ls, 4.5, 1), true, 'a clip still speaking runs on into the original line');
+  assert.equal(mayRunOn(ls, 5.6, 1), false, 'but no more than 1.5 s');
 });

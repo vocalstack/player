@@ -13,6 +13,7 @@ import { strings } from '../data/i18n';
 import { confClass, fixedSlots, lane, newSpeakerRows, sameLang, speakerInitial, speakerLabel, speakerLook, type Model, type Row, type Word } from '../core/transcript';
 import { ClipQueue, newMediaElement, originalLines, readCursor, readsAllOriginal, voicedLines, VoiceNotStarted, type ReadPos, type VoiceClip } from '../core/voiceplayer';
 import { placePosition, snapPosition, type PlayPos } from '../core/playPosition';
+import { readingClock, useVoiceFollow } from '../core/voiceFollow';
 import { findCount, findMatches, matchAt, stepMatch } from '../core/find';
 import { voiceWait, VOICE_WAIT_TITLE } from '../core/voiceWait';
 import { fromStream, toStream, type Gap } from '../core/streamTime';
@@ -1114,7 +1115,17 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   }, [arch.rendering, arch.reload]);
 
   const clipKey = `${recordingId ?? ''}|${lang ?? ''}|${forcedVoice || (castKeyStr ?? picked ?? arch.track?.voiceKey ?? 'default')}`;
-  const vp = useTxVoicePlayer(arch.clips, rows, lenS, clipKey, spkMute, arch.track?.wordTimes, timed, arch.coming, origAudio);
+  const vq = useTxVoicePlayer(arch.clips, rows, lenS, clipKey, spkMute, arch.track?.wordTimes, timed, arch.coming, origAudio);
+  const clockUrl = speakHere && readingClock({ timed, ended, audio: origSrc }) === 'audio' ? origSrc : null;
+  const clock = useTxPlayer(clockUrl, !!clockUrl, rows, lenS, originalOffset);
+  const clockOn = !!clockUrl && on && !clock.error;
+  const clockLines = useMemo(() => rows.filter((r) => r.sentenceId != null).map((r, i, a) => ({ sid: r.sentenceId as number, start: r.start, end: a[i + 1]?.start ?? lineEnd(r, r.start, r.start + 4), words: r.words.map((w) => ({ start: w.start, end: w.end, text: w.text })) })), [rows]);
+  const clockClips = useMemo(() => (spkMute.size ? arch.clips.filter((c) => !spkMute.has(rows.find((r) => r.sentenceId === c.sentenceId)?.speaker ?? -2)) : arch.clips), [arch.clips, spkMute, rows]);
+  const follow = useVoiceFollow({ on: clockOn, lines: clockLines, clips: clockClips, t: clock.t, playing: clock.playing, muted: clock.muted, times: arch.track?.wordTimes, original: origIds });
+  useEffect(() => { clock.silence?.(clockOn && !follow.original); }, [clockOn, follow.original, clockUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!clockOn) clock.pause(); else vq.pause(); }, [clockOn]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (clockOn && follow.sid != null) arch.setNear(follow.sid); }, [clockOn, follow.sid]); // eslint-disable-line react-hooks/exhaustive-deps
+  const vp: TxPlayer = clockOn ? { ...clock, preparing: clock.preparing || (clock.playing && follow.missing != null), original: clock.playing && follow.original, silent: false } : vq;
   useEffect(() => { const id = rows[vp.idx]?.sentenceId; if (id != null) arch.setNear(id); }, [vp.idx]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!want || !vp.has) return;
