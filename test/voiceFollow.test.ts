@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { followTarget, upcomingSrcs, type FollowClip, type FollowLine } from '../src/core/voiceFollow.ts';
+import { followTarget, mayRunOn, playbackClock, upcomingSrcs, type FollowClip, type FollowLine } from '../src/core/voiceFollow.ts';
 
 const lines: FollowLine[] = [
   { sid: 0, start: 10, end: 14 },
@@ -76,4 +76,43 @@ test('under a line spoken in the language picked, the video is heard: no clip, n
   assert.deepEqual(followTarget(lines, c, 15, undefined, new Set([1])), { kind: 'original', sid: 1 });
   assert.deepEqual(followTarget(lines, c, 11, undefined, new Set([1])), { kind: 'play', sid: 0, src: 'a', offset: 1 }, 'the other lines keep their voice');
   assert.deepEqual(followTarget(lines, map([]), 26, undefined, new Set([0, 1, 2])), { kind: 'original', sid: 2 }, 'an all-original reading is never missing');
+});
+
+function playThrough(ls: FollowLine[], clips: Map<number, FollowClip[]>, original: Set<number>, lenS: number) {
+  const step = 0.05;
+  const heard: { t: number; what: string }[] = [];
+  let cur: { sid: number; src: string; until: number } | null = null;
+  let t = 0;
+  for (let k = 0; k * step <= lenS + 1e-9; k++) {
+    t = Math.round(k * step * 100) / 100;
+    const want = followTarget(ls, clips, t, undefined, original);
+    if (cur && t >= cur.until) cur = null;
+    if (want.kind === 'play') {
+      if (!cur || cur.src !== want.src) { cur = { sid: want.sid, src: want.src, until: t - want.offset + (clips.get(want.sid)![0].durationS ?? 0) }; heard.push({ t, what: `${want.src}@${want.offset.toFixed(2)}` }); }
+    } else if (cur && !mayRunOn(ls, t, cur.sid)) cur = null;
+    const what = cur ? cur.src : want.kind === 'original' ? 'original' : 'quiet';
+    if (!heard.length || heard[heard.length - 1].what.split('@')[0] !== what) heard.push({ t, what });
+  }
+  return { heard, endT: t };
+}
+
+test('an audio-only mixed recording plays on the recording clock: exactly its length, each clip at its sentence start, original audio for the lines in the picked language', () => {
+  assert.equal(playbackClock(false, true), 'audio', 'audio-only playback follows the recording audio as video playback follows the video');
+  assert.equal(playbackClock(true, false), 'video');
+  assert.equal(playbackClock(false, false), 'clips', 'only with no audio at all are clips read back to back');
+  const ls: FollowLine[] = [
+    { sid: 1, start: 0.5, end: 3 },
+    { sid: 2, start: 3, end: 6 },
+    { sid: 3, start: 6, end: 8.5 },
+  ];
+  const c = map([[1, [clip('fr1', 0, 1, 3.2)]], [3, [clip('fr3', 0, 1, 1.5)]]]);
+  const { heard, endT } = playThrough(ls, c, new Set([2]), 10);
+  assert.equal(endT, 10, 'the playthrough lasts the recording length, never the sum of the clips');
+  assert.deepEqual(heard.map((h) => [h.t, h.what]), [
+    [0, 'quiet'],
+    [0.5, 'fr1@0.00'],
+    [3.7, 'original'],
+    [6, 'fr3@0.00'],
+    [7.5, 'quiet'],
+  ], 'clip 1 starts at its line and runs on 0.7 s into the original line (under 1.5 s); clip 3 starts at 6 s; silence to the end');
 });

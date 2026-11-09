@@ -143,3 +143,9 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
   }, [o.on, o.t, o.playing, o.muted, o.lines, bySid, o.original]); // eslint-disable-line react-hooks/exhaustive-deps
   return state;
 }
+
+export type PlaybackClock = 'video' | 'audio' | 'clips';
+
+export function playbackClock(videoLed: boolean, audio: boolean): PlaybackClock {
+  return videoLed ? 'video' : audio ? 'audio' : 'clips';
+}

@@ -21,7 +21,7 @@ import { SiteIcon } from './SiteIcon';
 import { loomSetup } from '../core/loomStream';
 import { displayName, useYtTitle } from '../data/title';
 import { bedNote, originalSound, REMOVE_BG_LABEL, removeBgFromQuery, trackPlan, useBackgroundBed, useSeparatedTrack, withRemoveBg } from '../core/background';
-import { useVoiceFollow } from '../core/voiceFollow';
+import { playbackClock, useVoiceFollow } from '../core/voiceFollow';
 import { useMediaKeys } from '../core/mediaKeys';
 import { clock, durationLabel } from '../core/format';
 import { describe, useLanguages, useTranscript, type ErrorLike } from '../data/transcript';
@@ -355,21 +355,23 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     return () => window.clearTimeout(h);
   }, [ytId, recLive, recStartMs, recMediaMs, shared]); // eslint-disable-line react-hooks/exhaustive-deps
   const srcPlayer = videoLed ? yt.player : audioPlayer;
+  const clockKind = playbackClock(videoLed, !!audioUrl && audioPlayer.has);
+  const timeline = clockKind !== 'clips';
   const langs = useLanguages();
   const [speechState, setSpeechState] = useState<'off' | 'making' | 'ready' | 'unavailable'>('off');
   const speechUrl = locked && removeBg && !!shared?.allowDownload && !!recordingId && (!running || !!audioUrl) ? backgroundAudioUrl(api.origin, recordingId, api.cred, 'speech') : null;
   const origBySpeech = !!speechUrl && originalSound(removeBg, speechState) === 'speech';
   const langBusyRef = useRef<string | null>(null);
-  const voice = useTxVoice({ forcedVoice: props.voice ?? null, recordingId, model, rows, lenS, ended: !!recordingId && !running, cred: api.cred, langs, srcLang: langCode, canTranslate: !!shared?.allowTranslate, pickedLang: txLang, setPickedLang: setTxLang, side: desk && !full ? PUB_SIDE : undefined, hearOriginal, timed: videoLed, stockVoices: locked && !cloning, consent: cloning, cloneIfOffered: cloneOn, stickyPicker: locked, pickerBusy: langBusyRef.current, originalSrc: origBySpeech ? speechUrl : audioUrl, originalOffset: !origBySpeech && sourceAudio ? shared?.job?.crop?.startS ?? 0 : 0 });
+  const voice = useTxVoice({ forcedVoice: props.voice ?? null, recordingId, model, rows, lenS, ended: !!recordingId && !running, cred: api.cred, langs, srcLang: langCode, canTranslate: !!shared?.allowTranslate, pickedLang: txLang, setPickedLang: setTxLang, side: desk && !full ? PUB_SIDE : undefined, hearOriginal, timed: timeline, stockVoices: locked && !cloning, consent: cloning, cloneIfOffered: cloneOn, stickyPicker: locked, pickerBusy: langBusyRef.current, originalSrc: origBySpeech ? speechUrl : audioUrl, originalOffset: !origBySpeech && sourceAudio ? shared?.job?.crop?.startS ?? 0 : 0 });
   useEffect(() => { if (voice.hasClone && recordingId) setClonedRec(recordingId); }, [voice.hasClone, recordingId]);
   const langSent = useRef<string | null>(null);
   useEffect(() => { if (!recordingId || langSent.current === askLang) return; langSent.current = askLang; setLanguage(askLang); }, [askLang, recordingId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [onVoice, setOnVoice] = useState(false);
   const wantPlay = useRef(false);
   const rowAt = Math.max(0, onVoice ? voice.player.idx : srcPlayer.idx);
-  const voiceLate = voice.on && srcPlayer.has && !videoLed && (!voice.clipsReady || !voice.plays(rows[rowAt]?.sentenceId));
+  const voiceLate = voice.on && srcPlayer.has && !timeline && (!voice.clipsReady || !voice.plays(rows[rowAt]?.sentenceId));
   useEffect(() => {
-    if (!voice.on || videoLed) { if (onVoice) setOnVoice(false); return; }
+    if (!voice.on || timeline) { if (onVoice) setOnVoice(false); return; }
     if (voiceLate && onVoice) {
       voice.player.pause();
       if (wantPlay.current) srcPlayer.playRow(rowAt); else srcPlayer.seekRow(rowAt);
@@ -379,9 +381,9 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
       if (wantPlay.current) voice.player.playRow(rowAt); else voice.player.seekRow(rowAt);
       setOnVoice(true);
     }
-  }, [voiceLate, onVoice, voice.on, videoLed]); // eslint-disable-line react-hooks/exhaustive-deps
-  const player = videoLed ? yt.player : voice.on && onVoice && !voiceLate ? voice.player : srcPlayer;
-  const handing = voice.on && !videoLed && voiceLate === onVoice;
+  }, [voiceLate, onVoice, voice.on, timeline]); // eslint-disable-line react-hooks/exhaustive-deps
+  const player = timeline ? srcPlayer : voice.on && onVoice && !voiceLate ? voice.player : srcPlayer;
+  const handing = voice.on && !timeline && voiceLate === onVoice;
   useEffect(() => { if (player.playing) wantPlay.current = true; }, [player.playing]);
   useEffect(() => {
     if (videoLed) return;
@@ -389,12 +391,12 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     if (player !== voice.player && voice.player.playing) voice.player.pause();
   });
   useEffect(() => { if (!voiceLate) return; const id = rows[rowAt]?.sentenceId; if (id != null) voice.nearRow(id); }, [voiceLate, rowAt]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (videoLed) { voice.player.pause(); return; } (voice.on ? srcPlayer : voice.player).pause(); }, [voice.on, videoLed]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (timeline) { voice.player.pause(); return; } (voice.on ? srcPlayer : voice.player).pause(); }, [voice.on, timeline]); // eslint-disable-line react-hooks/exhaustive-deps
   const followLines = useMemo(() => rows.filter((r) => r.sentenceId != null).map((r, i, a) => ({ sid: r.sentenceId as number, start: r.start, end: a[i + 1]?.start ?? lineEnd(r, r.start, r.start + 4), words: r.words.map((w) => ({ start: w.start, end: w.end, text: w.text })) })), [rows]);
-  const follow = useVoiceFollow({ on: videoLed && voice.on, lines: followLines, clips: voice.clips, t: player.t, playing: player.playing && !player.settling, muted: player.muted, times: voice.wordTimes, original: voice.originalIds });
+  const follow = useVoiceFollow({ on: timeline && voice.on, lines: followLines, clips: voice.clips, t: player.t, playing: player.playing && !player.settling, muted: player.muted, times: voice.wordTimes, original: voice.originalIds });
   const langBusy = !!askLang && (translating || voice.relang || (voice.on && follow.missing != null));
   langBusyRef.current = langBusy ? askLang : null;
-  useEffect(() => { if (videoLed && voice.on && follow.sid != null) voice.setNear(follow.sid); }, [follow.sid, videoLed, voice.on]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (timeline && voice.on && follow.sid != null) voice.setNear(follow.sid); }, [follow.sid, timeline, voice.on]); // eslint-disable-line react-hooks/exhaustive-deps
   useDuck([srcPlayer, voice.player], voice.sampling);
   const feedRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (running && !player.playing && feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight; }, [running, rows.length]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -434,7 +436,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const tail = running ? 'MORE TO COME…' : 'END OF TRANSCRIPT';
   const tailFg = running ? 'var(--brand)' : 'var(--ink-28)';
   const segs = segsLabel(progress, rows.length);
-  const playable = player.has && (!voice.relang || videoLed);
+  const playable = player.has && (!voice.relang || timeline);
   const playerRef = useRef(player); playerRef.current = player;
   const placeKey = `${askLang ?? ''}|${voice.on ? 'voice' : 'source'}`;
   const placeRef = useRef({ key: placeKey, idx: 0, t: 0, playing: false, until: 0 });
@@ -513,21 +515,21 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const speakAvail = voice.canSpeak && !voice.error && !voiceFailed;
   const waitLangName = askLang ? (langs?.languages.find((l) => l.code === askLang)?.name ?? meta.label) : '';
   const waitState = full ? playerWaitOf({ lang: askLang, langName: waitLangName, translating: translating && !!askLang, translateFailed, voiceFailed, relang: voice.relang, starting: voice.on ? player.starting : null, slowLine, lineSince }) : null;
-  const softWait = videoLed && !!waitState && (waitState.kind === 'translating' || (waitState.kind === 'voice' && voice.relang));
+  const softWait = timeline && !!waitState && (waitState.kind === 'translating' || (waitState.kind === 'voice' && voice.relang));
   const [hushed, setHushed] = useState<string | null>(null);
   const hushKey = waitLangName || 'voice';
   const hushBtn = <button type="button" className="gfull__toastx" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); setHushed(hushKey); }}><Icon d={D.close} size={12} sw={2} /></button>;
   const softNote = !softWait || !waitState ? null : waitState.kind === 'translating' ? `Translating into ${waitLangName || 'the new language'}…` : `Preparing the ${waitLangName || 'translated'} voice…`;
   const voiceHolds = !softWait && (waitState?.kind === 'voice' || waitState?.kind === 'starting');
-  const originalRow = voice.on && (videoLed ? follow.original : !!player.original);
+  const originalRow = voice.on && (timeline ? follow.original : !!player.original);
   const plan = trackPlan(removeBg, voice.on, originalRow);
   const bedUrl = locked && trackPlan(removeBg, voice.on).bed && canDownload && !!recordingId && (!running || !!audioUrl) ? backgroundAudioUrl(api.origin, recordingId, api.cred) : null;
   const bed = useBackgroundBed(bedUrl, { t: pictureT(player, rows), playing: plan.bed && player.playing && !voiceHolds && !(player.timed && !!player.preparing), muted: player.muted });
-  const speechTrack = useSeparatedTrack(speechUrl, { t: pictureT(player, rows), playing: plan.speech && (!voice.on || videoLed) && player.playing, muted: player.muted });
+  const speechTrack = useSeparatedTrack(speechUrl, { t: pictureT(player, rows), playing: plan.speech && (!voice.on || timeline) && player.playing, muted: player.muted });
   useEffect(() => { setSpeechState(speechTrack.state); }, [speechTrack.state]);
   const speechOver = !voice.on && speechTrack.on;
-  const videoMuted = videoLed && (voice.on ? !follow.original || (removeBg && speechTrack.on) : speechOver);
-  useEffect(() => { yt.setVideoSound(!videoMuted); audioPlayer.silence?.(!videoLed && speechOver); }, [videoMuted, videoLed, speechOver, audioUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+  const srcMuted = voice.on && timeline ? !follow.original || (removeBg && speechTrack.on) : speechOver;
+  useEffect(() => { yt.setVideoSound(!(videoLed && srcMuted)); audioPlayer.silence?.(!videoLed && srcMuted); }, [srcMuted, videoLed, audioUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   const bgState = !canDownload ? 'unavailable' : voice.on ? bed : speechTrack.state;
   const speaking = speakOn && speakAvail && !!askLang;
   const audioSummary = !speaking ? (removeBg && bgState !== 'unavailable' ? 'Original speech, background removed' : 'Original sound') : [`Translated${voice.hasClone ? (cloning ? ', cloned voices' : ', synthetic voices') : ''}`, !removeBg && canDownload && bed !== 'unavailable' ? 'with background sound' : null].filter(Boolean).join(' ');
@@ -783,7 +785,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
       sub={ccOn && subRow ? { who: subLook ? speakerLabel(model, subRow.speaker) : null, color: subLook ? subLook.fg ?? `var(--lane-${subLook.lane})` : '#fff', words: subWords, cursor: spokenWordOf(player, player.idx, subLine) } : null}
       chip={chipFor(desk ? glassChip : { ...glassChip, width: 64, padding: '0 6px' }, desk ? undefined : 'sm')} transport={transport}
       picker={voice.sheets} sheet={locked ? settingsSheet : null} voices={null} voicesBtn={locked ? null : voicesBtn} sheetOpen={voice.sheetsOpen || settings} onShare={locked && ctl.share ? shareHere : undefined} onSettings={locked && ctl.settings ? () => { voice.closePicker(); setSettings((v) => !v); } : undefined} compact={!!props.compact} paused={{ title: name, summary: sharedSummary.state === 'ready' ? sharedSummary.summary ?? null : null, share: ctl.share && (props.shareUrl || !props.onShare) ? { url: shareAtUrl, at: player.t } : null }}
-      copied={failedTx ? <div className="gfull__toast gfull__toast--warn" role="status"><Icon d={D.warn} size={13} sw={1.9} />This video couldn't be transcribed</div> : linkCopied ? <div className="gfull__toast" aria-live="polite"><Icon d={D.check} size={13} sw={2} />Link copied</div> : soundTip ? <div className="gfull__toast gfull__soundtip" aria-live="polite"><Icon d={D.volumeOff} size={14} sw={1.8} />Tap for sound</div> : softNote && hushed !== hushKey ? <div className="gfull__toast gfull__toast--x" role="status" aria-live="polite"><Spinner size={13} color="#eef0f8" track="rgba(255,255,255,.25)" />{softNote}{hushBtn}</div> : (voiceLate || voice.on && (videoLed ? follow.missing != null : player.silent)) && hushed !== hushKey ? <div className="gfull__toast gfull__toast--x" role="status" aria-live="polite"><Spinner size={13} color="#eef0f8" track="rgba(255,255,255,.25)" />{`${waitLangName || 'Translated'} voice is still being prepared · playing with subtitles`}{hushBtn}</div> : null} onTouch={() => { browserFull(true); soundOn(); }} onClose={locked ? undefined : () => { browserFull(false); setFull(false); }} />
+      copied={failedTx ? <div className="gfull__toast gfull__toast--warn" role="status"><Icon d={D.warn} size={13} sw={1.9} />This video couldn't be transcribed</div> : linkCopied ? <div className="gfull__toast" aria-live="polite"><Icon d={D.check} size={13} sw={2} />Link copied</div> : soundTip ? <div className="gfull__toast gfull__soundtip" aria-live="polite"><Icon d={D.volumeOff} size={14} sw={1.8} />Tap for sound</div> : softNote && hushed !== hushKey ? <div className="gfull__toast gfull__toast--x" role="status" aria-live="polite"><Spinner size={13} color="#eef0f8" track="rgba(255,255,255,.25)" />{softNote}{hushBtn}</div> : (voiceLate || voice.on && (timeline ? follow.missing != null : player.silent)) && hushed !== hushKey ? <div className="gfull__toast gfull__toast--x" role="status" aria-live="polite"><Spinner size={13} color="#eef0f8" track="rgba(255,255,255,.25)" />{`${waitLangName || 'Translated'} voice is still being prepared · playing with subtitles`}{hushBtn}</div> : null} onTouch={() => { browserFull(true); soundOn(); }} onClose={locked ? undefined : () => { browserFull(false); setFull(false); }} />
   );
   useEffect(() => { if (!locked && full && !watching) { browserFull(false); setFull(false); } }, [locked, full, watching]);
   const progressBox = running && !recLive && (
