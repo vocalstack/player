@@ -11,7 +11,7 @@ import { VocalStackPlayer } from '@vocalstack/player';
 import '@vocalstack/player/style.css';
 
 export function Video() {
-  return <VocalStackPlayer id="r4m4srrrhi24" mode="video" />;
+  return <VocalStackPlayer id="yekwmyuyrcej" mode="video" />;
 }
 ```
 
@@ -67,7 +67,7 @@ export function Video() {
 
 ```tsx
 <VocalStackPlayer
-  id="r4m4srrrhi24"
+  id="yekwmyuyrcej"
   settings={{ lang: 'es', speakerLabels: true, voices: 'cloned' }}
   controls={{ export: false, share: false }}
   onSettingsChange={(s) => console.log(s)}
@@ -80,7 +80,7 @@ Follow and drive it from your page:
 
 ```tsx
 const player = useRef<PlayerHandle>(null);
-<VocalStackPlayer ref={player} id="r4m4srrrhi24" onPlayback={(s) => setAt(s.t)} />
+<VocalStackPlayer ref={player} id="yekwmyuyrcej" onPlayback={(s) => setAt(s.t)} />
 <button onClick={() => player.current?.seek(42)}>Jump to 0:42</button>
 ```
 
