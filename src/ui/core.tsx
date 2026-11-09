@@ -1509,6 +1509,36 @@ export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord
     return () => clearInterval(h);
   }, [idx, playing]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (seekN) smoothRow(idx); }, [seekN]); // eslint-disable-line react-hooks/exhaustive-deps
+  const atTail = useRef(true);
+  const tailCount = useRef(0);
+  const [unseen, setUnseen] = useState(0);
+  useEffect(() => {
+    const el = feedRef.current;
+    if (!el) return;
+    let last = el.scrollTop;
+    const onScroll = () => {
+      const top = el.scrollTop, up = top < last - 1;
+      last = top;
+      if (el.scrollHeight - top - el.clientHeight < 40) { atTail.current = true; setUnseen(0); }
+      else if (up) atTail.current = false;
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [feedRef]);
+  useLayoutEffect(() => {
+    const el = feedRef.current, grew = rows.length - tailCount.current;
+    tailCount.current = rows.length;
+    if (!running) { setUnseen(0); return; }
+    if (!el || grew <= 0 || playing) return;
+    if (atTail.current) el.scrollTop = el.scrollHeight;
+    else setUnseen((u) => u + grew);
+  }, [rows.length, running]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tailJump = () => {
+    const el = feedRef.current;
+    atTail.current = true;
+    setUnseen(0);
+    el?.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  };
   const followJump = () => { smoothRow(idx); offRef.current = 0; setOff(0); };
   const follow = (dir: 'up' | 'down') => (
     <div className={`txfollow txfollow--${dir}`}>
@@ -1534,6 +1564,13 @@ export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord
         ? <div className="txtail txtail--wave" title="Still transcribing"><span className="eq3" aria-hidden="true"><span /><span /><span /></span></div>
         : <div className="txtail" style={{ color: tailFg }}>{tail}</div>}
       {playing && off === 1 && follow('down')}
+      {running && !playing && unseen > 0 && (
+        <div className="txfollow txfollow--down">
+          <button type="button" className="txfollow__pill" title="Jump to the newest lines" onClick={tailJump}>
+            <Icon d="m19.5 8.25-7.5 7.5-7.5-7.5" size={15} sw={2} />{unseen} new
+          </button>
+        </div>
+      )}
     </div>
   );
 }
