@@ -958,10 +958,12 @@ export function useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice, s
   const [renderError, setRenderError] = useState<string | null>(null);
   const asked = useRef(new Set<string>());
   const renderKey = `${recordingId ?? ''}|${lang ?? ''}|${renderVoiceId ?? ''}`;
+  const renderRef = useRef(renderVoiceId);
+  renderRef.current = renderVoiceId;
   const requestRender = useCallback(async (voiceId: string | null, cast?: Map<number, string> | null) => {
     if (!recordingId || !lang || !ended) return;
     const stock = !!cast?.size || !!parseCast(voiceId);
-    const k = `${recordingId}|${lang}|${stock ? 'synthetic' : ''}`;
+    const k = `${recordingId}|${lang}|${renderRef.current ?? ''}`;
     if (asked.current.has(k)) return;
     asked.current.add(k);
     setAsking(k);
