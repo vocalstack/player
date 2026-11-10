@@ -15,7 +15,7 @@ import { ClipQueue, newMediaElement, originalLines, readCursor, readsAllOriginal
 import { placePosition, snapPosition, type PlayPos } from '../core/playPosition';
 import { readingClock, useVoiceFollow } from '../core/voiceFollow';
 import { findCount, findMatches, matchAt, stepMatch } from '../core/find';
-import { voiceWait, VOICE_WAIT_TITLE } from '../core/voiceWait';
+import { holdsClock, voiceWait, VOICE_WAIT_TITLE } from '../core/voiceWait';
 import { fromStream, toStream, type Gap } from '../core/streamTime';
 import { useHeld } from './wait';
 import { lineSpeechEnd, spreadWords } from '../core/readalong';
@@ -672,6 +672,8 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
 export interface OriginalAudio { ids: ReadonlySet<number>; src: string | null; offset?: number }
 const NO_ORIGINAL: OriginalAudio = { ids: new Set(), src: null };
 
+const FOLLOW_NOT_STARTED: ErrorLike = { code: 'voice_not_started', message: 'The voice did not start in time.' };
+
 function useTxVoicePlayer(clips: VoiceClip[], rows: Row[], lenS: number | null, key: string, muted?: Set<number>, wordTimes?: Record<string, [number, number][]>, timed = false, coming?: ReadonlySet<number>, original: OriginalAudio = NO_ORIGINAL): TxPlayer {
   const comingRef = useRef<ReadonlySet<number>>(new Set());
   comingRef.current = coming ?? comingRef.current;
@@ -1129,11 +1131,19 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const clockOn = !!clockUrl && on && !clock.error;
   const clockLines = useMemo(() => rows.filter((r) => r.sentenceId != null).map((r, i, a) => ({ sid: r.sentenceId as number, start: r.start, end: a[i + 1]?.start ?? lineEnd(r, r.start, r.start + 4), words: r.words.map((w) => ({ start: w.start, end: w.end, text: w.text })) })), [rows]);
   const clockClips = useMemo(() => (spkMute.size ? arch.clips.filter((c) => !spkMute.has(rows.find((r) => r.sentenceId === c.sentenceId)?.speaker ?? -2)) : arch.clips), [arch.clips, spkMute, rows]);
-  const follow = useVoiceFollow({ on: clockOn, lines: clockLines, clips: clockClips, t: clock.t, playing: clock.playing, muted: clock.muted, times: arch.track?.wordTimes, original: origIds });
+  const follow = useVoiceFollow({ on: clockOn, lines: clockLines, clips: clockClips, t: clock.t, playing: clock.playing, muted: clock.muted, times: arch.track?.wordTimes, original: origIds, atEnd: !clock.playing && clock.dur > 0 && clock.t >= clock.dur - 0.25 });
   useEffect(() => { clock.silence?.(clockOn && !follow.original); }, [clockOn, follow.original, clockUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!clockOn) clock.pause(); else vq.pause(); }, [clockOn]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (clockOn && follow.sid != null) arch.setNear(follow.sid); }, [clockOn, follow.sid]); // eslint-disable-line react-hooks/exhaustive-deps
-  const vp: TxPlayer = clockOn ? { ...clock, preparing: clock.preparing || (clock.playing && follow.missing != null), original: clock.playing && follow.original, silent: false } : vq;
+  const [startHold, setStartHold] = useState(false);
+  const followStarting = holdsClock({ timeline: clockOn, videoLed: false, voiceOn: true, starting: follow.starting, wait: null, relang: false, coming: follow.missing != null && arch.coming.has(follow.missing) });
+  useEffect(() => {
+    if (followStarting) { if (clock.playing) { setStartHold(true); clock.pause(); } return; }
+    if (!startHold) return;
+    setStartHold(false);
+    if (!follow.failed && !clock.playing) clock.toggle();
+  }, [followStarting, clock.playing, follow.failed]); // eslint-disable-line react-hooks/exhaustive-deps
+  const vp: TxPlayer = clockOn ? { ...clock, playing: clock.playing || startHold, toggle: () => { if (startHold) { setStartHold(false); return; } clock.toggle(); }, starting: follow.starting, error: clock.error ?? (follow.failed ? FOLLOW_NOT_STARTED : null), preparing: clock.preparing || (clock.playing && follow.missing != null), original: clock.playing && follow.original, silent: false } : vq;
   useEffect(() => { const id = rows[vp.idx]?.sentenceId; if (id != null) arch.setNear(id); }, [vp.idx]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!want || !vp.has) return;

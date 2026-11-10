@@ -177,7 +177,11 @@ export class FollowRetry {
 
 export interface FollowState { missing: number | null; sid: number | null; original: boolean; starting: number | null; failed: boolean }
 
-export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; clips: readonly (FollowClip & { sentenceId: number })[]; t: number; playing: boolean; muted: boolean; times?: FollowTimes; original?: ReadonlySet<number> }): FollowState {
+export function playsOut(o: { playing: boolean; atEnd: boolean; speaking: boolean }): boolean {
+  return !o.playing && o.atEnd && o.speaking;
+}
+
+export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; clips: readonly (FollowClip & { sentenceId: number })[]; t: number; playing: boolean; muted: boolean; times?: FollowTimes; original?: ReadonlySet<number>; atEnd?: boolean }): FollowState {
   const bySid = useMemo(() => {
     const m = new Map<number, FollowClip[]>();
     for (const c of o.clips) m.set(c.sentenceId, [...(m.get(c.sentenceId) ?? []), c]);
@@ -243,7 +247,7 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
     const c = cur.current;
     if (c) keep.add(c.src);
     for (const [src, a] of cache.current) if (!keep.has(src) && (!c || c.el !== a)) { a.pause(); cache.current.delete(src); }
-    if (!o.playing) { c?.el.pause(); return; }
+    if (!o.playing) { if (c && playsOut({ playing: o.playing, atEnd: !!o.atEnd, speaking: !c.el.paused && !c.el.ended })) return; c?.el.pause(); return; }
     if (want.kind !== 'play') {
       const stillSpeaking = c && !c.el.paused && !c.el.ended;
       if (stillSpeaking && mayRunOn(o.lines, o.t, c.sid)) return;
@@ -268,7 +272,7 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
     try { a.currentTime = want.offset; } catch { }
     cur.current = { src: want.src, sid: want.sid, el: a, t: o.t, at: want.offset, last: o.t };
     void a.play().catch(() => {});
-  }, [o.on, o.t, o.playing, o.muted, o.lines, bySid, o.original, nudge]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [o.on, o.t, o.playing, o.muted, o.lines, bySid, o.original, o.atEnd, nudge]); // eslint-disable-line react-hooks/exhaustive-deps
   return state;
 }
 

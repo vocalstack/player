@@ -23,6 +23,7 @@ import { displayName, useYtTitle } from '../data/title';
 import { bedNote, originalSound, REMOVE_BG_LABEL, removeBgFromQuery, trackPlan, useBackgroundBed, useSeparatedTrack, withRemoveBg } from '../core/background';
 import { playbackClock, useVoiceFollow } from '../core/voiceFollow';
 import { versionLine } from '../core/playerVersion';
+import { holdsClock, softWaitOf } from '../core/voiceWait';
 import { useMediaKeys } from '../core/mediaKeys';
 import { clock, durationLabel } from '../core/format';
 import { describe, useLanguages, useTranscript, type ErrorLike } from '../data/transcript';
@@ -394,18 +395,11 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   useEffect(() => { if (!voiceLate) return; const id = rows[rowAt]?.sentenceId; if (id != null) voice.nearRow(id); }, [voiceLate, rowAt]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (timeline) { voice.player.pause(); return; } (voice.on ? srcPlayer : voice.player).pause(); }, [voice.on, timeline]); // eslint-disable-line react-hooks/exhaustive-deps
   const followLines = useMemo(() => rows.filter((r) => r.sentenceId != null).map((r, i, a) => ({ sid: r.sentenceId as number, start: r.start, end: a[i + 1]?.start ?? lineEnd(r, r.start, r.start + 4), words: r.words.map((w) => ({ start: w.start, end: w.end, text: w.text })) })), [rows]);
-  const follow = useVoiceFollow({ on: timeline && voice.on, lines: followLines, clips: voice.clips, t: player.t, playing: player.playing && !player.settling, muted: player.muted, times: voice.wordTimes, original: voice.originalIds });
+  const follow = useVoiceFollow({ on: timeline && voice.on, lines: followLines, clips: voice.clips, t: player.t, playing: player.playing && !player.settling, muted: player.muted, times: voice.wordTimes, original: voice.originalIds, atEnd: !player.playing && player.dur > 0 && player.t >= player.dur - 0.25 });
   const langBusy = !!askLang && (translating || voice.relang || (voice.on && follow.missing != null));
   langBusyRef.current = langBusy ? askLang : null;
   useEffect(() => { if (timeline && voice.on && follow.sid != null) voice.setNear(follow.sid); }, [follow.sid, timeline, voice.on]); // eslint-disable-line react-hooks/exhaustive-deps
   const [startHold, setStartHold] = useState(false);
-  const followStarting = timeline && voice.on && follow.starting != null;
-  useEffect(() => {
-    if (followStarting) { if (player.playing) { setStartHold(true); player.pause(); } return; }
-    if (!startHold) return;
-    setStartHold(false);
-    if (!follow.failed && !player.playing) player.toggle();
-  }, [followStarting, player.playing, follow.failed]); // eslint-disable-line react-hooks/exhaustive-deps
   useDuck([srcPlayer, voice.player], voice.sampling);
   const feedRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (running && !player.playing && feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight; }, [running, rows.length]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -524,7 +518,14 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const speakAvail = voice.canSpeak && !voice.error && !voiceFailed;
   const waitLangName = askLang ? (langs?.languages.find((l) => l.code === askLang)?.name ?? meta.label) : '';
   const waitState = full ? playerWaitOf({ lang: askLang, langName: waitLangName, translating: translating && !!askLang, translateFailed, voiceFailed, relang: voice.relang, starting: voice.on ? (timeline ? follow.starting : player.starting) : null, slowLine, lineSince }) : null;
-  const softWait = timeline && !!waitState && (waitState.kind === 'translating' || (waitState.kind === 'voice' && voice.relang));
+  const softWait = softWaitOf({ videoLed, wait: waitState?.kind, relang: voice.relang });
+  const clockHeld = holdsClock({ timeline, videoLed, voiceOn: voice.on, starting: follow.starting, wait: waitState?.kind, relang: voice.relang });
+  useEffect(() => {
+    if (clockHeld) { if (player.playing) { setStartHold(true); player.pause(); } return; }
+    if (!startHold) return;
+    setStartHold(false);
+    if (!follow.failed && !translateFailed && !player.playing) player.toggle();
+  }, [clockHeld, player.playing, follow.failed]); // eslint-disable-line react-hooks/exhaustive-deps
   const [hushed, setHushed] = useState<string | null>(null);
   const hushKey = waitLangName || 'voice';
   const hushBtn = <button type="button" className="gfull__toastx" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); setHushed(hushKey); }}><Icon d={D.close} size={12} sw={2} /></button>;

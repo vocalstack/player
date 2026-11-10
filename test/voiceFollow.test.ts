@@ -223,3 +223,11 @@ test('a follow retry unmounted and mounted again (React strict mode) still re-as
   assert.equal(asked, 2);
   r.dispose();
 });
+
+test('a clip still speaking when the recording clock reaches its end plays out; a pause stops it', async () => {
+  const { playsOut } = await import('../src/core/voiceFollow.ts');
+  assert.equal(playsOut({ playing: false, atEnd: true, speaking: true }), true, 'the last line is heard to its end');
+  assert.equal(playsOut({ playing: false, atEnd: false, speaking: true }), false, 'a pause mid-way stops the voice');
+  assert.equal(playsOut({ playing: false, atEnd: true, speaking: false }), false);
+  assert.equal(playsOut({ playing: true, atEnd: false, speaking: true }), false);
+});
