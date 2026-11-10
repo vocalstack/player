@@ -22,6 +22,7 @@ import { loomSetup } from '../core/loomStream';
 import { displayName, useYtTitle } from '../data/title';
 import { bedNote, originalSound, REMOVE_BG_LABEL, removeBgFromQuery, trackPlan, useBackgroundBed, useSeparatedTrack, withRemoveBg } from '../core/background';
 import { playbackClock, useVoiceFollow } from '../core/voiceFollow';
+import { versionLine } from '../core/playerVersion';
 import { useMediaKeys } from '../core/mediaKeys';
 import { clock, durationLabel } from '../core/format';
 import { describe, useLanguages, useTranscript, type ErrorLike } from '../data/transcript';
@@ -765,6 +766,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
               </div>
             ),
           ].filter(Boolean).flatMap((el, i) => (i ? [<div key={`d${i}`} className="sdiv" />, el] : [el]))}
+          <div className="vsp-version" style={{ padding: '10px 10px 2px', fontSize: 10.5, letterSpacing: '.02em', color: 'var(--ink-35)' }}>{versionLine(true)}</div>
         </div>
       )}
       </GrowBox>

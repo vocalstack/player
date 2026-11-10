@@ -25,7 +25,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.build.json",
+    "build": "node scripts/version.mjs && vite build && tsc -p tsconfig.build.json",
+    "version": "node scripts/version.mjs && git add src/version.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import ./test-resolve.mjs --test test/*.test.ts",
     "dev": "vite --config example/vite.config.ts",

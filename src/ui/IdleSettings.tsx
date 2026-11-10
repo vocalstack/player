@@ -6,6 +6,7 @@ import { useLanguages } from '../data/transcript';
 import { pickerLanguages, useRecentLangs } from '../data/prefs';
 import { REMOVE_BG_LABEL } from '../core/background';
 import { langMeta } from './shared';
+import { versionLine } from '../core/playerVersion';
 
 export interface IdlePrefs {
   lang: string | null;
@@ -173,6 +174,7 @@ export function useIdleControls(prefs: IdlePrefs, set: (p: Partial<IdlePrefs>) =
       <div className="srow srow--tap" role="button" onClick={() => setPage('audio')}>
         <div style={{ flex: 1, minWidth: 0 }}><div className="srow__t">Audio</div><div className="srow__s">{prefs.lang && prefs.translateAudio ? `Translated, ${cloning ? 'cloned voices' : 'synthetic voices'}` : prefs.removeBackground ? 'Original speech, background removed' : 'Original sound'}</div></div>{chev}
       </div>
+      <div className="vsp-version" style={{ padding: '10px 10px 2px', fontSize: 10.5, letterSpacing: '.02em', color: 'var(--ink-35)' }}>{versionLine(true)}</div>
     </div>
   );
   const sheets = (
