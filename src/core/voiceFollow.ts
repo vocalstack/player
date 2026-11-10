@@ -164,6 +164,8 @@ export class FollowRetry {
 
   dispose() { this.alive = false; this.reset(); }
 
+  revive() { this.alive = true; }
+
   private later(ms: number, run: () => void) {
     const h = setTimeout(() => {
       this.timers.delete(h);
@@ -209,7 +211,7 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
     return a;
   };
   const stopCurrent = () => { cur.current?.el.pause(); cur.current = null; };
-  useEffect(() => () => { retry.dispose(); for (const a of cache.current.values()) { a.pause(); a.removeAttribute('src'); } cache.current.clear(); cur.current = null; }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { retry.revive(); return () => { retry.dispose(); for (const a of cache.current.values()) { a.pause(); a.removeAttribute('src'); } cache.current.clear(); cur.current = null; }; }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (o.playing) retry.resume(); }, [o.playing]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const idle: FollowState = { missing: null, sid: null, original: false, starting: null, failed: false };

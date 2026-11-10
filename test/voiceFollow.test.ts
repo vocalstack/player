@@ -207,3 +207,19 @@ test('the clips clock and the recording clock read a clip answer the same way', 
   assert.deepEqual(clipStep(answer(503), 5, 0, 5 + CLIP_STARTING_MS), { kind: 'gaveUp' });
   assert.deepEqual(clipStep(answer(429), null, 1, 5), { kind: 'retry', ms: CLIP_RETRY_MS * 2 });
 });
+
+test('a follow retry unmounted and mounted again (React strict mode) still re-asks a starting voice', async (t) => {
+  const { FollowRetry } = await import('../src/core/voiceFollow.ts');
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  let asked = 0;
+  const r = new FollowRetry(() => {}, () => {}, async () => { asked += 1; return answer(503); });
+  r.dispose();
+  r.revive();
+  r.wanted = 'v0';
+  await r.errored('v0');
+  assert.notEqual(r.startingAt('v0'), null);
+  t.mock.timers.tick(1000);
+  await settleAll();
+  assert.equal(asked, 2);
+  r.dispose();
+});
