@@ -1023,7 +1023,15 @@ export interface VoiceSheetHooks {
   castWarn?: (sp: CastMember, ctx: VoiceSheetCtx) => string | null;
 }
 
-export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs, srcLang, canTranslate, pickedLang, setPickedLang, side, hearOriginal = false, timed = false, stockVoices = false, stickyPicker = false, pickerBusy = null, voiceSheet , forcedVoice = null, consent = true, cloneIfOffered = false, originalSrc, originalOffset = 0 }: {
+export interface KeptView { get: (what: 'panel' | 'speaker') => string | null; set: (what: 'panel' | 'speaker', v: string | null) => void }
+const keptSpeaker = (kept: KeptView | null): number | null => {
+  const v = kept?.get('speaker');
+  const n = v == null || v === '' ? NaN : Number(v);
+  return Number.isInteger(n) ? n : null;
+};
+
+export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs, srcLang, canTranslate, pickedLang, setPickedLang, side, hearOriginal = false, timed = false, stockVoices = false, stickyPicker = false, pickerBusy = null, voiceSheet , forcedVoice = null, consent = true, cloneIfOffered = false, originalSrc, originalOffset = 0, kept = null }: {
+  kept?: KeptView | null;
   originalSrc?: string | null;
   originalOffset?: number;
   consent?: boolean;
@@ -1053,9 +1061,9 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const pendingClones = !!voiceSheet?.pendingClones;
   const [recent, pushRecent] = useRecentLangs();
   const [picked, setPicked] = useState<string | null>(null);
-  const [picker, setPicker] = useState(false);
+  const [picker, setPicker] = useState(() => !!side && kept?.get('panel') === 'language');
   const [langInline, setLangInline] = useState(false);
-  const [sheet, setSheet] = useState(false);
+  const [sheet, setSheet] = useState(() => !!side && kept?.get('panel') === 'speakers');
   const [fromVoices, setFromVoices] = useState(false);
   const [want, setWant] = useState(false);
   const playerApi = usePlayerApi();
@@ -1079,7 +1087,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const t = strings();
   const trLangs = useMemo(() => pickerLanguages(langs, 'translation'), [langs]);
 
-  const [spkSel, setSpkSel] = useState<number | null>(null);
+  const [spkSel, setSpkSel] = useState<number | null>(() => keptSpeaker(kept));
   const [spkMute] = useState<Set<number>>(() => new Set());
   const [castByLang, setCastByLang] = useState<Record<string, Record<number, string>>>({});
   const spkRoster = useMemo(() => speakerRoster(rows, model, t.vcUnknownSpk), [rows, model, t]);
@@ -1166,6 +1174,12 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const closeVoices = () => { preview.reset(); setSheet(false); };
   const pickerMine = picker && !fromVoices;
   const voicesMine = sheet || (picker && fromVoices);
+  useEffect(() => {
+    if (side) kept?.set('panel', pickerMine ? 'language' : voicesMine ? 'speakers' : null);
+  }, [kept, side, pickerMine, voicesMine]);
+  useEffect(() => {
+    if (spkSel != null) kept?.set('speaker', String(spkSel));
+  }, [kept, spkSel]);
   const toggleChip = () => {
     if (pickerMine) { setPicker(false); return; }
     preview.reset(); setSheet(false); setFromVoices(false); setPicker(true);
