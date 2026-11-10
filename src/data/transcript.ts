@@ -45,6 +45,7 @@ export function useTranscript(recordingId: string | null, opts: { lang?: string 
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<ErrorLike | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const bump = useCallback(() => {
     const m = modelRef.current;
     setModel({ ...m });
@@ -81,6 +82,7 @@ export function useTranscript(recordingId: string | null, opts: { lang?: string 
           setError(null);
           modelRef.current = fromSnapshot(sub.snapshot!, modelRef.current);
           bump();
+          setLoadedFor(recordingId);
           announceState();
           for await (const ev of sub) {
             if (!alive) break;
@@ -172,5 +174,6 @@ export function useTranscript(recordingId: string | null, opts: { lang?: string 
   const clearError = useCallback(() => setError(null), []);
 
 
-  return { model, connected, error, notFound, clearError, setLanguage, mergeTranslations, translating, translateFailed, shownLang };
+  const loading = !!recordingId && loadedFor !== recordingId && !error;
+  return { model, loading, connected, error, notFound, clearError, setLanguage, mergeTranslations, translating, translateFailed, shownLang };
 }

@@ -298,11 +298,11 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     if (u.href !== window.location.href) window.history.replaceState(window.history.state, '', u);
   }, [askLang, labelsPref, wordsPref, ccOn, speakOn, cloneOn, removeBg]);
   useEffect(() => { if (shared && !shared.allowTranslate && askLang) setTxLang(null); }, [shared, askLang]);
-  const { model, error: subError, clearError, setLanguage, mergeTranslations, translating, translateFailed, shownLang } = useTranscript(recordingId, {
+  const { model, loading: txLoading, error: subError, clearError, setLanguage, mergeTranslations, translating, translateFailed, shownLang } = useTranscript(recordingId, {
     lang: null,
     onFrame: (f) => { if (f.type === 'job.progress') setLive({ state: f.state, processedS: f.processedS ?? 0, totalS: f.totalS ?? null, segmentsDone: f.segmentsDone ?? 0, segmentsTotal: f.segmentsTotal ?? null, pct: f.pct ?? 0, error: f.error ?? null }); },
   });
-  const rows = useMemo(() => toRows(model).filter((r) => !r.suppressed), [model]);
+  const rows = useMemo(() => toRows(model), [model]);
   const known = progressOf(shared?.job ?? null);
   const settled = ['done', 'failed', 'stopped'].includes(rowStatusOf(known?.state ?? shared?.job?.state));
   const progress = settled ? known : (live ?? known);
@@ -806,7 +806,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     </div>
   );
   const gonePanel = gone && <div className="hint" style={{ padding: '30px 20px', textAlign: 'center', fontSize: 13 }}>This link is no longer shared. Ask the person who sent it for a new one.</div>;
-  const lines = <TxLines model={model} rows={rows} player={listening ? player : { ...player, playRow: player.seekRow }} tail={tail} tailFg={tailFg} running={running} desk={desk} feedRef={feedRef} listener showLabels={labelsOn} find={findQ} findOpen={!desk && find} lang={feedLang} warm={warm} onVisible={onVisible} wordHl={wordsOn} />;
+  const lines = <TxLines tapUnclear={listening} tap={listening} model={model} rows={rows} player={listening ? player : { ...player, playRow: player.seekRow }} tail={tail} tailFg={tailFg} loading={txLoading} running={running} desk={desk} feedRef={feedRef} listener showLabels={labelsOn} find={findQ} findOpen={!desk && find} lang={feedLang} warm={warm} onVisible={onVisible} wordHl={wordsOn} />;
   const toast = <Toast error={error ?? subError ?? (voiceFailed && full ? null : player.error) ?? voice.error} onClose={() => { setError(null); clearError(); player.clearError(); voice.clearError(); }} />;
   const subline = [lenS ? clock(lenS) : null, langCode ? langCode.toUpperCase() : null, by || 'Read-only copy'].filter(Boolean).join(' · ');
   const pubTransport = (deskScrub: boolean) => (

@@ -580,18 +580,21 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
   useEffect(() => {
     if (!playing) return;
     let raf = 0;
-    const tick = () => {
+    const read = (): boolean => {
       const a = audio.current;
-      if (a) {
-        const at = a.currentTime - offset.current;
-        if (windowedRef.current && at >= durRef.current) { a.pause(); setT(durRef.current); return; }
-        if (edgeRef.current != null && at >= edgeRef.current) { setWait(true); a.pause(); setT(at); return; }
-        setT(at);
-      }
-      raf = requestAnimationFrame(tick);
+      if (!a) return true;
+      const at = a.currentTime - offset.current;
+      if (windowedRef.current && at >= durRef.current) { a.pause(); setT(durRef.current); return false; }
+      if (edgeRef.current != null && at >= edgeRef.current) { setWait(true); a.pause(); setT(at); return false; }
+      setT(at);
+      return true;
     };
+    const tick = () => { if (read()) raf = requestAnimationFrame(tick); };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    const el = audio.current;
+    const onTime = () => { if (document.hidden) read(); };
+    el?.addEventListener('timeupdate', onTime);
+    return () => { cancelAnimationFrame(raf); el?.removeEventListener('timeupdate', onTime); };
   }, [playing]);
   const idx = useMemo(() => {
     if (!rows.length) return 0;
@@ -670,10 +673,10 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
   };
 }
 
+const FOLLOW_NOT_STARTED: ErrorLike = { code: 'voice_not_started', message: 'The voice did not start in time.' };
+
 export interface OriginalAudio { ids: ReadonlySet<number>; src: string | null; offset?: number }
 const NO_ORIGINAL: OriginalAudio = { ids: new Set(), src: null };
-
-const FOLLOW_NOT_STARTED: ErrorLike = { code: 'voice_not_started', message: 'The voice did not start in time.' };
 
 function useTxVoicePlayer(clips: VoiceClip[], rows: Row[], lenS: number | null, key: string, muted?: Set<number>, wordTimes?: Record<string, [number, number][]>, timed = false, coming?: ReadonlySet<number>, original: OriginalAudio = NO_ORIGINAL): TxPlayer {
   const comingRef = useRef<ReadonlySet<number>>(new Set());
@@ -1009,7 +1012,7 @@ export interface VoiceSheetCtx {
   savedFor: (sp: CastMember) => AvailableVoice | null;
 }
 
-export interface NoCloneNote { busy?: boolean; title: string; sub: string; tip?: string; action?: () => void }
+export interface NoCloneNote { busy?: boolean; title: string; sub: string; tip?: string; action?: () => void; retry?: () => void; node?: React.ReactNode }
 
 export interface VoiceSheetHooks {
   cloneOn?: boolean;
@@ -1027,6 +1030,10 @@ export interface VoiceSheetHooks {
   speakerNode?: (sp: CastMember) => React.ReactNode;
   deselect?: number;
   overviewNode?: () => React.ReactNode;
+  stock?: boolean;
+  onEditVoice?: (v: AvailableVoice, speaker: number | null) => void;
+  onDeleteVoice?: (v: AvailableVoice, speaker: number | null) => void;
+  voiceNode?: (v: AvailableVoice, speaker: number | null) => React.ReactNode | null;
 }
 
 export interface KeptView { get: (what: 'panel' | 'speaker') => string | null; set: (what: 'panel' | 'speaker', v: string | null) => void }
@@ -1062,9 +1069,10 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   setPickedLang: (l: string | null | undefined) => void;
   side?: { title: string; note: string };
 }) {
-  const { onAddVoice, onPickVoice, onSelectSpeaker, noCloneFor, castNoClone, castShort, castBuilding, castWarn, badge, titleNode: voiceTitleNode, speakerNode, deselect, overviewNode } = voiceSheet ?? {};
+  const { onAddVoice, onPickVoice, onSelectSpeaker, noCloneFor, castNoClone, castShort, castBuilding, castWarn, badge, titleNode: voiceTitleNode, onEditVoice, onDeleteVoice, voiceNode, speakerNode, deselect, overviewNode } = voiceSheet ?? {};
   const hooked = !!voiceSheet;
   const pendingClones = !!voiceSheet?.pendingClones;
+  const stockShown = voiceSheet?.stock ?? true;
   const [recent, pushRecent] = useRecentLangs();
   const [picked, setPicked] = useState<string | null>(null);
   const [picker, setPicker] = useState(() => !!side && kept?.get('panel') === 'language');
@@ -1234,8 +1242,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     </span>
   ) : <LanguageChip flag={chipMeta.flag} code={chipMeta.code} bordered={false} onClick={openPicker} flagOnly label={chipMeta.label} />) : null;
   const glyph = D.voiceClone;
-  const active = on && (!!arch.track || rendering);
-  const glyphFg = failed ? 'var(--conf-low)' : active || (side && voicesMine) ? 'var(--brand)' : 'var(--ink-55)';
+  const glyphFg = failed ? 'var(--conf-low)' : side && voicesMine ? 'var(--brand)' : 'var(--ink-55)';
   const waitKind = voiceWait({ on, want, relang, playing: vp.playing, preparing: !!vp.preparing, starting: vp.starting });
   const [lineHeld] = useHeld(waitKind === 'line', 400);
   const voiceWaiting = waitKind === 'asked' || (waitKind === 'line' && lineHeld);
@@ -1282,20 +1289,25 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const genderOf = (id: string | undefined) => (id ? gvList.find((v) => v.id === id)?.gender ?? null : null);
   const selSex = selSp ? selSp.sex ?? genderOf(cast.get(selSp.key)) : null;
   const shownList = useMemo(() => {
-    if (!selSp) return sheetList;
-    return sheetList.filter((v) => (v.cloned ? (v.live ? v.speaker === selSp.key : v.id === savedCloneKey(selSp)) : true));
-  }, [sheetList, selSp, selSex, people]); // eslint-disable-line react-hooks/exhaustive-deps
+    const list = stockShown ? sheetList : sheetList.filter((v) => v.cloned);
+    if (!selSp) return list;
+    return list.filter((v) => (v.cloned ? (v.live ? v.speaker === selSp.key : v.id === savedCloneKey(selSp)) : true));
+  }, [sheetList, selSp, selSex, people, stockShown]); // eslint-disable-line react-hooks/exhaustive-deps
   const autoOf = (key: number) => gvList.find((v) => v.cloned && v.auto && v.speaker === key) ?? null;
   const ctx: VoiceSheetCtx = { people, gvList, autoOf, savedFor };
   const toClone = badge?.(ctx) ?? 0;
+  const isBuilding = (p2: CastMember) => (!savedFor(p2) && gvList.some((v) => v.cloned && v.speaker === p2.key && v.ready === false)) || !!castBuilding?.(p2, ctx);
+  const cloningNow = people.some(isBuilding);
   const warns = castWarn ? people.map((p2) => castWarn(p2, ctx)).filter((w): w is string => !!w) : [];
   const voiceBtn = (
-    <button type="button" className="txvoice" aria-label="Voice" aria-pressed={side ? voicesMine : undefined} aria-busy={busy || undefined} title={busy || failed ? voiceTitle : undefined} style={{ cursor: 'pointer', background: active || busy || (side && voicesMine) ? 'var(--brand-tint)' : 'var(--fill-06)', boxShadow: side && voicesMine ? 'inset 0 0 0 1.5px var(--brand)' : undefined }} onClick={side ? toggleVoices : openVoices}>
+    <button type="button" className="txvoice" aria-label="Voice" aria-pressed={side ? voicesMine : undefined} aria-busy={busy || undefined} title={busy || failed ? voiceTitle : undefined} style={{ cursor: 'pointer', background: busy || (side && voicesMine) ? 'var(--brand-tint)' : 'var(--fill-06)', boxShadow: side && voicesMine ? 'inset 0 0 0 1.5px var(--brand)' : undefined }} onClick={side ? toggleVoices : openVoices}>
       <Icon d={glyph} size={17} sw={1.6} style={{ color: glyphFg }} />
       {busy && <span aria-hidden="true" style={{ position: 'absolute', inset: 0, boxSizing: 'border-box', borderRadius: '50%', border: '2px solid var(--fill-12)', borderTopColor: 'var(--brand)', animation: 'vs-spin .7s linear infinite', pointerEvents: 'none' }} />}
       {warns.length > 0
         ? <span className="txvoice__warn" title={warns.join(' · ')}>!</span>
-        : !!toClone && <span className="txvoice__n" title={`${toClone} speaker${toClone === 1 ? '' : 's'} can get a cloned voice`}>{toClone}</span>}
+        : cloningNow
+          ? <span title="A voice is being cloned" aria-label="A voice is being cloned" style={{ position: 'absolute', top: -4, right: -4, width: 17, height: 17, borderRadius: '50%', background: 'var(--vs-surface-raised, #1b1e2e)', boxShadow: '0 0 0 2px var(--vs-surface, #12141f)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner size={11} color="var(--brand)" track="var(--fill-12)" sw={1.6} /></span>
+          : !!toClone && <span className="txvoice__n" title={`${toClone} speaker${toClone === 1 ? '' : 's'} can get a cloned voice`}>{toClone}</span>}
     </button>
   );
   const overviewOn = overviewShown({ hook: !!overviewNode, castOn: spkCastOn, selected: spkSelected });
@@ -1303,6 +1315,11 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     <Sheet open={sheet} onClose={closeVoices} title={t.vcSheet} titleNode={voiceTitleNode} doneLabel={t.done}>
       <VoiceSheetBody
         t={t}
+        checks={stockShown}
+        onEdit={onEditVoice ? (v) => { preview.reset(); onEditVoice(v, spkSelected); } : undefined}
+        onDelete={onDeleteVoice ? (v) => { preview.reset(); onDeleteVoice(v, spkSelected); } : undefined}
+        rowNode={voiceNode ? (v) => voiceNode(v, spkSelected) : undefined}
+        headWarn={selSp ? castWarn?.(selSp, ctx) ?? null : null}
         cast={spkCastOn && (
           <SpeakerCast
             t={t}
@@ -1312,7 +1329,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
             noClone={(p2) => !!castNoClone?.(p2, ctx)}
             short={(p2) => !!castShort?.(p2, ctx)}
             warn={(p2) => castWarn?.(p2, ctx) ?? null}
-            building={(p2) => !savedFor(p2) && (gvList.some((v) => v.cloned && v.speaker === p2.key && v.ready === false) || !!castBuilding?.(p2, ctx))}
+            building={isBuilding}
             sexOf={(p2) => p2.sex ?? genderOf(cast.get(p2.key))}
           />
         )}
@@ -1433,29 +1450,32 @@ interface RowActs {
   word: (r: Row, w: Word) => void;
   fix: (r: Row) => void;
   hover: (id: string | null) => void;
+  unclear: (i: number) => void;
 }
 
 interface TxRowProps {
   model: Model; next: Row | undefined; r: Row; i: number; on: boolean; held: boolean; t: number; clipPos: ReadPos | null; wordSync: boolean; playing: boolean;
   fixing: boolean; dim: number; hovered: boolean; warm: boolean; lang: string | null; hitTerms: string; applied?: Correction[]; fixed?: Set<string>;
   listener: boolean; desk: boolean; showLabels: boolean; marks: boolean; fixBadges: boolean; fixMode: boolean; wordHl: boolean; canSeekWord: boolean; arrives: boolean;
-  has: { fixOpen: boolean; word: boolean; fix: boolean }; act: RowActs;
+  has: { fixOpen: boolean; word: boolean; fix: boolean; tap: boolean }; act: RowActs;
+  unclearAs: 'none' | 'closed' | 'open' | 'hidden'; tapUnclear: boolean;
 }
 
 const sameRow = (a: TxRowProps, b: TxRowProps) => {
   for (const k of Object.keys(b) as (keyof TxRowProps)[]) {
-    if (k === 'has') { if (a.has.fixOpen !== b.has.fixOpen || a.has.word !== b.has.word || a.has.fix !== b.has.fix) return false; continue; }
+    if (k === 'has') { if (a.has.fixOpen !== b.has.fixOpen || a.has.word !== b.has.word || a.has.fix !== b.has.fix || a.has.tap !== b.has.tap) return false; continue; }
     if (a[k] !== b[k]) return false;
   }
   return true;
 };
 
-const TxRow = memo(function TxRow({ arrives, model, next, r, i, on, held, t, clipPos, wordSync, playing, fixing, dim, hovered, warm, lang, hitTerms: hitKey, applied, fixed, listener, desk, showLabels, marks, fixBadges, fixMode, wordHl, canSeekWord, has, act }: TxRowProps) {
+const TxRow = memo(function TxRow({ arrives, model, next, r, i, on, held, t, clipPos, wordSync, playing, fixing, dim, hovered, warm, lang, hitTerms: hitKey, applied, fixed, listener, desk, showLabels, marks, fixBadges, fixMode, wordHl, canSeekWord, has, act, unclearAs, tapUnclear }: TxRowProps) {
   const hitTerms = hitKey ? hitKey.split(' ') : [];
+  const unclear = unclearAs === 'closed';
   const onFixOpen = has.fixOpen ? act.fixOpen : undefined;
   const onWord = has.word ? act.word : undefined;
   const onFix = has.fix ? act.fix : undefined;
-  const tapRow = listener ? () => act.playRow(i)
+  const tapRow = !has.tap ? undefined : listener ? () => act.playRow(i)
     : fixMode && onFix ? () => { if (playing && !on) act.seekRow(i); onFix(r); }
     : playing && on ? undefined : () => act.playRow(i);
   const fx = listener ? null : rowFixes(r, applied, fixed);
@@ -1467,22 +1487,32 @@ const TxRow = memo(function TxRow({ arrives, model, next, r, i, on, held, t, cli
   const tr = lang && r.translations[lang] && r.language !== lang ? r.translations[lang] : null;
   const words = useMemo(() => lineWords(next ? [r, next] : [r], 0, lang), [r, next, lang]);
   const spokenWord = held && !wordSync && clipPos ? readCursor(words.map((w) => ({ t: w.text, sp: ' ' })), clipPos) : null;
+  if (unclearAs === 'hidden') return <div data-tx-row={i} data-sentence={r.sentenceId} style={{ height: 0, overflow: 'hidden' }} />;
   return (
-    <div data-tx-row={i} data-sentence={r.sentenceId} className={`txline${warm ? ' txline--warm' : ''}${fixing ? ' txline--fixing' : ''}`} aria-current={fixing || undefined} style={{ opacity: dim }} onClick={tapRow} onMouseEnter={desk && onFixOpen ? () => act.hover(r.id) : undefined} onMouseLeave={desk && onFixOpen ? () => act.hover(null) : undefined}>
+    <div data-tx-row={i} data-sentence={r.sentenceId} className={`txline${warm ? ' txline--warm' : ''}${fixing ? ' txline--fixing' : ''}`} aria-current={fixing || undefined} style={!has.tap || (unclear && !tapUnclear) ? { opacity: dim, cursor: 'default' } : { opacity: dim }} onClick={unclear && !tapUnclear ? undefined : tapRow} onMouseEnter={desk && onFixOpen ? () => act.hover(r.id) : undefined} onMouseLeave={desk && onFixOpen ? () => act.hover(null) : undefined}>
       <div className="txline__meta">
         <span className="txline__at">{clock(r.start)}</span>
-        {showLabels && r.speaker >= 0 && (
+        {showLabels && r.speaker >= 0 && !unclear && (
           <>
             <div className={`lanechip bg-lane-${ln}`} style={look.soft ? { background: look.soft, color: look.fg } : undefined}>{speakerInitial(model, r.speaker)}</div>
             <span className={`txline__who lane-${ln}`} style={look.fg ? { color: look.fg } : undefined}>{who}</span>
             {look.hasSavedSpeaker && <VoiceIdGlyph color={look.fg ?? `var(--lane-${ln})`} />}
-            {arrives && <span className="badge badge--newspk" title="This speaker has just made their first appearance">{desk ? 'NEW SPEAKER' : 'NEW'}</span>}
+            {arrives && <span className="badge badge--newspk" style={{ color: look.fg ?? `var(--lane-${ln})`, background: look.soft ?? `color-mix(in srgb, var(--lane-${ln}) 16%, transparent)` }} title="This speaker has just made their first appearance">{desk ? 'NEW SPEAKER' : 'NEW'}</span>}
           </>
         )}
-        {on && <span title="Playing" style={{ flex: 'none', display: 'inline-flex', alignItems: 'center' }}><Icon d={D.headphones} size={desk ? 15 : 14} sw={1.6} stroke={showLabels && r.speaker >= 0 ? look.fg ?? `var(--lane-${ln})` : 'var(--ink-45)'} /></span>}
-        {fx && fixBadges && <FixBadges f={fx} desk={desk} onOpen={onFixOpen ? () => onFixOpen(r, true) : undefined} />}
+        {on && <span title="Playing" style={{ flex: 'none', display: 'inline-flex', alignItems: 'center' }}><Icon d={D.headphones} size={desk ? 15 : 14} sw={1.6} stroke={unclearAs === 'none' && showLabels && r.speaker >= 0 ? look.fg ?? `var(--lane-${ln})` : 'var(--ink-45)'} /></span>}
+        {unclearAs === 'open' && (
+          <span role="button" className="badge badge--unclear" title="Hide these unclear lines again" onClick={(e) => { e.stopPropagation(); act.unclear(i); }}><span className="noisebars" aria-hidden="true">{[50, 100, 65].map((h, k) => <span key={k} style={{ height: `${h}%` }} />)}</span>{desk ? 'AUDIO UNCLEAR' : 'UNCLEAR'}</span>
+        )}
+        {fx && fixBadges && !unclear && <FixBadges f={fx} desk={desk} onOpen={onFixOpen ? () => onFixOpen(r, true) : undefined} />}
         {pen && <FixPen alone onOpen={() => onFixOpen?.(r, false)} />}
       </div>
+      {unclear ? (
+        <div className="line__noise" role={r.suppressed ? undefined : 'button'} title={r.suppressed ? undefined : 'Show what was captured so it can be corrected'} style={r.suppressed ? undefined : { cursor: 'pointer' }} onClick={r.suppressed ? undefined : (e) => { e.stopPropagation(); act.unclear(i); }}>
+          <span className={`noisebars${on ? ' is-playing' : ''}`} aria-hidden="true">{[40, 75, 55, 90, 45, 70, 35].map((h, k) => <span key={k} style={{ height: `${h}%` }} />)}</span>
+          Audio unclear
+        </div>
+      ) : (
       <div className="txline__text">
         {words.map((w, j) => {
           const key = `${w.seq}:${w.idx}`;
@@ -1500,20 +1530,41 @@ const TxRow = memo(function TxRow({ arrives, model, next, r, i, on, held, t, cli
             <span key={key + j}>
               <span
                 className="txw"
-                title={onWord && !tr ? (fixMode ? 'Correct this word' : on ? (playing && canSeekWord ? 'Play from this word' : 'Play from this line') : 'Play from this line') : on ? '' : 'Play from this line'}
+                title={!has.tap ? undefined : onWord && !tr ? (fixMode ? 'Correct this word' : on ? (playing && canSeekWord ? 'Play from this word' : 'Play from this line') : 'Play from this line') : on ? '' : 'Play from this line'}
                 onClick={onWord && !tr ? (e) => { e.stopPropagation(); if (fixMode) { onWord(r, w); return; } if (playing && on) { act.seekWord(w); return; } act.playRow(i); } : undefined}
-                style={{ color: fg, opacity: ahead ? 0.45 : 1, fontWeight: 300, cursor: onWord && !tr ? (fixMode || !on || !playing || canSeekWord ? 'pointer' : 'default') : on ? 'default' : 'pointer', textShadow: at ? '0 0 2px currentColor, 0 0 4px currentColor' : 'none', textDecorationLine: dash || fx ? 'underline' : 'none', textDecorationStyle: fx ? 'solid' : 'dotted', textDecorationColor: fx ? 'var(--brand)' : half ?? 'currentColor', textDecorationThickness: dash || fx ? '1.5px' : undefined, textUnderlineOffset: dash || fx ? '3px' : undefined }}
+                style={{ color: fg, opacity: ahead ? 0.45 : 1, fontWeight: 300, cursor: !has.tap ? 'default' : onWord && !tr ? (fixMode || !on || !playing || canSeekWord ? 'pointer' : 'default') : on ? 'default' : 'pointer', textShadow: at ? '0 0 2px currentColor, 0 0 4px currentColor' : 'none', textDecorationLine: dash || fx ? 'underline' : 'none', textDecorationStyle: fx ? 'solid' : 'dotted', textDecorationColor: fx ? 'var(--brand)' : half ?? 'currentColor', textDecorationThickness: dash || fx ? '1.5px' : undefined, textUnderlineOffset: dash || fx ? '3px' : undefined }}
               >{hitParts(w.text, hitTerms)}</span>
               <span style={{ whiteSpace: 'pre-wrap' }}> </span>
             </span>
           );
         })}
       </div>
+      )}
     </div>
   );
 }, sameRow);
 
-export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord, onFix, fixMode, fixingId, marks = true, fixBadges = true, tail, tailFg, running, desk, feedRef, listener, showLabels, find, findOpen, lang, warm, onVisible, wordHl = true }: { model: Model; rows: Row[]; player: TxPlayer; fixed?: Set<string>; applied?: Correction[]; onFixOpen?: (r: Row, hist: boolean) => void; onWord?: (r: Row, w: Word) => void; onFix?: (r: Row) => void; fixMode?: boolean; fixingId?: string | null; marks?: boolean; fixBadges?: boolean; tail: string; tailFg: string; running?: boolean; desk: boolean; feedRef: React.RefObject<HTMLDivElement>; listener?: boolean; showLabels: boolean; find?: string; findOpen?: boolean; lang?: string | null ; warm?: boolean; onVisible?: (ids: number[]) => void; wordHl?: boolean }) {
+const SKELETON_LINES = [[94, 61], [83], [97, 88, 36], [72], [91, 54], [86, 47]];
+function TxSkeleton() {
+  return (
+    <>
+      {SKELETON_LINES.map((bars, i) => (
+        <div key={i} className="txline txskel" aria-hidden="true" style={{ '--i': i } as React.CSSProperties}>
+          <div className="txline__meta">
+            <span className="txskel__bar txskel__at" />
+            <span className="txskel__bar txskel__chip" />
+            <span className="txskel__bar txskel__who" style={{ width: [58, 46, 66][i % 3] }} />
+          </div>
+          <div className="txline__text txskel__text">
+            {bars.map((w, j) => <span key={j} className="txskel__bar" style={{ width: `${w}%` }} />)}
+          </div>
+        </div>
+      ))}
+      <span role="status" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>Loading transcript</span>
+    </>
+  );
+}
+export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord, onFix, fixMode, fixingId, marks = true, fixBadges = true, tail, tailFg, loading, running, desk, feedRef, listener, showLabels, find, findOpen, lang, warm, onVisible, wordHl = true, tapUnclear = true, tap = true }: { tapUnclear?: boolean; tap?: boolean; model: Model; rows: Row[]; player: TxPlayer; fixed?: Set<string>; applied?: Correction[]; onFixOpen?: (r: Row, hist: boolean) => void; onWord?: (r: Row, w: Word) => void; onFix?: (r: Row) => void; fixMode?: boolean; fixingId?: string | null; marks?: boolean; fixBadges?: boolean; tail: string; tailFg: string; loading?: boolean; running?: boolean; desk: boolean; feedRef: React.RefObject<HTMLDivElement>; listener?: boolean; showLabels: boolean; find?: string; findOpen?: boolean; lang?: string | null ; warm?: boolean; onVisible?: (ids: number[]) => void; wordHl?: boolean }) {
   const { playing, engaged, t, idx, seekN, wordSync, clipPos } = player;
   const arrivals = useMemo(() => newSpeakerRows(rows, model.returning), [rows, model.returning]);
   useDragScroll(true, feedRef);
@@ -1522,8 +1573,18 @@ export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord
   const [hovId, setHovId] = useState<string | null>(null);
   const needle = (find ?? '').trim().toLowerCase();
   const hitKey = needle.split(/\s+/).filter(Boolean).join(' ');
-  const live = useRef({ player, onFixOpen, onWord, onFix });
-  live.current = { player, onFixOpen, onWord, onFix };
+  const [openUnclear, setOpenUnclear] = useState<Set<string>>(() => new Set());
+  const unclearGroup = useMemo(() => {
+    const out: (string | null)[] = [];
+    let head: string | null = null;
+    rows.forEach((r, i) => {
+      const hid = (x: Row) => !!x.unclear || !!x.suppressed;
+      if (hid(r)) { if (i === 0 || !hid(rows[i - 1])) head = r.id; out.push(head); } else { head = null; out.push(null); }
+    });
+    return out;
+  }, [rows]);
+  const live = useRef({ player, onFixOpen, onWord, onFix, unclearGroup });
+  live.current = { player, onFixOpen, onWord, onFix, unclearGroup };
   const act = useMemo<RowActs>(() => ({
     playRow: (i) => live.current.player.playRow(i),
     seekRow: (i) => live.current.player.seekRow(i),
@@ -1532,8 +1593,9 @@ export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord
     word: (r, w) => live.current.onWord?.(r, w),
     fix: (r) => live.current.onFix?.(r),
     hover: setHovId,
+    unclear: (i) => { const g = live.current.unclearGroup[i]; if (g) setOpenUnclear((was) => { const next = new Set(was); if (!next.delete(g)) next.add(g); return next; }); },
   }), []);
-  const has = { fixOpen: !!onFixOpen, word: !!onWord, fix: !!onFix };
+  const has = { fixOpen: !!onFixOpen, word: !!onWord, fix: !!onFix, tap };
   const [off, setOff] = useState<-1 | 0 | 1>(0);
   const glideUntil = useRef(0);
   const glide = useRef<(() => void) | null>(null);
@@ -1649,15 +1711,19 @@ export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord
       <FeedBar thumbRef={thumbRef} />
       {playing && off === -1 && follow('up')}
       {rows.map((r, i) => {
-        const on = playing && i === idx;
+        const group = unclearGroup[i];
+        const inGroup = group != null && !openUnclear.has(group) && group === r.id && unclearGroup[idx] === group;
+        const on = playing && (i === idx || inGroup);
         const held = engaged && i === idx;
         const fixing = !!fixingId && fixingId === r.id;
         const dim = needle && !r.text.toLowerCase().includes(needle) && !(lang && r.translations[lang]?.toLowerCase().includes(needle)) ? 0.22 : !engaged || i <= idx || fixing ? 1 : 0.38;
         return (
-          <TxRow key={r.id} arrives={arrivals.has(i)} model={model} next={rows[i + 1]} r={r} i={i} on={on} held={held} t={held ? t : 0} clipPos={held ? clipPos ?? null : null} wordSync={wordSync} playing={playing} fixing={fixing} dim={dim} hovered={hovId === r.id} warm={!!warm} lang={lang ?? null} hitTerms={hitKey} applied={applied} fixed={fixed} listener={!!listener} desk={desk} showLabels={showLabels} marks={marks} fixBadges={fixBadges} fixMode={!!fixMode} wordHl={wordHl} canSeekWord={!!player.seekWord} has={has} act={act} />
+          <TxRow key={r.id} tapUnclear={tapUnclear} unclearAs={unclearGroup[i] == null ? 'none' : openUnclear.has(unclearGroup[i]!) ? 'open' : unclearGroup[i] === r.id ? 'closed' : 'hidden'} arrives={arrivals.has(i)} model={model} next={rows[i + 1]} r={r} i={i} on={on} held={held} t={held ? t : 0} clipPos={held ? clipPos ?? null : null} wordSync={wordSync} playing={playing} fixing={fixing} dim={dim} hovered={hovId === r.id} warm={!!warm} lang={lang ?? null} hitTerms={hitKey} applied={applied} fixed={fixed} listener={!!listener} desk={desk} showLabels={showLabels} marks={marks} fixBadges={fixBadges} fixMode={!!fixMode} wordHl={wordHl} canSeekWord={!!player.seekWord} has={has} act={act} />
         );
       })}
-      {running
+      {loading && !rows.length
+        ? <TxSkeleton />
+        : running
         ? <div className="txtail txtail--wave" title="Still transcribing"><span className="eq3" aria-hidden="true"><span /><span /><span /></span></div>
         : <div className="txtail" style={{ color: tailFg }}>{tail}</div>}
       {playing && off === 1 && follow('down')}
