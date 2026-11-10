@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CLIP_RETRIES, checkClip, clipStep, type ClipCheck } from './voiceRetry';
+import { ClipPrefetch } from './clipPrefetch';
 
 export interface FollowWord { start: number; end: number; text?: string }
 export interface FollowLine { sid: number; start: number; end: number; words?: readonly FollowWord[] }
@@ -16,6 +17,9 @@ export type FollowTarget =
 export const FOLLOW_DRIFT_S = 0.5;
 export const FOLLOW_AHEAD = 3;
 export const FOLLOW_JUMP_S = 1.5;
+export const FOLLOW_PRELOAD = 2;
+
+export interface FollowPos { sid: number; t: number; dur: number; words: [number, number][] | null }
 
 export function lineAt(lines: readonly FollowLine[], t: number): number {
   let k = -1;
@@ -78,6 +82,39 @@ export function upcomingSrcs(lines: readonly FollowLine[], clips: ReadonlyMap<nu
     if (first) out.push(first.src);
   }
   return out;
+}
+
+export function preloadSrcs(lines: readonly FollowLine[], clips: ReadonlyMap<number, readonly FollowClip[]>, t: number, n = FOLLOW_PRELOAD, original?: ReadonlySet<number>): string[] {
+  const k = lineAt(lines, t);
+  const out: string[] = [];
+  const partsOf = (sid: number) => [...(clips.get(sid) ?? [])].sort((a, b) => a.part - b.part).map((c) => c.src);
+  let from = k + 1;
+  if (k >= 0 && t < lines[k].end && !original?.has(lines[k].sid)) out.push(...partsOf(lines[k].sid));
+  if (k < 0) from = 0;
+  let ahead = 0;
+  for (let i = from; i < lines.length && ahead < n; i++) {
+    if (original?.has(lines[i].sid)) continue;
+    const srcs = partsOf(lines[i].sid);
+    if (!srcs.length) continue;
+    out.push(...srcs);
+    ahead++;
+  }
+  return out;
+}
+
+export function followPos(sid: number, parts: readonly FollowClip[], src: string, at: number, len: number, ended: boolean, times?: readonly (readonly [number, number])[]): FollowPos | null {
+  const sorted = [...parts].sort((a, b) => a.part - b.part);
+  const i = sorted.findIndex((c) => c.src === src);
+  if (i < 0) return null;
+  const own = Number.isFinite(len) && len > 0 ? len : sorted[i].durationS ?? 0;
+  let base = 0;
+  for (let k = 0; k < i; k++) base += sorted[k].durationS ?? 0;
+  let dur = 0;
+  for (let k = 0; k < sorted.length; k++) dur += k === i ? own : sorted[k].durationS ?? 0;
+  const t = base + (ended && own > 0 ? own : Math.max(0, at));
+  const total = Math.max(1, ...sorted.map((c) => c.parts));
+  const words = total === 1 && sorted.length === 1 && times?.length ? (times as [number, number][]) : null;
+  return { sid, t, dur: dur > 0 ? dur : t, words };
 }
 
 export class FollowRetry {
@@ -175,7 +212,7 @@ export class FollowRetry {
   }
 }
 
-export interface FollowState { missing: number | null; sid: number | null; original: boolean; starting: number | null; failed: boolean }
+export interface FollowState { missing: number | null; sid: number | null; original: boolean; starting: number | null; failed: boolean; pos?: FollowPos | null }
 
 export function playsOut(o: { playing: boolean; atEnd: boolean; speaking: boolean }): boolean {
   return !o.playing && o.atEnd && o.speaking;
@@ -192,9 +229,15 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
   const [state, setState] = useState<FollowState>({ missing: null, sid: null, original: false, starting: null, failed: false });
   const [nudge, setNudge] = useState(0);
   const bump = () => setNudge((n) => n + 1);
+  const preRef = useRef<ClipPrefetch | null>(null);
+  if (!preRef.current) preRef.current = new ClipPrefetch();
+  const pre = preRef.current;
+  pre.onReady = bump;
+  const [pos, setPos] = useState<FollowPos | null>(null);
   const retryRef = useRef<FollowRetry | null>(null);
   if (!retryRef.current) {
     retryRef.current = new FollowRetry(bump, (src) => {
+      preRef.current?.forget(src);
       const a = cache.current.get(src);
       if (a) { a.pause(); a.removeAttribute('src'); cache.current.delete(src); }
       if (cur.current?.src === src) cur.current = null;
@@ -208,21 +251,23 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
       made.preload = 'auto';
       made.onerror = bump;
       made.onloadeddata = () => { if (retry.startingAt(src) != null) bump(); };
-      made.src = src;
+      made.src = pre.urlFor(src);
       cache.current.set(src, made);
       a = made;
     }
     return a;
   };
   const stopCurrent = () => { cur.current?.el.pause(); cur.current = null; };
-  useEffect(() => { retry.revive(); return () => { retry.dispose(); for (const a of cache.current.values()) { a.pause(); a.removeAttribute('src'); } cache.current.clear(); cur.current = null; }; }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { retry.revive(); return () => { retry.dispose(); preRef.current?.clear(); for (const a of cache.current.values()) { a.pause(); a.removeAttribute('src'); } cache.current.clear(); cur.current = null; }; }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (o.playing) retry.resume(); }, [o.playing]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const idle: FollowState = { missing: null, sid: null, original: false, starting: null, failed: false };
-    if (!o.on) { stopCurrent(); retry.reset(); setState((s) => (s.missing == null && s.sid == null && !s.original && s.starting == null && !s.failed ? s : idle)); return; }
+    if (!o.on) { stopCurrent(); retry.reset(); pre.want([]); setState((s) => (s.missing == null && s.sid == null && !s.original && s.starting == null && !s.failed ? s : idle)); return; }
     const aimed = followTarget(o.lines, bySid, o.t, o.times, o.original);
     const want: FollowTarget = aimed.kind === 'play' && retry.gone(aimed.src) ? { kind: 'missing', sid: aimed.sid } : aimed;
-    const keep = new Set(upcomingSrcs(o.lines, bySid, o.t).filter((src) => !retry.gone(src)));
+    const ahead = preloadSrcs(o.lines, bySid, o.t, FOLLOW_PRELOAD, o.original).filter((src) => !retry.gone(src));
+    pre.want(ahead);
+    const keep = new Set(ahead.filter((src) => cache.current.has(src) || pre.ready(src)));
     for (const src of keep) el(src);
     let blocked = false;
     retry.wanted = want.kind === 'play' ? want.src : null;
@@ -273,7 +318,17 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
     cur.current = { src: want.src, sid: want.sid, el: a, t: o.t, at: want.offset, last: o.t };
     void a.play().catch(() => {});
   }, [o.on, o.t, o.playing, o.muted, o.lines, bySid, o.original, o.atEnd, nudge]); // eslint-disable-line react-hooks/exhaustive-deps
-  return state;
+  useEffect(() => {
+    const c = cur.current;
+    const next = !o.on || !c ? null : followPos(c.sid, bySid.get(c.sid) ?? [], c.src, c.el.currentTime, c.el.duration, c.el.ended, o.times?.[String(c.sid)]);
+    setPos((p) => (samePos(p, next) ? p : next));
+  }, [o.on, o.t, o.playing, o.lines, bySid, o.times, o.original, nudge]); // eslint-disable-line react-hooks/exhaustive-deps
+  return useMemo(() => ({ ...state, pos }), [state, pos]);
+}
+
+export function samePos(a: FollowPos | null, b: FollowPos | null): boolean {
+  if (!a || !b) return a === b;
+  return a.sid === b.sid && Math.abs(a.t - b.t) < 0.03 && Math.abs(a.dur - b.dur) < 0.01 && a.words === b.words;
 }
 
 export type PlaybackClock = 'video' | 'audio' | 'clips';

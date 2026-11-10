@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { followTarget, mayRunOn, playbackClock, readingClock, upcomingSrcs, type FollowClip, type FollowLine } from '../src/core/voiceFollow.ts';
+import { FOLLOW_PRELOAD, followPos, followTarget, mayRunOn, playbackClock, preloadSrcs, readingClock, samePos, upcomingSrcs, type FollowClip, type FollowLine } from '../src/core/voiceFollow.ts';
+import { readCursor } from '../src/core/voiceplayer.ts';
 
 const lines: FollowLine[] = [
   { sid: 0, start: 10, end: 14 },
@@ -230,4 +231,47 @@ test('a clip still speaking when the recording clock reaches its end plays out; 
   assert.equal(playsOut({ playing: false, atEnd: false, speaking: true }), false, 'a pause mid-way stops the voice');
   assert.equal(playsOut({ playing: false, atEnd: true, speaking: false }), false);
   assert.equal(playsOut({ playing: true, atEnd: false, speaking: true }), false);
+});
+
+test('the next 2 voiced lines are always preloaded, from wherever the clock is, after a seek too', () => {
+  assert.equal(FOLLOW_PRELOAD, 2);
+  const ls: FollowLine[] = [
+    { sid: 1, start: 0, end: 4 },
+    { sid: 2, start: 4, end: 8 },
+    { sid: 3, start: 8, end: 12 },
+    { sid: 4, start: 12, end: 16 },
+    { sid: 5, start: 16, end: 20 },
+    { sid: 6, start: 20, end: 24 },
+  ];
+  const c = map([[1, [clip('a')]], [2, [clip('b1', 1, 2), clip('b0', 0, 2)]], [3, [clip('c')]], [5, [clip('e')]], [6, [clip('f')]]]);
+  assert.deepEqual(preloadSrcs(ls, c, 1), ['a', 'b0', 'b1', 'c'], 'the line playing, then every part of the next two, in order');
+  assert.deepEqual(preloadSrcs(ls, c, 9), ['c', 'e', 'f'], 'a line with no clip yet is skipped: the two after it that have one are fetched');
+  assert.deepEqual(preloadSrcs(ls, c, 17.5), ['e', 'f'], 'after a seek the window moves with the clock');
+  assert.deepEqual(preloadSrcs(ls, c, 9, 2, new Set([5])), ['c', 'f'], 'a line heard in its original audio needs no clip');
+  assert.deepEqual(preloadSrcs([{ sid: 1, start: 0, end: 2 }, { sid: 2, start: 5, end: 8 }, { sid: 3, start: 8, end: 9 }], map([[1, [clip('a')]], [2, [clip('b')]], [3, [clip('c')]]]), 3), ['b', 'c'], 'between lines the next two lines are fetched, not the one that ended');
+  assert.deepEqual(preloadSrcs(ls, c, -1), ['a', 'b0', 'b1'], 'before the first line its clip and the next are fetched');
+});
+
+test('the word lit is the word the voice is saying: the clip position and its word times, not the original speech', () => {
+  const times: [number, number][] = [[0.06, 0.24], [0.24, 0.32], [0.32, 0.98], [0.98, 1.42], [1.42, 2.64], [2.64, 2.82], [2.82, 3.22], [3.22, 3.4], [3.4, 3.86], [3.86, 4.94], [4.94, 5.12], [5.12, 5.36], [5.36, 6.48], [6.48, 6.92], [6.92, 7.06], [7.06, 7.9], [7.9, 8.08], [8.08, 8.56], [8.56, 8.7], [8.7, 9.22], [9.22, 9.76], [9.76, 10.52], [10.52, 10.72], [10.72, 11.3], [11.3, 11.4], [11.4, 12.28], [12.28, 12.9], [12.9, 14.16], [14.16, 14.4], [14.4, 14.7], [14.7, 15.14], [15.14, 15.76], [15.76, 16.36], [16.36, 16.82], [16.82, 17.16], [17.16, 17.32], [17.32, 18.0], [18.0, 18.12], [18.12, 18.28], [18.28, 18.84], [18.84, 19.26], [19.26, 19.42], [19.42, 19.62], [19.62, 20.38]];
+  const text = 'When a musician plays staccato, the notes are played individually and more abruptly, without the intention of creating a smooth musical passage that conveys a coherent, flowing idea—even though these shorter, staccato notes still serve the purpose of the musical piece that was composed.';
+  const tokens = text.split(' ').map((t) => ({ t, sp: ' ' }));
+  assert.equal(tokens.length, times.length);
+  const parts = [clip('s13', 0, 1, 20.425)];
+  const at = (clipT: number) => readCursor(tokens, followPos(13, parts, 's13', clipT, 20.425, false, times)!);
+  assert.equal(tokens[at(5.5)!].t, 'abruptly,', 'Koinonia line 13 (27.2 s of Romanian, 20.4 s of English): 5.5 s into the clip the voice says abruptly');
+  assert.equal(tokens[at(7.5)!].t, 'intention', 'where the old highlight, spread over the Romanian speech, was still on abruptly');
+  assert.equal(tokens[at(19.7)!].t, 'composed.', 'the last word lights with the voice, not 6.7 s later');
+  const ended = followPos(13, parts, 's13', 0, 20.425, true, times)!;
+  assert.equal(tokens[readCursor(tokens, ended)!].t, 'composed.', 'once the clip has ended the last word stays lit until the next line');
+});
+
+test('a line read in parts is placed by the part playing, from the parts before it', () => {
+  const parts = [clip('p1', 1, 2, 3), clip('p0', 0, 2, 2)];
+  assert.deepEqual(followPos(7, parts, 'p1', 1, 3.1, false, [[0, 1]]), { sid: 7, t: 3, dur: 5.1, words: null });
+  assert.deepEqual(followPos(7, parts, 'p0', 0.5, NaN, false), { sid: 7, t: 0.5, dur: 5, words: null });
+  assert.equal(followPos(7, parts, 'other', 1, 1, false), null);
+  assert.ok(samePos({ sid: 1, t: 1, dur: 2, words: null }, { sid: 1, t: 1.01, dur: 2, words: null }));
+  assert.ok(!samePos({ sid: 1, t: 1, dur: 2, words: null }, { sid: 2, t: 1, dur: 2, words: null }));
+  assert.ok(samePos(null, null) && !samePos(null, { sid: 1, t: 0, dur: 1, words: null }));
 });

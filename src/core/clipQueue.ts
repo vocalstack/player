@@ -501,7 +501,8 @@ export class ClipQueue {
   upcoming(from: number, withFrom = false): VoiceClip[] {
     const out: VoiceClip[] = [];
     let secs = 0;
-    const enough = () => out.length >= Math.max(this.readAhead, 1) && secs >= this.readAheadS;
+    let lines = 0;
+    const enough = () => out.length >= Math.max(this.readAhead, 1) && secs >= this.readAheadS && lines >= Math.min(2, this.readAhead);
     const cur = this.clips.get(from);
     if (cur) {
       for (const part of this.piecesOf(from)) {
@@ -516,6 +517,7 @@ export class ClipQueue {
       if (this.rank(id) <= at || !this.speakable(id)) continue;
       const line = this.clips.get(id);
       if (!line) continue;
+      lines++;
       for (const part of [...line.got.keys()].sort((x, y) => x - y)) {
         const c = line.got.get(part)!;
         out.push(c);

@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
 import { Card, GrowBox, LanguageChip, Sheet, Switch, Toggle } from '../ds/Controls';
 import { D, Icon, Logo, PlayGlyph, Spinner } from '../ds/Icons';
-import { mediaKind } from '../core/voiceplayer';
+import { mediaKind, type ReadPos } from '../core/voiceplayer';
 import { audioDownloadUrl, audioSealed, backgroundAudioUrl, deliveryAudioUrl } from '../core/audio';
 import { FileFollow } from './FileFollow';
 import { HlsFollow } from './HlsFollow';
@@ -75,6 +75,7 @@ export interface PlaybackState {
   seekN: number;
   lang: string | null;
   muted: boolean;
+  voicePos?: (ReadPos & { sid: number }) | null;
 }
 
 export interface PlayerHandle {
@@ -396,6 +397,8 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   useEffect(() => { if (timeline) { voice.player.pause(); return; } (voice.on ? srcPlayer : voice.player).pause(); }, [voice.on, timeline]); // eslint-disable-line react-hooks/exhaustive-deps
   const followLines = useMemo(() => rows.filter((r) => r.sentenceId != null).map((r, i, a) => ({ sid: r.sentenceId as number, start: r.start, end: a[i + 1]?.start ?? lineEnd(r, r.start, r.start + 4), words: r.words.map((w) => ({ start: w.start, end: w.end, text: w.text })) })), [rows]);
   const follow = useVoiceFollow({ on: timeline && voice.on, lines: followLines, clips: voice.clips, t: player.t, playing: player.playing && !player.settling, muted: player.muted, times: voice.wordTimes, original: voice.originalIds, atEnd: !player.playing && player.dur > 0 && player.t >= player.dur - 0.25 });
+  const heardAt = timeline && voice.on && follow.pos && follow.pos.sid === rows[player.idx]?.sentenceId ? follow.pos : null;
+  const shown = heardAt ? { ...player, voicePos: heardAt } : player;
   const langBusy = !!askLang && (translating || voice.relang || (voice.on && follow.missing != null));
   langBusyRef.current = langBusy ? askLang : null;
   useEffect(() => { if (timeline && voice.on && follow.sid != null) voice.setNear(follow.sid); }, [follow.sid, timeline, voice.on]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -441,6 +444,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const segs = segsLabel(progress, rows.length);
   const playable = player.has && (!voice.relang || timeline);
   const playerRef = useRef(player); playerRef.current = player;
+  const heardRef = useRef<(ReadPos & { sid: number }) | null>(null); heardRef.current = heardAt;
   const placeKey = `${askLang ?? ''}|${voice.on ? 'voice' : 'source'}`;
   const placeRef = useRef({ key: placeKey, idx: 0, t: 0, playing: false, until: 0 });
   useEffect(() => {
@@ -600,7 +604,8 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const subRows = subRow && subText && subLang && !subRow.translations[subLang] ? Object.assign([...rows], { [player.idx]: { ...subRow, translations: { ...subRow.translations, [subLang]: subText } } }) : rows;
   const subLine = subRow ? lineWords(subRows, player.idx, subLang) : [];
   const wordsOn = wordsPref ? wordsPref === 'on' : !locked || voice.on || !feedLang || feedLang === langCode;
-  const subAt = wordsOn ? spokenWordOf(player, player.idx, subLine) : null;
+  const subBy = subText ? shown : player;
+  const subAt = wordsOn ? spokenWordOf(subBy, player.idx, subLine) : null;
   const subWords = subLine.map((w, j) => ({ t: w.text, sp: j < subLine.length - 1 ? ' ' : '', dim: subAt != null && j > subAt }));
   const labelsOn = labelsPref ? labelsPref === 'on' : locked ? false : showLabels(model, rows, rec?.settings);
   const settingsOut = { lang: askLang, subtitles: ccOn, speakerLabels: labelsOn, wordHighlight: wordsOn, translateAudio: speakOn, voices: cloning ? 'cloned' as const : 'synthetic' as const, removeBackground: removeBg };
@@ -658,8 +663,9 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
       const cb = onPlayback.current;
       if (!cb) return;
       const p = playerRef.current;
-      const s: PlaybackState = { t: p.t, dur: p.dur, playing: p.playing, idx: p.idx, seekN: p.seekN, lang: playbackLang.current, muted: p.muted };
-      const key = `${s.t.toFixed(2)}|${s.dur}|${s.playing}|${s.idx}|${s.seekN}|${s.lang}|${s.muted}`;
+      const heard = heardRef.current;
+      const s: PlaybackState = { t: p.t, dur: p.dur, playing: p.playing, idx: p.idx, seekN: p.seekN, lang: playbackLang.current, muted: p.muted, voicePos: heard };
+      const key = `${s.t.toFixed(2)}|${s.dur}|${s.playing}|${s.idx}|${s.seekN}|${s.lang}|${s.muted}|${heard ? `${heard.t.toFixed(2)}/${heard.dur.toFixed(2)}` : ''}`;
       if (key === last) return;
       last = key;
       cb(s);
@@ -793,7 +799,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     <FullVideo
       modal={askConsent ? <CloneConsent onYes={grantClone} onNo={() => setAskConsent(false)} /> : undefined}
       page={(props.layout ?? 'embed') === 'page'} picture={picture} title={name} desk={desk} pos={pos} mute={{ muted: player.muted, onToggle: toggleSound }} cc={ctl.subtitles ? { on: ccOn, onToggle: () => setCcOn((v) => !v) } : undefined} noFull={!ctl.fullscreen} ad={adOn} wait={waitState && !softWait ? <PlayerWait state={waitState} line={voiceHolds ? subWords.map((w) => w.t + w.sp).join('') : null} onRetry={waitRetry} onOriginal={waitOriginal} /> : player.edgeWait ? (recLive ? 'Catching up with the live transcript…' : `Transcribing ${Math.round(pct)}% — it plays on as more is written`) : null} pct={running && !recLive ? Math.round(pct) : null}
-      sub={ccOn && subRow ? { who: subLook ? speakerLabel(model, subRow.speaker) : null, color: subLook ? subLook.fg ?? `var(--lane-${subLook.lane})` : '#fff', words: subWords, cursor: spokenWordOf(player, player.idx, subLine) } : null}
+      sub={ccOn && subRow ? { who: subLook ? speakerLabel(model, subRow.speaker) : null, color: subLook ? subLook.fg ?? `var(--lane-${subLook.lane})` : '#fff', words: subWords, cursor: spokenWordOf(subBy, player.idx, subLine) } : null}
       chip={chipFor(desk ? glassChip : { ...glassChip, width: 64, padding: '0 6px' }, desk ? undefined : 'sm')} transport={transport}
       picker={voice.sheets} sheet={locked ? settingsSheet : null} voices={null} voicesBtn={locked ? null : voicesBtn} sheetOpen={voice.sheetsOpen || settings} onShare={locked && ctl.share ? shareHere : undefined} onSettings={locked && ctl.settings ? () => { voice.closePicker(); setSettings((v) => !v); } : undefined} compact={!!props.compact} paused={{ title: name, summary: sharedSummary.state === 'ready' ? sharedSummary.summary ?? null : null, share: ctl.share && (props.shareUrl || !props.onShare) ? { url: shareAtUrl, at: player.t } : null }}
       copied={failedTx ? <div className="gfull__toast gfull__toast--warn" role="status"><Icon d={D.warn} size={13} sw={1.9} />This video couldn't be transcribed</div> : linkCopied ? <div className="gfull__toast" aria-live="polite"><Icon d={D.check} size={13} sw={2} />Link copied</div> : soundTip ? <div className="gfull__toast gfull__soundtip" aria-live="polite"><Icon d={D.volumeOff} size={14} sw={1.8} />Tap for sound</div> : softNote && hushed !== hushKey ? <div className="gfull__toast gfull__toast--x" role="status" aria-live="polite"><Spinner size={13} color="#eef0f8" track="rgba(255,255,255,.25)" />{softNote}{hushBtn}</div> : (voiceLate || voice.on && (timeline ? follow.missing != null : player.silent)) && hushed !== hushKey ? <div className="gfull__toast gfull__toast--x" role="status" aria-live="polite"><Spinner size={13} color="#eef0f8" track="rgba(255,255,255,.25)" />{`${waitLangName || 'Translated'} voice is still being prepared · playing with subtitles`}{hushBtn}</div> : null} onTouch={() => { browserFull(true); soundOn(); }} onClose={locked ? undefined : () => { browserFull(false); setFull(false); }} />
@@ -806,7 +812,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     </div>
   );
   const gonePanel = gone && <div className="hint" style={{ padding: '30px 20px', textAlign: 'center', fontSize: 13 }}>This link is no longer shared. Ask the person who sent it for a new one.</div>;
-  const lines = <TxLines tapUnclear={listening} tap={listening} model={model} rows={rows} player={listening ? player : { ...player, playRow: player.seekRow }} tail={tail} tailFg={tailFg} loading={txLoading} running={running} desk={desk} feedRef={feedRef} listener showLabels={labelsOn} find={findQ} findOpen={!desk && find} lang={feedLang} warm={warm} onVisible={onVisible} wordHl={wordsOn} />;
+  const lines = <TxLines tapUnclear={listening} tap={listening} model={model} rows={rows} player={listening ? shown : { ...shown, playRow: player.seekRow }} tail={tail} tailFg={tailFg} loading={txLoading} running={running} desk={desk} feedRef={feedRef} listener showLabels={labelsOn} find={findQ} findOpen={!desk && find} lang={feedLang} warm={warm} onVisible={onVisible} wordHl={wordsOn} />;
   const toast = <Toast error={error ?? subError ?? (voiceFailed && full ? null : player.error) ?? voice.error} onClose={() => { setError(null); clearError(); player.clearError(); voice.clearError(); }} />;
   const subline = [lenS ? clock(lenS) : null, langCode ? langCode.toUpperCase() : null, by || 'Read-only copy'].filter(Boolean).join(' · ');
   const pubTransport = (deskScrub: boolean) => (

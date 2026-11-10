@@ -189,6 +189,21 @@ test('the window reaches far enough to cover the seconds asked for, not just a c
   assert.ok(!asked.includes('c7'));
 });
 
+test('the next 2 lines are always loaded, even when the line after the one playing is read in many parts', async () => {
+  const asked = fetchedClips();
+  const q = new ClipQueue();
+  q.readAhead = 6;
+  q.readAheadS = 10;
+  q.add(clip(1));
+  for (let p = 0; p < 8; p++) q.add({ sentenceId: 2, lang: 'ro', src: `c2.${p}`, durationS: 2, part: p, parts: 8 });
+  q.add(clip(3));
+  q.add(clip(4));
+  q.play(1);
+  for (let i = 0; i < 12; i++) await settle();
+  assert.ok(asked.includes('c3'), `line 3 is loaded although line 2 alone fills the window: ${asked}`);
+  assert.ok(!asked.includes('c4'));
+});
+
 test('a seek while paused loads the new place before play is pressed', async () => {
   const asked = fetchedClips();
   const q = new ClipQueue();

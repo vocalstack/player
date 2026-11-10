@@ -32,8 +32,9 @@ export function lineWords(rows: Row[], i: number, lang?: string | null): Word[] 
   return spreadWords(ws, from, to).map((w, k) => ({ ...w, seq: r.seqs[0] ?? 0, idx: k } as Word));
 }
 
-export function spokenWordOf(player: Pick<TxPlayer, 't' | 'idx' | 'engaged' | 'wordSync' | 'clipPos'>, i: number, words: Word[]): number | null {
+export function spokenWordOf(player: Pick<TxPlayer, 't' | 'idx' | 'engaged' | 'wordSync' | 'clipPos' | 'voicePos'>, i: number, words: Word[]): number | null {
   if (!player.engaged || i !== player.idx || !words.length) return null;
+  if (player.voicePos) return readCursor(words.map((w) => ({ t: w.text, sp: ' ' })), player.voicePos);
   if (!player.wordSync) return player.clipPos ? readCursor(words.map((w) => ({ t: w.text, sp: ' ' })), player.clipPos) : null;
   const t = player.t;
   let at = -1;
@@ -242,6 +243,7 @@ export interface TxPlayer {
   videoAt?: (t: number) => void;
   engaged: boolean;
   clipPos?: ReadPos | null;
+  voicePos?: ReadPos | null;
   has: boolean;
   preparing?: boolean;
   settling?: boolean;
@@ -1154,7 +1156,8 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     setStartHold(false);
     if (!follow.failed && !clock.playing) clock.toggle();
   }, [followStarting, clock.playing, follow.failed]); // eslint-disable-line react-hooks/exhaustive-deps
-  const vp: TxPlayer = clockOn ? { ...clock, playing: clock.playing || startHold, toggle: () => { if (startHold) { setStartHold(false); return; } clock.toggle(); }, starting: follow.starting, error: clock.error ?? (follow.failed ? FOLLOW_NOT_STARTED : null), preparing: clock.preparing || (clock.playing && follow.missing != null), original: clock.playing && follow.original, silent: false } : vq;
+  const heardAt = clockOn && follow.pos && follow.pos.sid === rows[clock.idx]?.sentenceId ? follow.pos : null;
+  const vp: TxPlayer = clockOn ? { ...clock, voicePos: heardAt, playing: clock.playing || startHold, toggle: () => { if (startHold) { setStartHold(false); return; } clock.toggle(); }, starting: follow.starting, error: clock.error ?? (follow.failed ? FOLLOW_NOT_STARTED : null), preparing: clock.preparing || (clock.playing && follow.missing != null), original: clock.playing && follow.original, silent: false } : vq;
   useEffect(() => { const id = rows[vp.idx]?.sentenceId; if (id != null) arch.setNear(id); }, [vp.idx]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!want || !vp.has) return;
@@ -1526,7 +1529,7 @@ function TxSkeleton() {
   );
 }
 export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord, onFix, fixMode, fixingId, marks = true, fixBadges = true, tail, tailFg, loading, running, desk, feedRef, listener, showLabels, find, findOpen, lang, warm, onVisible, wordHl = true, tapUnclear = true, tap = true }: { tapUnclear?: boolean; tap?: boolean; model: Model; rows: Row[]; player: TxPlayer; fixed?: Set<string>; applied?: Correction[]; onFixOpen?: (r: Row, hist: boolean) => void; onWord?: (r: Row, w: Word) => void; onFix?: (r: Row) => void; fixMode?: boolean; fixingId?: string | null; marks?: boolean; fixBadges?: boolean; tail: string; tailFg: string; loading?: boolean; running?: boolean; desk: boolean; feedRef: React.RefObject<HTMLDivElement>; listener?: boolean; showLabels: boolean; find?: string; findOpen?: boolean; lang?: string | null ; warm?: boolean; onVisible?: (ids: number[]) => void; wordHl?: boolean }) {
-  const { playing, engaged, t, idx, seekN, wordSync, clipPos } = player;
+  const { playing, engaged, t, idx, seekN, wordSync, clipPos, voicePos } = player;
   const arrivals = useMemo(() => newSpeakerRows(rows, model.returning), [rows, model.returning]);
   useDragScroll(true, feedRef);
   const thumbRef = useRef<HTMLDivElement>(null);
@@ -1676,10 +1679,11 @@ export function TxLines({ model, rows, player, fixed, applied, onFixOpen, onWord
         const inGroup = group != null && !openUnclear.has(group) && group === r.id && unclearGroup[idx] === group;
         const on = playing && (i === idx || inGroup);
         const held = engaged && i === idx;
+        const heard = held && voicePos && lang && r.translations[lang] && r.language !== lang ? voicePos : null;
         const fixing = !!fixingId && fixingId === r.id;
         const dim = needle && !r.text.toLowerCase().includes(needle) && !(lang && r.translations[lang]?.toLowerCase().includes(needle)) ? 0.22 : !engaged || i <= idx || fixing ? 1 : 0.38;
         return (
-          <TxRow key={r.id} tapUnclear={tapUnclear} unclearAs={unclearGroup[i] == null ? 'none' : openUnclear.has(unclearGroup[i]!) ? 'open' : unclearGroup[i] === r.id ? 'closed' : 'hidden'} arrives={arrivals.has(i)} model={model} next={rows[i + 1]} r={r} i={i} on={on} held={held} t={held ? t : 0} clipPos={held ? clipPos ?? null : null} wordSync={wordSync} playing={playing} fixing={fixing} dim={dim} hovered={hovId === r.id} warm={!!warm} lang={lang ?? null} hitTerms={hitKey} applied={applied} fixed={fixed} listener={!!listener} desk={desk} showLabels={showLabels} marks={marks} fixBadges={fixBadges} fixMode={!!fixMode} wordHl={wordHl} canSeekWord={!!player.seekWord} has={has} act={act} />
+          <TxRow key={r.id} tapUnclear={tapUnclear} unclearAs={unclearGroup[i] == null ? 'none' : openUnclear.has(unclearGroup[i]!) ? 'open' : unclearGroup[i] === r.id ? 'closed' : 'hidden'} arrives={arrivals.has(i)} model={model} next={rows[i + 1]} r={r} i={i} on={on} held={held} t={held ? t : 0} clipPos={held ? heard ?? clipPos ?? null : null} wordSync={wordSync && !heard} playing={playing} fixing={fixing} dim={dim} hovered={hovId === r.id} warm={!!warm} lang={lang ?? null} hitTerms={hitKey} applied={applied} fixed={fixed} listener={!!listener} desk={desk} showLabels={showLabels} marks={marks} fixBadges={fixBadges} fixMode={!!fixMode} wordHl={wordHl} canSeekWord={!!player.seekWord} has={has} act={act} />
         );
       })}
       {loading && !rows.length
