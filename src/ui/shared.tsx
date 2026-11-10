@@ -562,12 +562,12 @@ export function SpeakerCast({ roster, selected, onSelect, noClone, building, sho
   sexOf: (p: CastMember) => 'male' | 'female' | null;
   t: Strings;
 }) {
-  const sel = roster.find((p) => p.key === selected) ?? roster[0] ?? null;
-  if (!sel) return null;
+  const sel = roster.find((p) => p.key === selected) ?? null;
+  if (!roster.length) return null;
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '0 2px 9px', margin: '0 -2px' }}>
       {roster.map((p) => {
-        const on = p.key === sel.key;
+        const on = sel != null && p.key === sel.key;
         const alert = p.key >= 0 ? warn?.(p) ?? null : null;
         const busy = p.key >= 0 && !alert && !!building?.(p);
         const dot = p.key >= 0 && !alert && !busy && noClone(p);
