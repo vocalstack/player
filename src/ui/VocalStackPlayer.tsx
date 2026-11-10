@@ -397,6 +397,14 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const langBusy = !!askLang && (translating || voice.relang || (voice.on && follow.missing != null));
   langBusyRef.current = langBusy ? askLang : null;
   useEffect(() => { if (timeline && voice.on && follow.sid != null) voice.setNear(follow.sid); }, [follow.sid, timeline, voice.on]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [startHold, setStartHold] = useState(false);
+  const followStarting = timeline && voice.on && follow.starting != null;
+  useEffect(() => {
+    if (followStarting) { if (player.playing) { setStartHold(true); player.pause(); } return; }
+    if (!startHold) return;
+    setStartHold(false);
+    if (!follow.failed && !player.playing) player.toggle();
+  }, [followStarting, player.playing, follow.failed]); // eslint-disable-line react-hooks/exhaustive-deps
   useDuck([srcPlayer, voice.player], voice.sampling);
   const feedRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (running && !player.playing && feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight; }, [running, rows.length]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -511,10 +519,10 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     onSeek: (f) => { if (voice.relang) return; if (recLive && f >= 0.98) startSeek(Math.max(0, doneTo - LIVE_BEHIND_S)); else player.seekFrac?.(f); },
   };
   const [slowLine, lineSince] = useHeld(voice.on && !!player.preparing && player.playing, 1500);
-  const voiceFailed = voice.on && player.error?.code === 'voice_not_started';
+  const voiceFailed = voice.on && (player.error?.code === 'voice_not_started' || (timeline && follow.failed));
   const speakAvail = voice.canSpeak && !voice.error && !voiceFailed;
   const waitLangName = askLang ? (langs?.languages.find((l) => l.code === askLang)?.name ?? meta.label) : '';
-  const waitState = full ? playerWaitOf({ lang: askLang, langName: waitLangName, translating: translating && !!askLang, translateFailed, voiceFailed, relang: voice.relang, starting: voice.on ? player.starting : null, slowLine, lineSince }) : null;
+  const waitState = full ? playerWaitOf({ lang: askLang, langName: waitLangName, translating: translating && !!askLang, translateFailed, voiceFailed, relang: voice.relang, starting: voice.on ? (timeline ? follow.starting : player.starting) : null, slowLine, lineSince }) : null;
   const softWait = timeline && !!waitState && (waitState.kind === 'translating' || (waitState.kind === 'voice' && voice.relang));
   const [hushed, setHushed] = useState<string | null>(null);
   const hushKey = waitLangName || 'voice';
@@ -535,8 +543,8 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const audioSummary = !speaking ? (removeBg && bgState !== 'unavailable' ? 'Original speech, background removed' : 'Original sound') : [`Translated${voice.hasClone ? (cloning ? ', cloned voices' : ', synthetic voices') : ''}`, !removeBg && canDownload && bed !== 'unavailable' ? 'with background sound' : null].filter(Boolean).join(' ');
   const waitRetry = () => { if (waitState?.kind === 'translateFailed') { setLanguage(askLang); return; } autoplayDone.current = true; player.toggle(); };
   const waitOriginal = () => { const at = player.idx; player.pause(); setTxLang(null); autoplayDone.current = true; srcPlayer.playRow(at); };
-  const transport: PlayerTransport = { prevOn: player.idx > 0, nextOn: player.idx < rows.length - 1, onPrev: player.prev, onNext: player.next, playing: player.playing, playable, playTitle: voice.playTitle ?? (player.playing ? 'Pause' : 'Play'), onPlay: () => { toLive(); autoplayDone.current = true; wantPlay.current = !player.playing; player.toggle(); }, busy: (voice.relang && !ytId) || voiceHolds || (!videoLed && player.playing && !!player.preparing) };
-  useMediaKeys(playable && listening ? { playing: player.playing, toggle: () => { toLive(); autoplayDone.current = true; wantPlay.current = !player.playing; player.toggle(); }, next: player.next, prev: player.prev } : null, pageTitle);
+  const transport: PlayerTransport = { prevOn: player.idx > 0, nextOn: player.idx < rows.length - 1, onPrev: player.prev, onNext: player.next, playing: player.playing || startHold, playable, playTitle: voice.playTitle ?? (player.playing || startHold ? 'Pause' : 'Play'), onPlay: () => { if (startHold) { setStartHold(false); wantPlay.current = false; return; } toLive(); autoplayDone.current = true; wantPlay.current = !player.playing; player.toggle(); }, busy: (voice.relang && !ytId) || voiceHolds || (!videoLed && player.playing && !!player.preparing) };
+  useMediaKeys(playable && listening ? { playing: player.playing || startHold, toggle: () => { if (startHold) { setStartHold(false); wantPlay.current = false; return; } toLive(); autoplayDone.current = true; wantPlay.current = !player.playing; player.toggle(); }, next: player.next, prev: player.prev } : null, pageTitle);
   const glassChip: React.CSSProperties = { background: 'transparent', color: '#eef0f8', width: 74, justifyContent: 'center', boxSizing: 'border-box' };
   const chipFor = (style: React.CSSProperties, size?: 'sm') => !meta.can || !ctl.language ? null : locked
     ? <button type="button" className="gfull__btn" title={langBusy ? `Language: ${meta.label ?? meta.code}, still being prepared` : `Language: ${meta.label ?? meta.code}`} aria-label={`Language: ${meta.label ?? meta.code}`} aria-busy={langBusy || undefined} onClick={() => { setSettings(false); meta.onClick(); }} style={{ position: 'relative' }}><span style={{ fontSize: size === 'sm' ? 17 : 21, lineHeight: 1 }}>{meta.flag}</span>{langBusy && <span style={{ position: 'absolute', right: 2, bottom: 2, display: 'flex', borderRadius: 999, background: 'rgba(5,6,21,.7)', padding: 1 }}><Spinner size={11} color="#eef0f8" track="rgba(255,255,255,.25)" /></span>}</button>

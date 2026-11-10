@@ -1,4 +1,4 @@
-import { startingRetryMs } from './voiceRetry';
+import { CLIP_RETRIES, checkClip, clipStep } from './voiceRetry';
 import { ClipPrefetch } from './clipPrefetch';
 
 export const mediaKind = { video: false };
@@ -110,9 +110,6 @@ export class ClipQueue {
   readAheadS = 0;
   readonly prefetch = new ClipPrefetch();
   private warmed = new Set<string>();
-  private static readonly RETRIES = 4;
-  private static readonly RETRY_MS = 1200;
-  private static readonly STARTING_MS = 300_000;
   private startingSince = new Map<number, number>();
   private retries = new Map<number, number>();
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -540,7 +537,7 @@ export class ClipQueue {
     this.loading = null;
     const c = this.clips.get(id)?.got.get(this.currentPart);
     if (c) this.prefetch.forget(c.src);
-    if (c && this.playing && this.current === id && (this.retries.get(id) ?? 0) < ClipQueue.RETRIES) {
+    if (c && this.playing && this.current === id && (this.retries.get(id) ?? 0) < CLIP_RETRIES) {
       void this.classify(id, c.src);
       return;
     }
@@ -549,29 +546,17 @@ export class ClipQueue {
   }
 
   private async classify(id: number, src: string) {
-    let again = false;
-    let ready = false;
-    let afterMs: number | null = null;
-    try {
-      const r = await fetch(src, { method: 'GET' });
-      ready = r.ok;
-      again = r.status === 202 || r.status === 503 || r.status === 429;
-      const body = r.status === 503 ? await r.json().catch(() => null) : null;
-      afterMs = startingRetryMs(r.status, r.headers.get('Retry-After'), body);
-    } catch {
-      again = true;
-    }
+    const step = clipStep(await checkClip(src), this.startingSince.get(id), this.retries.get(id) ?? 0, Date.now());
     if (this.current !== id || !this.playing) return;
-    if (ready) { this.retries.set(id, (this.retries.get(id) ?? 0) + 1); this.start(id); return; }
-    if (!again) { this.drop(id); return; }
-    if (afterMs != null) {
-      const since = this.startingSince.get(id) ?? Date.now();
-      this.startingSince.set(id, since);
-      if (Date.now() - since < ClipQueue.STARTING_MS) {
-        this.onStarting(since);
-        this.retryTimer = setTimeout(() => { if (this.playing && this.current === id) this.start(id); }, afterMs);
-        return;
-      }
+    if (step.kind === 'ready') { this.retries.set(id, (this.retries.get(id) ?? 0) + 1); this.start(id); return; }
+    if (step.kind === 'drop') { this.drop(id); return; }
+    if (step.kind === 'starting') {
+      this.startingSince.set(id, step.since);
+      this.onStarting(step.since);
+      this.retryTimer = setTimeout(() => { if (this.playing && this.current === id) this.start(id); }, step.ms);
+      return;
+    }
+    if (step.kind === 'gaveUp') {
       this.startingSince.delete(id);
       this.playing = false;
       this.onStarting(null);
@@ -580,9 +565,8 @@ export class ClipQueue {
       this.onSentence(id);
       return;
     }
-    const tries = (this.retries.get(id) ?? 0) + 1;
-    this.retries.set(id, tries);
-    this.retryTimer = setTimeout(() => { if (this.playing && this.current === id) this.start(id); }, ClipQueue.RETRY_MS * tries);
+    this.retries.set(id, (this.retries.get(id) ?? 0) + 1);
+    this.retryTimer = setTimeout(() => { if (this.playing && this.current === id) this.start(id); }, step.ms);
   }
 
   private drop(id: number) {

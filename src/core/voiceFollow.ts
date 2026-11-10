@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { CLIP_RETRIES, checkClip, clipStep, type ClipCheck } from './voiceRetry';
 
 export interface FollowWord { start: number; end: number; text?: string }
 export interface FollowLine { sid: number; start: number; end: number; words?: readonly FollowWord[] }
@@ -79,7 +80,100 @@ export function upcomingSrcs(lines: readonly FollowLine[], clips: ReadonlyMap<nu
   return out;
 }
 
-export interface FollowState { missing: number | null; sid: number | null; original: boolean }
+export class FollowRetry {
+  since: number | null = null;
+  startingSrc: string | null = null;
+  failed = false;
+  wanted: string | null = null;
+  private gen = 0;
+  private busySrc = new Set<string>();
+  private goneSrc = new Set<string>();
+  private tries = new Map<string, number>();
+  private timers = new Set<ReturnType<typeof setTimeout>>();
+  private alive = true;
+  private changed: () => void;
+  private again: (src: string) => void;
+  private check: (src: string) => Promise<ClipCheck>;
+  constructor(changed: () => void, again: (src: string) => void, check: (src: string) => Promise<ClipCheck> = checkClip) {
+    this.changed = changed;
+    this.again = again;
+    this.check = check;
+  }
+
+  busy(src: string): boolean { return this.busySrc.has(src); }
+  gone(src: string): boolean { return this.goneSrc.has(src); }
+  startingAt(src: string): number | null { return this.since != null && this.startingSrc === src ? this.since : null; }
+
+  async errored(src: string): Promise<void> {
+    if (this.busySrc.has(src) || this.goneSrc.has(src)) return;
+    const tries = this.tries.get(src) ?? 0;
+    if (tries >= CLIP_RETRIES && this.startingSrc !== src) { this.goneSrc.add(src); this.changed(); return; }
+    this.busySrc.add(src);
+    const gen = this.gen;
+    const step = clipStep(await this.check(src), this.startingSrc === src ? this.since : null, tries, Date.now());
+    if (!this.alive || gen !== this.gen) return;
+    if (step.kind === 'ready') {
+      this.busySrc.delete(src);
+      this.tries.set(src, tries + 1);
+      if (this.startingSrc === src) { this.since = null; this.startingSrc = null; }
+      this.again(src);
+      this.changed();
+      return;
+    }
+    if (step.kind === 'drop') { this.busySrc.delete(src); this.goneSrc.add(src); this.changed(); return; }
+    if (step.kind === 'gaveUp') { this.busySrc.delete(src); this.since = null; this.startingSrc = null; this.failed = true; this.changed(); return; }
+    if (step.kind === 'starting') {
+      this.since = step.since;
+      this.startingSrc = src;
+      this.changed();
+      this.later(step.ms, () => {
+        this.busySrc.delete(src);
+        if (this.wanted === src) { void this.errored(src); return; }
+        if (this.startingSrc === src) { this.since = null; this.startingSrc = null; }
+        this.again(src);
+        this.changed();
+      });
+      return;
+    }
+    this.tries.set(src, tries + 1);
+    this.later(step.ms, () => { this.busySrc.delete(src); this.again(src); this.changed(); });
+  }
+
+  loaded(src: string) {
+    this.tries.delete(src);
+    if (this.startingSrc !== src) return;
+    this.since = null;
+    this.startingSrc = null;
+    this.changed();
+  }
+
+  resume() { if (this.failed) { this.failed = false; this.changed(); } }
+
+  reset() {
+    this.gen += 1;
+    this.wanted = null;
+    for (const h of this.timers) clearTimeout(h);
+    this.timers.clear();
+    this.busySrc.clear();
+    this.goneSrc.clear();
+    this.tries.clear();
+    this.since = null;
+    this.startingSrc = null;
+    this.failed = false;
+  }
+
+  dispose() { this.alive = false; this.reset(); }
+
+  private later(ms: number, run: () => void) {
+    const h = setTimeout(() => {
+      this.timers.delete(h);
+      if (this.alive) run();
+    }, ms);
+    this.timers.add(h);
+  }
+}
+
+export interface FollowState { missing: number | null; sid: number | null; original: boolean; starting: number | null; failed: boolean }
 
 export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; clips: readonly (FollowClip & { sentenceId: number })[]; t: number; playing: boolean; muted: boolean; times?: FollowTimes; original?: ReadonlySet<number> }): FollowState {
   const bySid = useMemo(() => {
@@ -89,30 +183,61 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
   }, [o.clips]);
   const cache = useRef(new Map<string, HTMLAudioElement>());
   const cur = useRef<{ src: string; sid: number; el: HTMLAudioElement; t: number; at: number; last: number } | null>(null);
-  const [state, setState] = useState<FollowState>({ missing: null, sid: null, original: false });
+  const [state, setState] = useState<FollowState>({ missing: null, sid: null, original: false, starting: null, failed: false });
+  const [nudge, setNudge] = useState(0);
+  const bump = () => setNudge((n) => n + 1);
+  const retryRef = useRef<FollowRetry | null>(null);
+  if (!retryRef.current) {
+    retryRef.current = new FollowRetry(bump, (src) => {
+      const a = cache.current.get(src);
+      if (a) { a.pause(); a.removeAttribute('src'); cache.current.delete(src); }
+      if (cur.current?.src === src) cur.current = null;
+    });
+  }
+  const retry = retryRef.current;
   const el = (src: string) => {
     let a = cache.current.get(src);
     if (!a) {
-      a = new Audio();
-      a.preload = 'auto';
-      a.src = src;
-      cache.current.set(src, a);
+      const made = new Audio();
+      made.preload = 'auto';
+      made.onerror = bump;
+      made.onloadeddata = () => { if (retry.startingAt(src) != null) bump(); };
+      made.src = src;
+      cache.current.set(src, made);
+      a = made;
     }
     return a;
   };
   const stopCurrent = () => { cur.current?.el.pause(); cur.current = null; };
-  useEffect(() => () => { for (const a of cache.current.values()) { a.pause(); a.removeAttribute('src'); } cache.current.clear(); cur.current = null; }, []);
+  useEffect(() => () => { retry.dispose(); for (const a of cache.current.values()) { a.pause(); a.removeAttribute('src'); } cache.current.clear(); cur.current = null; }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (o.playing) retry.resume(); }, [o.playing]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!o.on) { stopCurrent(); setState((s) => (s.missing == null && s.sid == null && !s.original ? s : { missing: null, sid: null, original: false })); return; }
-    const want = followTarget(o.lines, bySid, o.t, o.times, o.original);
+    const idle: FollowState = { missing: null, sid: null, original: false, starting: null, failed: false };
+    if (!o.on) { stopCurrent(); retry.reset(); setState((s) => (s.missing == null && s.sid == null && !s.original && s.starting == null && !s.failed ? s : idle)); return; }
+    const aimed = followTarget(o.lines, bySid, o.t, o.times, o.original);
+    const want: FollowTarget = aimed.kind === 'play' && retry.gone(aimed.src) ? { kind: 'missing', sid: aimed.sid } : aimed;
+    const keep = new Set(upcomingSrcs(o.lines, bySid, o.t).filter((src) => !retry.gone(src)));
+    for (const src of keep) el(src);
+    let blocked = false;
+    retry.wanted = want.kind === 'play' ? want.src : null;
+    if (want.kind === 'play') {
+      const a = el(want.src);
+      keep.add(want.src);
+      if (a.error) {
+        blocked = true;
+        if (o.playing) void retry.errored(want.src);
+      } else if (retry.busy(want.src)) blocked = true;
+      else if (a.readyState >= 2) retry.loaded(want.src);
+      if (retry.startingAt(want.src) != null) blocked = true;
+    }
+    const starting = want.kind === 'play' ? retry.startingAt(want.src) : null;
     const missing = want.kind === 'missing' ? want.sid : null;
     const sid = want.kind === 'none' ? null : want.sid;
     const c0 = cur.current;
     const runsOn = want.kind === 'original' && !!c0 && o.playing && !c0.el.paused && !c0.el.ended && mayRunOn(o.lines, o.t, c0.sid);
     const original = want.kind === 'original' && !runsOn;
-    setState((s) => (s.missing === missing && s.sid === sid && s.original === original ? s : { missing, sid, original }));
-    const keep = new Set(upcomingSrcs(o.lines, bySid, o.t));
-    for (const src of keep) el(src);
+    const failed = retry.failed;
+    setState((s) => (s.missing === missing && s.sid === sid && s.original === original && s.starting === starting && s.failed === failed ? s : { missing, sid, original, starting, failed }));
     const c = cur.current;
     if (c) keep.add(c.src);
     for (const [src, a] of cache.current) if (!keep.has(src) && (!c || c.el !== a)) { a.pause(); cache.current.delete(src); }
@@ -124,6 +249,7 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
       cur.current = null;
       return;
     }
+    if (blocked) { c?.el.pause(); cur.current = null; return; }
     if (c && c.src === want.src) {
       c.el.muted = o.muted;
       const jumped = Math.abs(o.t - c.last) > FOLLOW_JUMP_S;
@@ -140,7 +266,7 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
     try { a.currentTime = want.offset; } catch { }
     cur.current = { src: want.src, sid: want.sid, el: a, t: o.t, at: want.offset, last: o.t };
     void a.play().catch(() => {});
-  }, [o.on, o.t, o.playing, o.muted, o.lines, bySid, o.original]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [o.on, o.t, o.playing, o.muted, o.lines, bySid, o.original, nudge]); // eslint-disable-line react-hooks/exhaustive-deps
   return state;
 }
 

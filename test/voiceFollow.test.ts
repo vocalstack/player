@@ -135,3 +135,75 @@ test('on the recording clock, a seek lands in a clip at the matching point, an o
   assert.equal(mayRunOn(ls, 4.5, 1), true, 'a clip still speaking runs on into the original line');
   assert.equal(mayRunOn(ls, 5.6, 1), false, 'but no more than 1.5 s');
 });
+
+const answer = (status: number) => ({ ready: status >= 200 && status < 300, again: status === 202 || status === 503 || status === 429, afterMs: status === 503 ? 1000 : null });
+const settleAll = () => new Promise<void>((r) => setImmediate(r));
+
+test('on the recording clock a voice clip answering 503 is a voice starting: it says so, re-asks after Retry-After until the clip arrives, then lets it play', async (t) => {
+  const { FollowRetry } = await import('../src/core/voiceFollow.ts');
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  let status = 503;
+  let asked = 0;
+  const reloaded: string[] = [];
+  let changes = 0;
+  const r = new FollowRetry(() => { changes += 1; }, (src) => reloaded.push(src), async () => { asked += 1; return answer(status); });
+  r.wanted = 'v0';
+  await r.errored('v0');
+  assert.notEqual(r.startingAt('v0'), null, 'the page says the voice is starting');
+  assert.equal(r.busy('v0'), true, 'the clip is held, not played or dropped');
+  assert.equal(r.gone('v0'), false);
+  assert.ok(changes > 0);
+  const since = r.startingAt('v0');
+  t.mock.timers.tick(1000);
+  await settleAll();
+  assert.equal(asked, 2, 're-asked after Retry-After');
+  assert.equal(r.startingAt('v0'), since, 'still starting, from the same moment');
+  status = 200;
+  t.mock.timers.tick(1000);
+  await settleAll();
+  assert.equal(asked, 3);
+  assert.equal(r.startingAt('v0'), null, 'no longer starting once the clip is there');
+  assert.equal(r.busy('v0'), false, 'the clip may play');
+  assert.deepEqual(reloaded, ['v0'], 'the failed copy is replaced by a fresh one');
+  r.dispose();
+});
+
+test('a voice that never starts gives up after five minutes and says so; playing again tries afresh', async (t) => {
+  const { FollowRetry } = await import('../src/core/voiceFollow.ts');
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  const r = new FollowRetry(() => {}, () => {}, async () => answer(503));
+  r.wanted = 'v0';
+  await r.errored('v0');
+  for (let i = 0; i < 301 && !r.failed; i++) { t.mock.timers.tick(1000); await settleAll(); }
+  assert.equal(r.failed, true, 'the voice did not start in time');
+  assert.equal(r.startingAt('v0'), null);
+  r.resume();
+  assert.equal(r.failed, false);
+  r.dispose();
+});
+
+test('a starting voice the reader has moved away from stops being asked for; a clip that is not there is dropped', async (t) => {
+  const { FollowRetry } = await import('../src/core/voiceFollow.ts');
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  let asked = 0;
+  const r = new FollowRetry(() => {}, () => {}, async (src) => { asked += 1; return answer(src === 'gone' ? 404 : 503); });
+  r.wanted = 'v0';
+  await r.errored('v0');
+  r.wanted = 'v5';
+  t.mock.timers.tick(1000);
+  await settleAll();
+  assert.equal(asked, 1, 'not re-asked once another line is wanted');
+  assert.equal(r.startingAt('v0'), null, 'the starting card goes with it');
+  await r.errored('gone');
+  assert.equal(r.gone('gone'), true, 'a 404 clip is treated as missing');
+  r.dispose();
+});
+
+test('the clips clock and the recording clock read a clip answer the same way', async () => {
+  const { clipStep, CLIP_STARTING_MS, CLIP_RETRY_MS } = await import('../src/core/voiceRetry.ts');
+  assert.deepEqual(clipStep(answer(200), null, 0, 5), { kind: 'ready' });
+  assert.deepEqual(clipStep(answer(404), null, 0, 5), { kind: 'drop' });
+  assert.deepEqual(clipStep(answer(503), null, 0, 5), { kind: 'starting', since: 5, ms: 1000 });
+  assert.deepEqual(clipStep(answer(503), 5, 0, 5 + CLIP_STARTING_MS), { kind: 'gaveUp' });
+  assert.deepEqual(clipStep(answer(429), null, 1, 5), { kind: 'retry', ms: CLIP_RETRY_MS * 2 });
+});
