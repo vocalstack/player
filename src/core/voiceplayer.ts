@@ -41,11 +41,17 @@ export interface VoiceTrackRow {
   clipRev?: Record<string, string>;
   clipDur?: Record<string, number>;
   clipParts?: Record<string, number>;
+  voices?: 'cloned' | 'synthetic' | 'mixed' | null;
+  chosenFor?: string[];
 }
 
 export function rowForVoice(rows: VoiceTrackRow[], voiceId: string | null): VoiceTrackRow | null {
   if (voiceId == null) return rows.find((r) => !r.voiceKey) ?? null;
   return rows.find((r) => r.voiceKey === voiceId) ?? rows.find((r) => !r.voiceKey && r.voice === voiceId) ?? null;
+}
+
+export function trackFor(rows: VoiceTrackRow[], kind: 'cloned' | 'synthetic', voiceId: string | null): VoiceTrackRow | null {
+  return rows.find((r) => r.chosenFor?.includes(kind)) ?? rowForVoice(rows, voiceId) ?? (kind === 'synthetic' ? rows.find((r) => r.voices === 'synthetic') ?? null : null);
 }
 
 export function archiveClips(row: VoiceTrackRow | null | undefined, recordingId: string, apiOrigin: string, cred: MediaCred = {}, sentenceIds?: number[]): VoiceClip[] {

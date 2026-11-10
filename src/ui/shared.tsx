@@ -7,7 +7,7 @@ import { D, EqBars, Icon, PauseGlyph, PlayGlyph, Spinner } from '../ds/Icons';
 import { clock } from '../core/format';
 import { confClass, fixedSlots, isGivenName, lane, speakerInitial, speakerNumber, speakerLabel, speakerLook, speakerName, type Lane, type Model, type Row, type Word } from '../core/transcript';
 import { audioClipUrl, type MediaCred } from '../core/audio';
-import { archiveClips, missingClips, readCursor, readTokens, rowForVoice, type ReadPos, type VoiceTrackRow } from '../core/voiceplayer';
+import { archiveClips, missingClips, readCursor, readTokens, trackFor, type ReadPos, type VoiceTrackRow } from '../core/voiceplayer';
 import { TX_FORMATS } from '../data/tx';
 import { describe, useAsync, type ErrorLike } from '../data/transcript';
 import { apiFetch, usePlayerApi } from '../data/context';
@@ -752,9 +752,8 @@ function VoiceHead({ name, warn, rename }: { name: string; warn: string | null; 
   );
 }
 
-export function VoiceSheetBody({ under = null, checks = true, headWarn = null, rename = null, onEdit, onDelete, rowNode, cast, voices, currentId, armedId = null, sampleId = null, dlId = null, onPick, onAdd, onUse, usedBy, foldKey, foldFor = null, problem, noClone = null, t }: {
+export function VoiceSheetBody({ under = null, headWarn = null, rename = null, onEdit, onDelete, rowNode, cast, voices, sampleId = null, dlId = null, onPick, onAdd, problem, noClone = null, t }: {
   under?: ReactNode;
-  checks?: boolean;
   headWarn?: string | null;
   rename?: SpeakerRename | null;
   onEdit?: (v: AvailableVoice) => void;
@@ -762,33 +761,16 @@ export function VoiceSheetBody({ under = null, checks = true, headWarn = null, r
   rowNode?: (v: AvailableVoice) => ReactNode | null;
   cast?: ReactNode;
   voices: AvailableVoice[];
-  currentId: string | null;
-  armedId?: string | null;
   sampleId?: string | null;
   dlId?: string | null;
   problem?: string | null;
   noClone?: { title: string; sub: string; tip?: string; busy?: boolean; action?: () => void; retry?: () => void; node?: ReactNode } | null;
   onPick: (v: AvailableVoice) => void;
   onAdd?: (v: AvailableVoice) => void;
-  onUse: (id: string) => void;
-  usedBy?: (v: AvailableVoice) => string | null;
-  foldKey?: string | number | null;
-  foldFor?: 'male' | 'female' | null;
   t: Strings;
 }) {
-  const rows = useMemo(() => voiceGroups(voices, t), [voices, t]);
+  const rows = useMemo(() => voiceGroups(voices.filter((v) => v.cloned), t), [voices, t]);
   const underIdx = underAt(rows.map((r) => r.head), t.vcSheet, under != null);
-  const [fold, setFold] = useState<Record<string, boolean>>({});
-  useEffect(() => { setFold({}); }, [foldKey, foldFor]);
-  const gendered = (g: string) => g === t.vcMale.toUpperCase() || g === t.vcFemale.toUpperCase();
-  const open = (g: string) => {
-    if (g === t.vcSheet) return true;
-    const said = fold[g];
-    if (said != null) return !said;
-    if (!foldFor || !gendered(g)) return true;
-    return g === (foldFor === 'female' ? t.vcFemale : t.vcMale).toUpperCase();
-  };
-  const useOn = checks && !!armedId && armedId !== currentId;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: noClone?.node ? '1 0 auto' : undefined }}>
       {problem && (
@@ -821,13 +803,11 @@ export function VoiceSheetBody({ under = null, checks = true, headWarn = null, r
         </>
       )}
       {underIdx === -1 && <div className="vsp-under">{under}</div>}
-      {rows.map(({ v, headOn, head, headCount, rule }, i) => {
+      {rows.map(({ v, headOn, head, rule }, i) => {
         const detail = voiceDetail(v);
         const dling = dlId === v.id;
-        const shown = open(head);
-        const shares = usedBy?.(v) ?? null;
-        const local = !checks && v.cloned && (v.auto || v.live || v.library === false) && (!!onEdit || !!onDelete);
-        const swap = shown ? rowNode?.(v) ?? null : null;
+        const local = v.cloned && (v.auto || v.live || v.library === false) && (!!onEdit || !!onDelete);
+        const swap = rowNode?.(v) ?? null;
         const hearing = sampleId === v.id;
         const savable = !!onAdd && (v.live || (v.cloned && v.library === false && !v.auto));
         const act = (kind: 'main' | 'quiet' | 'danger', label: string, icon: string, fn: (() => void) | undefined, what: string) => fn && (
@@ -835,7 +815,7 @@ export function VoiceSheetBody({ under = null, checks = true, headWarn = null, r
             <Icon d={icon} size={15} sw={1.9} />{label}
           </button>
         );
-        const acts = !checks && shown && !swap && (savable || local) && (
+        const acts = !swap && (savable || local) && (
           <div className="vcacts">
             {act('main', 'Save Speaker', D.plus, savable ? () => onAdd!(v) : undefined, v.live ? `save ${v.name}’s voice from this session` : `keep ${v.name} in Speakers`)}
             {local && (
@@ -853,78 +833,36 @@ export function VoiceSheetBody({ under = null, checks = true, headWarn = null, r
               <span style={{ font: '600 9px var(--vs-font-mono)', letterSpacing: '.13em', color: 'var(--ink-62)' }}>{head}</span>
             </div>
           )}
-          {headOn && head === t.vcSheet && !checks && !swap && (
+          {headOn && head === t.vcSheet && !swap && (
             <VoiceHead name={v.name} warn={headWarn} rename={rename} />
-          )}
-          {headOn && head !== t.vcSheet && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setFold((f) => ({ ...f, [head]: open(head) })); }}
-              title={`${shown ? 'Hide ' : 'Show '}${head.toLowerCase()} voices`}
-              aria-expanded={shown}
-              style={{ width: '100%', textAlign: 'left', font: 'inherit', display: 'flex', alignItems: 'center', gap: 7, padding: shown ? '14px 2px 6px' : '14px 2px 14px', border: 0, borderTop: i === 0 && !noClone ? '0' : '1px solid var(--hair)', background: 'transparent', cursor: 'pointer', userSelect: 'none' }}
-            >
-              <Icon d={D.chevronDown} size={12} sw={2.4} style={{ flex: 'none', color: 'var(--ink-45)', transform: `rotate(${shown ? '0deg' : '-90deg'})`, transition: 'transform .18s ease' }} />
-              <span style={{ font: '600 9px var(--vs-font-mono)', letterSpacing: '.13em', color: 'var(--ink-62)' }}>{head}</span>
-              <span style={{ font: '600 9px var(--vs-font-mono)', color: 'var(--ink-62)' }}>{headCount}</span>
-            </button>
           )}
           {swap ?? <button
             type="button"
-            className={checks ? undefined : 'vcrow'}
-            {...(checks ? { 'aria-selected': v.id === currentId } : { 'aria-pressed': hearing, 'aria-label': [`Hear ${v.name}`, detail].filter(Boolean).join(', ') })}
-            aria-hidden={!shown}
-            tabIndex={shown ? undefined : -1}
+            className="vcrow"
+            aria-pressed={hearing}
+            aria-label={[`Hear ${v.name}`, detail].filter(Boolean).join(', ')}
             onClick={() => onPick(v)}
-            style={{ width: checks ? '100%' : 'calc(100% + 12px)', textAlign: 'left', font: 'inherit', border: 0, borderTop: shown ? rule : '0', display: 'flex', alignItems: 'center', gap: 11, padding: shown ? (checks ? '11px 8px' : '7px 8px') : '0px 8px', margin: '0 -6px', borderRadius: 10, background: checks ? (armedId === v.id ? 'var(--brand-tint)' : 'transparent') : undefined, cursor: 'pointer', opacity: shown ? 1 : 0, maxHeight: shown ? 120 : 0, overflow: 'hidden', transition: 'max-height 280ms cubic-bezier(.32,.72,0,1),padding 280ms cubic-bezier(.32,.72,0,1),opacity 200ms ease' }}
+            style={{ width: 'calc(100% + 12px)', textAlign: 'left', font: 'inherit', border: 0, borderTop: rule, display: 'flex', alignItems: 'center', gap: 11, padding: '7px 8px', margin: '0 -6px', borderRadius: 10, cursor: 'pointer', overflow: 'hidden' }}
           >
-            <span title={dling ? 'Downloading this voice' : undefined} style={{ flex: 'none', boxSizing: 'border-box', width: 32, height: 32, borderRadius: '50%', border: checks || dling ? 0 : `1.5px solid ${v.cloned || hearing ? 'var(--brand)' : 'var(--ink-45)'}`, background: dling ? 'transparent' : v.cloned ? 'var(--brand-soft)' : !checks && hearing ? 'var(--brand-tint)' : 'var(--fill-06)', color: v.cloned || hearing ? 'var(--brand)' : 'var(--ink-70)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span title={dling ? 'Downloading this voice' : undefined} style={{ flex: 'none', boxSizing: 'border-box', width: 32, height: 32, borderRadius: '50%', border: dling ? 0 : '1.5px solid var(--brand)', background: dling ? 'transparent' : 'var(--brand-soft)', color: 'var(--brand)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {dling
                 ? <span style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid var(--fill-10)', borderTopColor: 'var(--brand)', animation: 'vs-spin .7s linear infinite' }} />
                 : hearing
-                  ? <Equaliser height={checks ? 13 : 11} width={checks ? 2.5 : 2} />
-                  : checks
-                    ? <Icon d={v.cloned ? D.voiceClone : v.gender === 'female' ? D.venus : v.gender === 'male' ? D.mars : D.mic} size={15} sw={1.6} style={{ color: v.cloned ? 'var(--brand)' : 'var(--ink-55)' }} />
-                    : <PlayGlyph size={12} />}
+                  ? <Equaliser height={11} width={2} />
+                  : <PlayGlyph size={12} />}
             </span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                <span style={{ minWidth: 0, fontSize: 14.5, fontWeight: checks ? (v.id === currentId ? 600 : 400) : 500, lineHeight: checks ? undefined : 1.3, color: 'var(--ink-96)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.name}</span>
+                <span style={{ minWidth: 0, fontSize: 14.5, fontWeight: 500, lineHeight: 1.3, color: 'var(--ink-96)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.name}</span>
               </div>
-              {detail && <div style={{ fontSize: 12, fontWeight: 300, lineHeight: checks ? undefined : 1.4, color: 'var(--ink-62)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{detail}</div>}
-              {shares && (v.id === currentId ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3, minWidth: 0 }}>
-                  <Icon d={D.notice} size={12} sw={1.7} style={{ flex: 'none', color: 'var(--conf-mid)' }} />
-                  <span style={{ minWidth: 0, fontSize: 11, fontWeight: 300, color: 'var(--conf-mid)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{`${t.vcShared} ${shares}`}</span>
-                </div>
-              ) : (
-                <div style={{ marginTop: 2, minWidth: 0, fontSize: 12, fontWeight: 300, color: 'var(--ink-50)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{`${t.vcUsedBy} ${shares}`}</div>
-              ))}
+              {detail && <div style={{ fontSize: 12, fontWeight: 300, lineHeight: 1.4, color: 'var(--ink-62)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{detail}</div>}
             </div>
-            {checks && <div style={{ flex: 'none', width: v.live ? (v.id === currentId ? 18 : 0) : 42, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-              <span style={{ flex: 'none', width: 18, height: 18 }} />
-              <span style={{ flex: 'none', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {v.id === currentId && <Icon d={D.check} size={17} sw={2.2} style={{ flex: 'none', color: 'var(--brand)' }} />}
-              </span>
-            </div>}
-            {checks && (v.live || (v.cloned && v.library === false && !v.auto && !!onAdd)) && (
-              <span className="gvadd" role="button" title={v.live ? `Save ${v.name}’s voice from this session` : `Save ${v.name} in Speakers`} onClick={onAdd ? (e) => { e.stopPropagation(); onAdd(v); } : undefined}>
-                <Icon d={D.plus} size={14} sw={2} />Save Speaker
-              </span>
-            )}
           </button>}
           {acts}
           {i === underIdx && <div className="vsp-under">{under}</div>}
         </Fragment>
         );
       })}
-      {useOn && (
-        <div style={{ position: 'sticky', bottom: 0, zIndex: 3, marginTop: 6, padding: '11px 0 3px', animation: 'vs-slide-up .18s ease-out' }}>
-          <button type="button" className="vcuse" title="Apply this voice" onClick={() => armedId && onUse(armedId)}>
-            <span>{t.vcUse}</span>
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -1013,7 +951,8 @@ export function useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice, s
     () => (listed && listed.lang === lang && listed.recordingId === recordingId ? listed.rows : []),
     [listed, lang, recordingId],
   );
-  const track = useMemo(() => rowForVoice(rows, pickedVoice), [rows, pickedVoice]);
+  const synthetic = !!parseCast(pickedVoice);
+  const track = useMemo(() => trackFor(rows, synthetic ? 'synthetic' : 'cloned', pickedVoice), [rows, pickedVoice, synthetic]);
   const renderVoiceId = track ? track.voiceKey || null : pickedVoice;
   const [asking, setAsking] = useState<string | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
@@ -1021,17 +960,13 @@ export function useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice, s
   const renderKey = `${recordingId ?? ''}|${lang ?? ''}|${renderVoiceId ?? ''}`;
   const requestRender = useCallback(async (voiceId: string | null, cast?: Map<number, string> | null) => {
     if (!recordingId || !lang || !ended) return;
-    const fromKey = cast?.size ? null : parseCast(voiceId);
-    const use = cast?.size ? cast : fromKey;
-    const castObj = use && use.size ? Object.fromEntries([...use].map(([k2, v]) => [String(k2), v])) : null;
-    const k = `${recordingId}|${lang}|${castObj ? JSON.stringify(castObj) : voiceId ?? ''}`;
+    const stock = !!cast?.size || !!parseCast(voiceId);
+    const k = `${recordingId}|${lang}|${stock ? 'synthetic' : ''}`;
     if (asked.current.has(k)) return;
     asked.current.add(k);
     setAsking(k);
     setRenderError(null);
-    const body: { langs: string[]; voice?: string; voiceBySpeaker?: Record<string, string>; consent?: boolean } = { langs: [lang], consent };
-    if (castObj) body.voiceBySpeaker = castObj;
-    else if (voiceId) body.voice = voiceId;
+    const body: { langs: string[]; voices?: 'synthetic'; consent?: boolean } = stock ? { langs: [lang], voices: 'synthetic' } : { langs: [lang], consent };
     const r = await apiFetch(api, `/v1/recordings/${recordingId}/voice`, { method: 'POST', body }).catch(() => null);
     setAsking((a) => (a === k ? null : a));
     if (!r?.ok) {
@@ -1063,14 +998,11 @@ export function useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice, s
     const prev = kicked.current;
     if (prev && prev.key === key && Math.abs(prev.near - target) < 12 && Date.now() - prev.at < 60_000) return;
     kicked.current = { key, near: target, at: Date.now() };
-    const castMap = parseCast(renderVoiceId);
-    const body: { langs: string[]; near: number; voice?: string; voiceBySpeaker?: Record<string, string>; consent?: boolean } = { langs: [lang], near: target, consent };
-    if (castMap && castMap.size) body.voiceBySpeaker = Object.fromEntries([...castMap].map(([k2, v]) => [String(k2), v]));
-    else if (renderVoiceId) body.voice = renderVoiceId;
+    const body: { langs: string[]; near: number; voices?: 'synthetic'; consent?: boolean } = synthetic ? { langs: [lang], near: target, voices: 'synthetic' } : { langs: [lang], near: target, consent };
     void apiFetch(api, `/v1/recordings/${recordingId}/voice`, { method: 'POST', body })
       .then((r) => { if (!r.ok) kicked.current = null; })
       .catch(() => { kicked.current = null; });
-  }, [ended, recordingId, lang, renderVoiceId, near, missing, api, consent]);
+  }, [ended, recordingId, lang, renderVoiceId, near, missing, api, consent, synthetic]);
   const missingNow = missing.length > 0;
   const lastCount = useRef({ n: -1, at: 0 });
   useEffect(() => {
