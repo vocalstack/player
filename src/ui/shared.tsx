@@ -12,6 +12,7 @@ import { TX_FORMATS } from '../data/tx';
 import { describe, useAsync, type ErrorLike } from '../data/transcript';
 import { apiFetch, usePlayerApi } from '../data/context';
 import type { Strings } from '../data/i18n';
+import { underAt } from '../core/voiceSheet';
 
 export function feedInset(el: HTMLElement): { top: number; bottom: number } {
   const cs = getComputedStyle(el);
@@ -603,7 +604,8 @@ export function SpeakerCast({ roster, selected, onSelect, noClone, building, sho
 }
 
 
-export function VoiceSheetBody({ cast, voices, currentId, armedId = null, sampleId = null, dlId = null, onPick, onAdd, onUse, usedBy, foldKey, foldFor = null, problem, noClone = null, t }: {
+export function VoiceSheetBody({ under = null, cast, voices, currentId, armedId = null, sampleId = null, dlId = null, onPick, onAdd, onUse, usedBy, foldKey, foldFor = null, problem, noClone = null, t }: {
+  under?: ReactNode;
   cast?: ReactNode;
   voices: AvailableVoice[];
   currentId: string | null;
@@ -621,6 +623,7 @@ export function VoiceSheetBody({ cast, voices, currentId, armedId = null, sample
   t: Strings;
 }) {
   const rows = useMemo(() => voiceGroups(voices, t), [voices, t]);
+  const underIdx = underAt(rows.map((r) => r.head), t.vcSheet, under != null);
   const [fold, setFold] = useState<Record<string, boolean>>({});
   useEffect(() => { setFold({}); }, [foldKey, foldFor]);
   const gendered = (g: string) => g === t.vcMale.toUpperCase() || g === t.vcFemale.toUpperCase();
@@ -660,6 +663,7 @@ export function VoiceSheetBody({ cast, voices, currentId, armedId = null, sample
           </div>
         </>
       )}
+      {underIdx === -1 && <div className="vsp-under">{under}</div>}
       {rows.map(({ v, headOn, head, headCount, rule }, i) => {
         const detail = voiceDetail(v);
         const dling = dlId === v.id;
@@ -726,6 +730,7 @@ export function VoiceSheetBody({ cast, voices, currentId, armedId = null, sample
               </span>
             )}
           </button>
+          {i === underIdx && <div className="vsp-under">{under}</div>}
         </Fragment>
         );
       })}

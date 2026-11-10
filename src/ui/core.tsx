@@ -18,6 +18,7 @@ import { findCount, findMatches, matchAt, stepMatch } from '../core/find';
 import { holdsClock, voiceWait, VOICE_WAIT_TITLE } from '../core/voiceWait';
 import { fromStream, toStream, type Gap } from '../core/streamTime';
 import { useHeld } from './wait';
+import { speakerExtra } from '../core/voiceSheet';
 import { lineSpeechEnd, spreadWords } from '../core/readalong';
 import { type AvailableVoice, type CastMember, FixBadges, FixPen, rowFixes, FeedBar, NO_VOICE_TIP, feedInset, SpeakerCast, VoiceIdGlyph, VoiceSheetBody, autoCast, castKey, langMeta, namedCount, rowKey, savedCloneKey, speakerRoster, useArchiveVoice, useFeedBar, useVoiceCatalogue, useDragScroll } from './shared';
 
@@ -1023,6 +1024,7 @@ export interface VoiceSheetHooks {
   castShort?: (sp: CastMember, ctx: VoiceSheetCtx) => boolean;
   castBuilding?: (sp: CastMember, ctx: VoiceSheetCtx) => boolean;
   castWarn?: (sp: CastMember, ctx: VoiceSheetCtx) => string | null;
+  speakerNode?: (sp: CastMember) => React.ReactNode;
 }
 
 export interface KeptView { get: (what: 'panel' | 'speaker') => string | null; set: (what: 'panel' | 'speaker', v: string | null) => void }
@@ -1058,7 +1060,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   setPickedLang: (l: string | null | undefined) => void;
   side?: { title: string; note: string };
 }) {
-  const { onAddVoice, onPickVoice, onSelectSpeaker, noCloneFor, castNoClone, castShort, castBuilding, castWarn, badge, titleNode: voiceTitleNode } = voiceSheet ?? {};
+  const { onAddVoice, onPickVoice, onSelectSpeaker, noCloneFor, castNoClone, castShort, castBuilding, castWarn, badge, titleNode: voiceTitleNode, speakerNode } = voiceSheet ?? {};
   const hooked = !!voiceSheet;
   const pendingClones = !!voiceSheet?.pendingClones;
   const [recent, pushRecent] = useRecentLangs();
@@ -1305,6 +1307,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
         )}
         voices={shownList}
         onAdd={(v) => { preview.reset(); onAddVoice?.(v); }}
+        under={speakerExtra(speakerNode, selSp)}
         noClone={noteSp && !shownList.some((v) => v.cloned) ? noCloneFor?.(noteSp, autoOf(noteSp.key), ctx) ?? null : null}
         usedBy={spkCastOn && spkSelected != null
           ? (v) => {
