@@ -1034,6 +1034,7 @@ export interface VoiceSheetHooks {
   onEditVoice?: (v: AvailableVoice, speaker: number | null) => void;
   onDeleteVoice?: (v: AvailableVoice, speaker: number | null) => void;
   voiceNode?: (v: AvailableVoice, speaker: number | null) => React.ReactNode | null;
+  renameSpeaker?: (sp: CastMember, ctx: VoiceSheetCtx) => ((name: string) => Promise<void> | void) | null;
 }
 
 export interface KeptView { get: (what: 'panel' | 'speaker') => string | null; set: (what: 'panel' | 'speaker', v: string | null) => void }
@@ -1069,7 +1070,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   setPickedLang: (l: string | null | undefined) => void;
   side?: { title: string; note: string };
 }) {
-  const { onAddVoice, onPickVoice, onSelectSpeaker, noCloneFor, castNoClone, castShort, castBuilding, castWarn, badge, titleNode: voiceTitleNode, onEditVoice, onDeleteVoice, voiceNode, speakerNode, deselect, overviewNode } = voiceSheet ?? {};
+  const { onAddVoice, onPickVoice, onSelectSpeaker, noCloneFor, castNoClone, castShort, castBuilding, castWarn, badge, titleNode: voiceTitleNode, onEditVoice, onDeleteVoice, voiceNode, speakerNode, deselect, overviewNode, renameSpeaker } = voiceSheet ?? {};
   const hooked = !!voiceSheet;
   const pendingClones = !!voiceSheet?.pendingClones;
   const stockShown = voiceSheet?.stock ?? true;
@@ -1311,6 +1312,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     </button>
   );
   const overviewOn = overviewShown({ hook: !!overviewNode, castOn: spkCastOn, selected: spkSelected });
+  const selSpRename = selSp ? renameSpeaker?.(selSp, ctx) ?? null : null;
   const voiceSheetEl = (
     <Sheet open={sheet} onClose={closeVoices} title={t.vcSheet} titleNode={voiceTitleNode} doneLabel={t.done}>
       <VoiceSheetBody
@@ -1320,6 +1322,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
         onDelete={onDeleteVoice ? (v) => { preview.reset(); onDeleteVoice(v, spkSelected); } : undefined}
         rowNode={voiceNode ? (v) => voiceNode(v, spkSelected) : undefined}
         headWarn={selSp ? castWarn?.(selSp, ctx) ?? null : null}
+        rename={selSpRename && selSp ? { name: selSp.name, save: selSpRename } : null}
         cast={spkCastOn && (
           <SpeakerCast
             t={t}

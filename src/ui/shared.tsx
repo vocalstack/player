@@ -5,7 +5,7 @@ import type { Correction, LanguageLists, ExportFormat, Voice } from '@vocalstack
 import { Card, CopyButton, Eyebrow, IconButton, Sheet, Switch, Toggle, Tooltip } from '../ds/Controls';
 import { D, EqBars, Icon, PauseGlyph, PlayGlyph, Spinner } from '../ds/Icons';
 import { clock } from '../core/format';
-import { confClass, fixedSlots, lane, speakerInitial, speakerNumber, speakerLabel, speakerLook, speakerName, type Lane, type Model, type Row, type Word } from '../core/transcript';
+import { confClass, fixedSlots, isGivenName, lane, speakerInitial, speakerNumber, speakerLabel, speakerLook, speakerName, type Lane, type Model, type Row, type Word } from '../core/transcript';
 import { audioClipUrl, type MediaCred } from '../core/audio';
 import { archiveClips, missingClips, readCursor, readTokens, rowForVoice, type ReadPos, type VoiceTrackRow } from '../core/voiceplayer';
 import { TX_FORMATS } from '../data/tx';
@@ -689,10 +689,74 @@ export function SpeakerCast({ roster, selected, onSelect, noClone, building, sho
 }
 
 
-export function VoiceSheetBody({ under = null, checks = true, headWarn = null, onEdit, onDelete, rowNode, cast, voices, currentId, armedId = null, sampleId = null, dlId = null, onPick, onAdd, onUse, usedBy, foldKey, foldFor = null, problem, noClone = null, t }: {
+export interface SpeakerRename { name: string; save: (name: string) => Promise<void> | void }
+
+function VoiceHead({ name, warn, rename }: { name: string; warn: string | null; rename: SpeakerRename | null }) {
+  const [edit, setEdit] = useState(false);
+  const [val, setVal] = useState('');
+  const [busy, setBusy] = useState(false);
+  const saving = useRef(false);
+  const left = useRef(false);
+  const live = useRef(true);
+  useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
+  const had = rename && isGivenName(rename.name) ? rename.name : '';
+  const open = () => { left.current = false; setVal(had); setEdit(true); };
+  const leave = () => { left.current = true; setEdit(false); };
+  const done = async () => {
+    if (!rename || saving.current || left.current) return;
+    const next = val.trim();
+    if (!next || next === had) { leave(); return; }
+    saving.current = true;
+    setBusy(true);
+    let ok = true;
+    try { await rename.save(next); } catch { ok = false; }
+    saving.current = false;
+    if (!live.current) return;
+    setBusy(false);
+    if (ok) leave();
+  };
+  const unnamed = !!rename && !had;
+  return (
+    <div className="vchead">
+      <span>
+        {rename && edit ? (
+          <span className="vchead__edit">
+            <span aria-hidden="true">{val || rename.name}</span>
+            <input
+              className="vchead__input"
+              size={1}
+              autoFocus
+              value={val}
+              maxLength={60}
+              placeholder={rename.name}
+              aria-label={had ? `Rename ${rename.name}` : `Name ${rename.name}`}
+              aria-busy={busy || undefined}
+              readOnly={busy}
+              onFocus={(e) => e.currentTarget.select()}
+              onChange={(e) => setVal(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void done(); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); leave(); } }}
+              onBlur={() => void done()}
+            />
+          </span>
+        ) : rename ? (
+          <button type="button" className="vchead__name" aria-label={`${name}: ${had ? 'rename' : 'name'} this speaker`} onClick={open}>
+            {name}<Icon d={D.pencil} size={13} sw={1.8} />
+          </button>
+        ) : name}
+        {' has a cloned voice'}
+      </span>
+      {warn && (unnamed && !edit
+        ? <button type="button" className="vchead__warn" aria-label={`${warn}. Name this speaker`} onClick={open}><Icon d={D.warn} size={15} sw={1.8} /></button>
+        : <span className="vchead__warn" role="img" aria-label={warn}><Icon d={D.warn} size={15} sw={1.8} /></span>)}
+    </div>
+  );
+}
+
+export function VoiceSheetBody({ under = null, checks = true, headWarn = null, rename = null, onEdit, onDelete, rowNode, cast, voices, currentId, armedId = null, sampleId = null, dlId = null, onPick, onAdd, onUse, usedBy, foldKey, foldFor = null, problem, noClone = null, t }: {
   under?: ReactNode;
   checks?: boolean;
   headWarn?: string | null;
+  rename?: SpeakerRename | null;
   onEdit?: (v: AvailableVoice) => void;
   onDelete?: (v: AvailableVoice) => void;
   rowNode?: (v: AvailableVoice) => ReactNode | null;
@@ -790,10 +854,7 @@ export function VoiceSheetBody({ under = null, checks = true, headWarn = null, o
             </div>
           )}
           {headOn && head === t.vcSheet && !checks && !swap && (
-            <div className="vchead">
-              <span>{`${v.name} has a cloned voice`}</span>
-              {headWarn && <span className="vchead__warn" role="img" aria-label={headWarn}><Icon d={D.warn} size={15} sw={1.8} /></span>}
-            </div>
+            <VoiceHead name={v.name} warn={headWarn} rename={rename} />
           )}
           {headOn && head !== t.vcSheet && (
             <button
