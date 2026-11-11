@@ -11,6 +11,7 @@ import { describe, useAsync, type ErrorLike } from '../data/transcript';
 import { usePlayerApi } from '../data/context';
 import { strings } from '../data/i18n';
 import { confClass, fixedSlots, lane, newSpeakerRows, sameLang, speakerInitial, speakerLabel, speakerLook, type Model, type Row, type Word } from '../core/transcript';
+import { ClockMedia, mediaKey } from '../core/clockMedia';
 import { ClipQueue, newMediaElement, originalLines, readCursor, readsAllOriginal, voicedLines, VoiceNotStarted, type ReadPos, type VoiceClip } from '../core/voiceplayer';
 import { placePosition, snapPosition, type PlayPos } from '../core/playPosition';
 import { readingClock, useVoiceFollow } from '../core/voiceFollow';
@@ -517,56 +518,40 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
   const [error, setError] = useState<ErrorLike | null>(null);
   const [ready, setReady] = useState(false);
   const offset = useRef(offsetS); offset.current = offsetS;
-  const carry = useRef<{ t: number; playing: boolean; asked?: boolean } | null>(null);
-  const [attempt, setAttempt] = useState(0);
+  const [elN, setElN] = useState(0);
   const retries = useRef(0);
-  useEffect(() => { retries.current = 0; }, [url]);
-  useEffect(() => {
-    setReady(false);
-    const from = carry.current;
-    carry.current = null;
-    if (!from) setT(0);
-    if (!url) { setPlaying(false); audio.current = null; return; }
-    const a = newMediaElement(url);
-    const off = offset.current;
-    a.preload = 'metadata';
-    a.muted = mutedRef.current || silenced.current;
-    a.onplay = () => setPlaying(true);
-    a.onpause = () => { setPlaying(false); setBuffering(false); };
-    a.onended = () => { setPlaying(false); setBuffering(false); };
-    a.onwaiting = () => setBuffering(true);
-    a.onstalled = () => { if (!a.paused && a.readyState < 3) setBuffering(true); };
-    a.onplaying = () => setBuffering(false);
-    a.oncanplay = () => setBuffering(false);
-    a.onloadedmetadata = () => {
-      setReady(true);
-      a.currentTime = (from?.t ?? 0) + off;
-      if (from?.playing) void a.play().catch((e) => { if (!(from.asked && e?.name === 'NotAllowedError')) setError(describe(e)); });
-    };
-    a.onerror = () => {
-      setPlaying(false);
+  const urlKey = mediaKey(url);
+  useEffect(() => { retries.current = 0; }, [urlKey]);
+  const [ctl] = useState(() => new ClockMedia<HTMLMediaElement>({
+    make: (u) => newMediaElement(u),
+    prepare: (a) => { a.muted = mutedRef.current || silenced.current; },
+    offset: () => offset.current,
+    playing: setPlaying,
+    buffering: setBuffering,
+    ready: setReady,
+    at: setT,
+    playError: (e, w) => { if (!(w.asked && (e as { name?: string } | null)?.name === 'NotAllowedError')) setError(describe(e)); },
+    swapped: (a) => { audio.current = a; setElN((n) => n + 1); },
+    failed: (a, u) => {
       const err = a.error;
       const fallback = mediaErrorText(err, false);
-      void explainAudioError(url).then((why) => {
-        if (!why) reportMediaError(err, mediaKindOf(url));
-        if (audio.current !== a) return;
+      if (ctl.latest !== u && retries.current < MEDIA_RETRIES) { retries.current += 1; ctl.reload(); return; }
+      void explainAudioError(u).then((why) => {
+        if (!why) reportMediaError(err, mediaKindOf(u));
+        if (ctl.el !== a) return;
         if (why && !why.permanent && retries.current < MEDIA_RETRIES) {
           retries.current += 1;
-          audio.current = null;
-          window.setTimeout(() => setAttempt((n) => n + 1), MEDIA_RETRY_MS * retries.current);
+          ctl.forget();
+          window.setTimeout(() => ctl.reload(), MEDIA_RETRY_MS * retries.current);
           return;
         }
         setError({ message: why?.message ?? fallback });
-        if (!why?.permanent) audio.current = null;
+        if (!why?.permanent) ctl.forget();
       });
-    };
-    audio.current = a;
-    return () => {
-      carry.current = { t: Math.max(0, a.currentTime - off), playing: !a.paused && !a.ended };
-      a.pause(); a.onplay = a.onpause = a.onended = a.onloadedmetadata = a.onerror = a.onwaiting = a.onstalled = a.onplaying = a.oncanplay = null; audio.current = null; setBuffering(false);
-    };
-  }, [url, attempt]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => { carry.current = null; }, []);
+    },
+  }));
+  useEffect(() => { ctl.use(url); }, [url]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => ctl.close(), []); // eslint-disable-line react-hooks/exhaustive-deps
   const lastEnd = rows.length ? rows[rows.length - 1].words[rows[rows.length - 1].words.length - 1]?.end ?? rows[rows.length - 1].start + 4 : 0;
   const windowed = offsetS > 0 || (lenS != null && ready && audio.current != null && Number.isFinite(audio.current.duration) && audio.current.duration > lenS + 1);
   const dur = (!windowed && ready && audio.current && Number.isFinite(audio.current.duration) && audio.current.duration) || lenS || lastEnd || 1;
@@ -589,7 +574,8 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
     const read = (): boolean => {
       const a = audio.current;
       if (!a) return true;
-      const at = a.currentTime - offset.current;
+      const at = ctl.position();
+      if (at == null) return true;
       if (windowedRef.current && at >= durRef.current) { a.pause(); setT(durRef.current); return false; }
       if (edgeRef.current != null && at >= edgeRef.current) { setWait(true); a.pause(); setT(at); return false; }
       const now = performance.now();
@@ -602,7 +588,7 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
     const onTime = () => { if (document.hidden) read(); };
     el?.addEventListener('timeupdate', onTime);
     return () => { cancelAnimationFrame(raf); el?.removeEventListener('timeupdate', onTime); };
-  }, [playing]);
+  }, [playing, elN]); // eslint-disable-line react-hooks/exhaustive-deps
   const idx = useMemo(() => {
     if (!rows.length) return 0;
     let i = 0;
@@ -610,21 +596,21 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
     return i;
   }, [rows, t]);
   const [seekN, setSeekN] = useState(0);
-  const seek = (s0: number) => { const s = edgeRef.current != null ? Math.min(s0, Math.max(0, edgeRef.current - 0.5)) : s0; const a = audio.current; setT(s); if (a) a.currentTime = s + offset.current; setSeekN((n) => n + 1); };
+  const seek = (s0: number) => { const s = edgeRef.current != null ? Math.min(s0, Math.max(0, edgeRef.current - 0.5)) : s0; setT(s); ctl.seek(s); setSeekN((n) => n + 1); };
   const playFailed = (e: unknown) => { if ((e as { name?: string } | null)?.name !== 'AbortError') setError(describe(e)); };
   const toggle = () => {
     const a = audio.current;
     if (!a) {
-      if (!url && available) { carry.current = carry.current?.asked ? null : { t, playing: true, asked: true }; return; }
-      if (url) setAttempt((n) => n + 1);
+      if (!url && available) { ctl.ask(t); return; }
+      if (url) ctl.reload();
       setError({ message: available ? 'The audio player is not ready yet — try again in a moment.' : 'There is no audio for this transcription.' });
       return;
     }
-    if (playing) { a.pause(); return; }
+    if (playing) { ctl.pause(); return; }
     if (edgeWaitRef.current) { setWait(false); return; }
     if (a.currentTime < offset.current) a.currentTime = offset.current;
     if (t >= dur - 0.25) seek(0);
-    void a.play().catch(playFailed);
+    void ctl.play().catch(playFailed);
   };
   const seekRow = (i: number) => { const r = rows[Math.max(0, Math.min(rows.length - 1, i))]; if (r) seek(r.start); };
   const seekFrac = (f: number) => seek(Math.max(0, Math.min(1, f)) * dur);
@@ -633,20 +619,20 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
     seek(at.t);
     const a = audio.current;
     if (!a) return;
-    if (!at.playing) { a.pause(); return; }
+    if (!at.playing) { ctl.pause(); return; }
     setWait(false);
-    void a.play().catch(playFailed);
+    void ctl.play().catch(playFailed);
   };
   const seekWord = (w: Word) => seek(w.start);
   const playRow = (i: number) => {
     seekRow(i);
     const a = audio.current;
-    if (a && a.paused) void a.play().catch(playFailed);
+    if (a && a.paused) void ctl.play().catch(playFailed);
   };
   const held = useRef(false);
   const lastNudge = useRef(0);
-  const hold = () => { if (playing) { audio.current?.pause(); held.current = true; } };
-  const release = () => { if (held.current) { held.current = false; void audio.current?.play().catch(playFailed); } };
+  const hold = () => { if (playing) { ctl.pause(); held.current = true; } };
+  const release = () => { if (held.current) { held.current = false; void ctl.play().catch(playFailed); } };
   const toggleMute = () => { const m = !mutedRef.current; mutedRef.current = m; if (audio.current) audio.current.muted = m || silenced.current; setMuted(m); };
   const autoplay = async (): Promise<boolean | null> => {
     const a = audio.current;
@@ -661,7 +647,7 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
   return {
     autoplay,
     playing, t, idx, dur, muted, toggleMute, toggle, seekRow, seekFrac, resumeAt, seekWord, playRow, seekN,
-    stop: () => { const a = audio.current; if (a) { a.pause(); a.currentTime = offset.current; } setT(0); },
+    stop: () => { ctl.pause(); ctl.seek(0); setT(0); },
     videoAt: (vt: number) => {
       const a = audio.current;
       if (!a || a.paused || a.ended || held.current || Date.now() - lastNudge.current < 3000) return;
@@ -674,7 +660,7 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
     prev: () => seekRow(idx - 1), next: () => seekRow(idx + 1), hold, release,
     error, clearError: () => setError(null), has: available, edgeWait, preparing: buffering,
     wordSync: true,
-    pause: () => { setWait(false); if (carry.current?.asked) carry.current = null; audio.current?.pause(); },
+    pause: () => { setWait(false); ctl.pause(); },
     setVolume: (v: number) => { if (audio.current) audio.current.volume = v; },
     silence: (on: boolean) => { silenced.current = on; if (audio.current) audio.current.muted = mutedRef.current || on; },
   };
