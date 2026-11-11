@@ -1286,7 +1286,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     </button>
   );
   const overviewOn = overviewShown({ hook: !!overviewNode, castOn: spkCastOn, selected: spkSelected });
-  const selSpRename = selSp ? renameSpeaker?.(selSp, ctx) ?? null : null;
+  const selSpRename = noteSp ? renameSpeaker?.(noteSp, ctx) ?? null : null;
   const voiceSheetEl = (
     <Sheet open={sheet} onClose={closeVoices} title={t.vcSheet} titleNode={voiceTitleNode} doneLabel={t.done}>
       <VoiceSheetBody
@@ -1295,7 +1295,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
         onDelete={onDeleteVoice ? (v) => { preview.reset(); onDeleteVoice(v, spkSelected); } : undefined}
         rowNode={voiceNode ? (v) => voiceNode(v, spkSelected) : undefined}
         headWarn={selSp ? castWarn?.(selSp, ctx) ?? null : null}
-        rename={selSpRename && selSp ? { name: selSp.name, save: selSpRename } : null}
+        rename={selSpRename && noteSp ? { name: noteSp.name, save: selSpRename } : null}
         cast={spkCastOn && (
           <SpeakerCast
             t={t}
@@ -1311,7 +1311,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
         )}
         voices={overviewOn ? [] : shownList}
         onAdd={onAddVoice ? (v) => { preview.reset(); onAddVoice(v); } : undefined}
-        under={overviewOn ? overviewNode?.() ?? null : speakerExtra(speakerNode, selSp)}
+        under={overviewOn ? overviewNode?.() ?? null : speakerExtra(speakerNode, noteSp)}
         noClone={!overviewOn && noteSp && !shownList.length ? (noCloneFor ? noCloneFor(noteSp, autoOf(noteSp.key), ctx) : synthNote(noteSp, hooked ? cloneOn : cloneIfOffered)) : null}
         sampleId={preview.sampleId}
         dlId={preview.dlId}
@@ -1338,7 +1338,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     barChip: { flag: chipMeta.flag, code: chipMeta.code, label: chipMeta.label, onClick: side || stickyPicker ? toggleChip : openPicker, active: !!((side || stickyPicker) && pickerMine), can: canTranslate },
     sheetsOpen: picker || sheet,
     on: speaks, player, chip, voiceBtn, nearRow: arch.setNear, clipsReady: vp.has, clipFor: (id: number | null | undefined) => id != null && arch.clips.some((c) => c.sentenceId === id), voiceWaiting: busy, sheets, sidePanel, voicesMine, toggleVoices, cloningOn: cloneOn, playTitle, noVoice, noVoiceNote, relang, sampling: preview.sampleId != null, error: preview.error, clearError: () => preview.clearError(), openVoices, openPicker, original, reloadVoices: () => setCatVer((n) => n + 1), voicesVer: catVer, people, gvList, autoOf, savedFor, closeVoices, setSheet,
-    selectedSpeaker: selSp, armVoice: preview.arm, resetPreview: preview.reset, armedId: preview.armId,
+    selectedSpeaker: noteSp, armVoice: preview.arm, resetPreview: preview.reset, armedId: preview.armId,
     readLang: typeof pickedLang === 'string' && !whole ? pickedLang : null,
     originalIds: origIds,
     plays: (id: number | null | undefined) => id != null && (origIds.has(id) || arch.clips.some((c) => c.sentenceId === id)),
