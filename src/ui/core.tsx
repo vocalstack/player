@@ -1135,7 +1135,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     if (!follow.failed && !clock.playing) clock.toggle();
   }, [followStarting, clock.playing, follow.failed]); // eslint-disable-line react-hooks/exhaustive-deps
   const heardAt = clockOn && follow.pos && follow.pos.sid === rows[clock.idx]?.sentenceId ? follow.pos : null;
-  const vp: TxPlayer = clockOn ? { ...clock, voicePos: heardAt, playing: clock.playing || startHold, toggle: () => { if (startHold) { setStartHold(false); return; } clock.toggle(); }, starting: follow.starting, error: clock.error ?? (follow.failed ? FOLLOW_NOT_STARTED : null), preparing: clock.preparing || (clock.playing && follow.missing != null), original: clock.playing && follow.original, silent: false } : vq;
+  const vp: TxPlayer = clockOn ? { ...clock, voicePos: heardAt, playing: clock.playing || startHold, toggle: () => { if (startHold) { setStartHold(false); return; } clock.toggle(); }, starting: follow.starting, error: clock.error ?? (follow.failed ? FOLLOW_NOT_STARTED : null), preparing: clock.preparing || ((clock.playing || startHold) && follow.missing != null), original: clock.playing && follow.original, silent: false } : vq;
   useEffect(() => { const id = rows[vp.idx]?.sentenceId; if (id != null) arch.setNear(id); }, [vp.idx]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!want || !vp.has) return;
