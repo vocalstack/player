@@ -571,10 +571,6 @@ function given(name?: string): string | undefined {
   return name && name.trim() && !GENERIC_NAME.test(name) ? name : undefined;
 }
 
-export function isGivenName(name?: string): boolean {
-  return given(name) !== undefined;
-}
-
 export function speakerName(m: Model, speaker: number): string | undefined {
   return given(m.speakers[speaker]) ?? given(m.speakerIds[speaker]?.name);
 }

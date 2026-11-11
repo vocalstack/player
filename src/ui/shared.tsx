@@ -2,17 +2,16 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { createPortal } from 'react-dom';
 import { liveEmbedUrl } from '../core/youtube';
 import type { Correction, LanguageLists, ExportFormat, Voice } from '@vocalstack/js-sdk';
-import { Card, CopyButton, Eyebrow, IconButton, Sheet, Switch, Toggle, Tooltip } from '../ds/Controls';
+import { Card, Eyebrow, IconButton, Sheet, Switch, Toggle, Tooltip } from '../ds/Controls';
 import { D, EqBars, Icon, PauseGlyph, PlayGlyph, Spinner } from '../ds/Icons';
 import { clock } from '../core/format';
-import { confClass, fixedSlots, isGivenName, lane, speakerInitial, speakerNumber, speakerLabel, speakerLook, speakerName, type Lane, type Model, type Row, type Word } from '../core/transcript';
+import { confClass, fixedSlots, lane, speakerInitial, speakerNumber, speakerLabel, speakerLook, speakerName, type Lane, type Model, type Row, type Word } from '../core/transcript';
 import { audioClipUrl, type MediaCred } from '../core/audio';
 import { archiveClips, missingClips, readCursor, readTokens, trackFor, type ReadPos, type VoiceTrackRow } from '../core/voiceplayer';
 import { TX_FORMATS } from '../data/tx';
 import { describe, useAsync, type ErrorLike } from '../data/transcript';
 import { apiFetch, usePlayerApi } from '../data/context';
 import type { Strings } from '../data/i18n';
-import { underAt } from '../core/voiceSheet';
 
 export function feedInset(el: HTMLElement): { top: number; bottom: number } {
   const cs = getComputedStyle(el);
@@ -553,16 +552,11 @@ export function autoCast(roster: CastMember[], voices: AvailableVoice[], clones 
 
 const castSlot: React.CSSProperties = { flex: 'none', boxSizing: 'border-box', width: 13, height: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' };
 
-export function SpeakerCast({ roster, selected, onSelect, noClone, building, short, warn, sexOf, t }: {
+export function SpeakerCast({ roster, selected, onSelect, building }: {
   roster: CastMember[];
   selected: number | null;
   onSelect: (key: number) => void;
-  noClone: (p: CastMember) => boolean;
   building?: (p: CastMember) => boolean;
-  short?: (p: CastMember) => boolean;
-  warn?: (p: CastMember) => string | null;
-  sexOf: (p: CastMember) => 'male' | 'female' | null;
-  t: Strings;
 }) {
   const sel = roster.find((p) => p.key === selected) ?? null;
   const measure = useRef<HTMLDivElement>(null);
@@ -590,28 +584,11 @@ export function SpeakerCast({ roster, selected, onSelect, noClone, building, sho
     return () => { document.removeEventListener('pointerdown', down, true); window.removeEventListener('keydown', key, true); };
   }, [open]);
   if (!roster.length) return null;
-  const marks = (p: CastMember, on: boolean) => {
-    const alert = p.key >= 0 ? warn?.(p) ?? null : null;
-    const busy = p.key >= 0 && !alert && !!building?.(p);
-    const dot = p.key >= 0 && !alert && !busy && noClone(p);
-    const few = p.key >= 0 && !alert && !busy && !dot && !p.hasSavedSpeaker && !!short?.(p);
-    return (
-      <>
-        {alert
-          ? <span title={alert} aria-label={alert} style={{ ...castSlot, borderRadius: '50%', background: '#c27c00', color: '#fff', font: '900 9.5px/1 system-ui, sans-serif' }}>!</span>
-          : busy
-            ? <span title="Cloning this voice…" aria-label="Cloning this voice" style={castSlot}><Spinner size={13} color="var(--brand)" track="var(--fill-12)" sw={1.7} /></span>
-            : p.hasSavedSpeaker
-              ? <VoiceIdGlyph color={p.fg ?? (on ? 'var(--ink-62)' : 'var(--ink-45)')} />
-              : few && <span title="Not enough audio to clone" aria-label="Not enough audio to clone" style={{ ...castSlot, color: on ? 'var(--ink-45)' : 'var(--ink-35)' }}><Icon d={D.micOff} size={13} sw={1.7} /></span>}
-        {dot && (
-          <span title="No voice clone yet" aria-label="No voice clone yet" style={p.hasSavedSpeaker ? { ...castSlot, width: 7 } : castSlot}>
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--brand)' }} />
-          </span>
-        )}
-      </>
-    );
-  };
+  const marks = (p: CastMember, on: boolean) => (p.key >= 0 && !!building?.(p)
+    ? <span title="Cloning this voice…" aria-label="Cloning this voice" style={castSlot}><Spinner size={13} color="var(--brand)" track="var(--fill-12)" sw={1.7} /></span>
+    : p.hasSavedSpeaker
+      ? <VoiceIdGlyph color={p.fg ?? (on ? 'var(--ink-62)' : 'var(--ink-45)')} />
+      : null);
   const face = (p: CastMember, on: boolean, grow = false) => (
     <>
       <span
@@ -689,150 +666,46 @@ export function SpeakerCast({ roster, selected, onSelect, noClone, building, sho
 }
 
 
-export interface SpeakerRename { name: string; save: (name: string) => Promise<void> | void }
-
-function VoiceHead({ name, warn, rename }: { name: string; warn: string | null; rename: SpeakerRename | null }) {
-  const [edit, setEdit] = useState(false);
-  const [val, setVal] = useState('');
-  const [busy, setBusy] = useState(false);
-  const saving = useRef(false);
-  const left = useRef(false);
-  const live = useRef(true);
-  useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
-  const had = rename && isGivenName(rename.name) ? rename.name : '';
-  const open = () => { left.current = false; setVal(had); setEdit(true); };
-  const leave = () => { left.current = true; setEdit(false); };
-  const done = async () => {
-    if (!rename || saving.current || left.current) return;
-    const next = val.trim();
-    if (!next || next === had) { leave(); return; }
-    saving.current = true;
-    setBusy(true);
-    let ok = true;
-    try { await rename.save(next); } catch { ok = false; }
-    saving.current = false;
-    if (!live.current) return;
-    setBusy(false);
-    if (ok) leave();
-  };
-  const unnamed = !!rename && !had;
-  return (
-    <div className="vchead">
-      <span>
-        {rename && edit ? (
-          <span className="vchead__edit">
-            <span aria-hidden="true">{val || rename.name}</span>
-            <input
-              className="vchead__input"
-              size={1}
-              autoFocus
-              value={val}
-              maxLength={60}
-              placeholder={rename.name}
-              aria-label={had ? `Rename ${rename.name}` : `Name ${rename.name}`}
-              aria-busy={busy || undefined}
-              readOnly={busy}
-              onFocus={(e) => e.currentTarget.select()}
-              onChange={(e) => setVal(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void done(); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); leave(); } }}
-              onBlur={() => void done()}
-            />
-          </span>
-        ) : rename ? (
-          <button type="button" className="vchead__name" aria-label={`${name}: ${had ? 'rename' : 'name'} this speaker`} onClick={open}>
-            {name}<Icon d={D.pencil} size={13} sw={1.8} />
-          </button>
-        ) : name}
-        {' has a cloned voice'}
-      </span>
-      {warn && (unnamed && !edit
-        ? <button type="button" className="vchead__warn" aria-label={`${warn}. Name this speaker`} onClick={open}><Icon d={D.warn} size={15} sw={1.8} /></button>
-        : <span className="vchead__warn" role="img" aria-label={warn}><Icon d={D.warn} size={15} sw={1.8} /></span>)}
-    </div>
-  );
-}
-
-export function VoiceSheetBody({ under = null, headWarn = null, rename = null, onEdit, onDelete, rowNode, cast, voices, sampleId = null, dlId = null, onPick, onAdd, problem, noClone = null, t }: {
-  under?: ReactNode;
-  headWarn?: string | null;
-  rename?: SpeakerRename | null;
-  onEdit?: (v: AvailableVoice) => void;
-  onDelete?: (v: AvailableVoice) => void;
-  rowNode?: (v: AvailableVoice) => ReactNode | null;
+export function VoiceSheetBody({ cast, voices, sampleId = null, dlId = null, onPick, note = null, t }: {
   cast?: ReactNode;
   voices: AvailableVoice[];
   sampleId?: string | null;
   dlId?: string | null;
-  problem?: string | null;
-  noClone?: { title: string; sub: string; tip?: string; busy?: boolean; action?: () => void; retry?: () => void; node?: ReactNode } | null;
+  note?: { title: string; sub: string } | null;
   onPick: (v: AvailableVoice) => void;
-  onAdd?: (v: AvailableVoice) => void;
   t: Strings;
 }) {
   const rows = useMemo(() => voiceGroups(voices.filter((v) => v.cloned), t), [voices, t]);
-  const underIdx = underAt(rows.map((r) => r.head), t.vcSheet, under != null);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: noClone?.node ? '1 0 auto' : undefined }}>
-      {problem && (
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9, padding: '10px 11px', marginBottom: 10, borderRadius: 11, background: 'var(--conf-low-soft)' }}>
-          <Icon d={D.warnTri} size={15} sw={1.7} style={{ flex: 'none', marginTop: 1, color: 'var(--conf-low)' }} />
-          <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 300, lineHeight: 1.45, color: 'var(--ink-80)', textWrap: 'pretty' } as React.CSSProperties}>{problem}</span>
-          <span style={{ flex: 'none', marginTop: -1 }}><CopyButton value={problem} label="Copy this error" /></span>
-        </div>
-      )}
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
       {cast}
-      {noClone && (
+      {note && (
         <>
           <div aria-hidden="true" style={{ height: 14 }} />
-          {noClone.node ? <div style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column', paddingBottom: 6 }}>{noClone.node}</div> : <div role={noClone.action ? 'button' : 'status'} tabIndex={noClone.action ? 0 : undefined} title={noClone.tip} onClick={noClone.action} onKeyDown={noClone.action ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); noClone.action!(); } } : undefined} style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '11px 8px', margin: '0 -6px', borderRadius: 10, cursor: noClone.action ? 'pointer' : 'default' }}>
-            <span style={{ flex: 'none', width: 32, height: 32, boxSizing: 'border-box', borderRadius: '50%', border: noClone.busy ? 0 : noClone.action ? '1.5px solid var(--brand)' : '1.5px dashed var(--fill-20)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {noClone.busy
-                ? <span style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid var(--fill-10)', borderTopColor: 'var(--brand)', animation: 'vs-spin .7s linear infinite' }} />
-                : <Icon d={noClone.action ? D.plus : D.mic} size={15} sw={noClone.action ? 2 : 1.6} style={{ color: noClone.action ? 'var(--brand)' : 'var(--ink-45)' }} />}
+          <div role="status" style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '11px 8px', margin: '0 -6px', borderRadius: 10, cursor: 'default' }}>
+            <span style={{ flex: 'none', width: 32, height: 32, boxSizing: 'border-box', borderRadius: '50%', border: '1.5px dashed var(--fill-20)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon d={D.mic} size={15} sw={1.6} style={{ color: 'var(--ink-45)' }} />
             </span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14.5, fontWeight: noClone.action ? 500 : 400, color: noClone.action ? 'var(--brand)' : 'var(--ink-62)', lineHeight: 1.3, overflowWrap: 'anywhere', textWrap: 'pretty' } as React.CSSProperties}>{noClone.title}</div>
-              <div style={{ fontSize: 12, fontWeight: 300, lineHeight: 1.4, color: 'var(--ink-62)', marginTop: 2, overflowWrap: 'anywhere', textWrap: 'pretty' } as React.CSSProperties}>{noClone.sub}</div>
+              <div style={{ fontSize: 14.5, fontWeight: 400, color: 'var(--ink-62)', lineHeight: 1.3, overflowWrap: 'anywhere', textWrap: 'pretty' } as React.CSSProperties}>{note.title}</div>
+              <div style={{ fontSize: 12, fontWeight: 300, lineHeight: 1.4, color: 'var(--ink-62)', marginTop: 2, overflowWrap: 'anywhere', textWrap: 'pretty' } as React.CSSProperties}>{note.sub}</div>
             </div>
-            {noClone.retry && (
-              <span className="gvadd" role="button" tabIndex={0} title="Try cloning this voice again" style={{ alignSelf: 'center' }} onClick={(e) => { e.stopPropagation(); noClone.retry!(); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); noClone.retry!(); } }}>Retry</span>
-            )}
-          </div>}
+          </div>
         </>
       )}
-      {underIdx === -1 && <div className="vsp-under">{under}</div>}
-      {rows.map(({ v, headOn, head, rule }, i) => {
+      {rows.map(({ v, headOn, head, rule }) => {
         const detail = voiceDetail(v);
         const dling = dlId === v.id;
-        const local = v.cloned && (v.auto || v.live || v.library === false) && (!!onEdit || !!onDelete);
-        const swap = rowNode?.(v) ?? null;
         const hearing = sampleId === v.id;
-        const savable = !!onAdd && (v.live || (v.cloned && v.library === false && !v.auto));
-        const act = (kind: 'main' | 'quiet' | 'danger', label: string, icon: string, fn: (() => void) | undefined, what: string) => fn && (
-          <button type="button" className={`vcact vcact--${kind}`} aria-label={`${label}: ${what}`} onClick={fn}>
-            <Icon d={icon} size={15} sw={1.9} />{label}
-          </button>
-        );
-        const acts = !swap && (savable || local) && (
-          <div className="vcacts">
-            {act('main', 'Save Speaker', D.plus, savable ? () => onAdd!(v) : undefined, v.live ? `save ${v.name}’s voice from this session` : `keep ${v.name} in Speakers`)}
-            {local && (
-              <div className="vcacts__pair">
-                {act('quiet', 'Edit', D.pencil, onEdit ? () => onEdit(v) : undefined, `change ${v.name}’s samples, name or where they are saved`)}
-                {act('danger', 'Delete', D.trash, onDelete ? () => onDelete(v) : undefined, `remove ${v.name}’s voice from this transcription`)}
-              </div>
-            )}
-          </div>
-        );
         return (
         <Fragment key={v.id}>
           {headOn && head === t.vcSheet && (
             <div aria-hidden="true" style={{ height: 14 }} />
           )}
-          {headOn && head === t.vcSheet && !swap && (
-            <VoiceHead name={v.name} warn={headWarn} rename={rename} />
+          {headOn && head === t.vcSheet && (
+            <div className="vchead"><span>{v.name}{' has a cloned voice'}</span></div>
           )}
-          {swap ?? <button
+          <button
             type="button"
             className="vcrow"
             aria-pressed={hearing}
@@ -853,9 +726,7 @@ export function VoiceSheetBody({ under = null, headWarn = null, rename = null, o
               </div>
               {detail && <div style={{ fontSize: 12, fontWeight: 300, lineHeight: 1.4, color: 'var(--ink-62)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{detail}</div>}
             </div>
-          </button>}
-          {acts}
-          {i === underIdx && <div className="vsp-under">{under}</div>}
+          </button>
         </Fragment>
         );
       })}

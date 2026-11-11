@@ -18,7 +18,7 @@ import { findCount, findMatches, matchAt, stepMatch } from '../core/find';
 import { holdsClock, voiceWait, VOICE_WAIT_TITLE } from '../core/voiceWait';
 import { fromStream, toStream, type Gap } from '../core/streamTime';
 import { useHeld } from './wait';
-import { deselectChanged, nextSelection, overviewShown, speakerExtra } from '../core/voiceSheet';
+import { nextSelection } from '../core/voiceSheet';
 import { lineSpeechEnd, spreadWords } from '../core/readalong';
 import { type AvailableVoice, type CastMember, FixBadges, FixPen, rowFixes, FeedBar, NO_VOICE_TIP, feedInset, SpeakerCast, VoiceIdGlyph, VoiceSheetBody, autoCast, castKey, langMeta, namedCount, rowKey, savedCloneKey, speakerRoster, useArchiveVoice, useFeedBar, useVoiceCatalogue, useDragScroll } from './shared';
 
@@ -1007,38 +1007,7 @@ const TX_SIDE = { title: 'TRANSCRIPT LANGUAGE', note: 'The transcript and its vo
 export const PUB_SIDE = { title: 'LANGUAGE', note: 'The transcript and its voice switch to this language.' };
 
 
-export interface VoiceSheetCtx {
-  people: CastMember[];
-  gvList: AvailableVoice[];
-  autoOf: (key: number) => AvailableVoice | null;
-  savedFor: (sp: CastMember) => AvailableVoice | null;
-}
-
-export interface NoCloneNote { busy?: boolean; title: string; sub: string; tip?: string; action?: () => void; retry?: () => void; node?: React.ReactNode }
-
-export interface VoiceSheetHooks {
-  cloneOn?: boolean;
-  pendingClones?: boolean;
-  titleNode?: React.ReactNode;
-  badge?: (ctx: VoiceSheetCtx) => number;
-  onAddVoice?: (v: AvailableVoice) => void;
-  onPickVoice?: (v: AvailableVoice) => boolean | void;
-  onSelectSpeaker?: (key: number) => void;
-  noCloneFor?: (sp: CastMember, auto: AvailableVoice | null, ctx: VoiceSheetCtx) => NoCloneNote | null;
-  castNoClone?: (sp: CastMember, ctx: VoiceSheetCtx) => boolean;
-  castShort?: (sp: CastMember, ctx: VoiceSheetCtx) => boolean;
-  castBuilding?: (sp: CastMember, ctx: VoiceSheetCtx) => boolean;
-  castWarn?: (sp: CastMember, ctx: VoiceSheetCtx) => string | null;
-  speakerNode?: (sp: CastMember) => React.ReactNode;
-  deselect?: number;
-  overviewNode?: () => React.ReactNode;
-  onEditVoice?: (v: AvailableVoice, speaker: number | null) => void;
-  onDeleteVoice?: (v: AvailableVoice, speaker: number | null) => void;
-  voiceNode?: (v: AvailableVoice, speaker: number | null) => React.ReactNode | null;
-  renameSpeaker?: (sp: CastMember, ctx: VoiceSheetCtx) => ((name: string) => Promise<void> | void) | null;
-}
-
-const synthNote = (sp: CastMember, cloning: boolean): NoCloneNote => ({ title: `${sp.name} is read in a synthetic voice`, sub: cloning ? 'They have no cloned voice yet' : 'Voice cloning is off' });
+const synthNote = (sp: CastMember, cloning: boolean): { title: string; sub: string } => ({ title: `${sp.name} is read in a synthetic voice`, sub: cloning ? 'They have no cloned voice yet' : 'Voice cloning is off' });
 
 export interface KeptView { get: (what: 'panel' | 'speaker') => string | null; set: (what: 'panel' | 'speaker', v: string | null) => void }
 const keptSpeaker = (kept: KeptView | null): number | null => {
@@ -1047,13 +1016,30 @@ const keptSpeaker = (kept: KeptView | null): number | null => {
   return Number.isInteger(n) ? n : null;
 };
 
-export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs, srcLang, canTranslate, pickedLang, setPickedLang, side, hearOriginal = false, timed = false, stockVoices = false, stickyPicker = false, pickerBusy = null, voiceSheet, consent = true, cloneIfOffered = false, originalSrc, originalOffset = 0, kept = null }: {
+export interface VoiceButtonProps { active?: boolean; busy?: boolean; failed?: boolean; title?: string; onClick: () => void; children?: React.ReactNode }
+
+export function VoiceButton({ active, busy = false, failed = false, title, onClick, children }: VoiceButtonProps) {
+  return (
+    <button type="button" className="txvoice" aria-label="Voice" aria-pressed={active} aria-busy={busy || undefined} title={title} style={{ cursor: 'pointer', background: busy || active ? 'var(--brand-tint)' : 'var(--fill-06)', boxShadow: active ? 'inset 0 0 0 1.5px var(--brand)' : undefined }} onClick={onClick}>
+      <Icon d={D.voiceClone} size={17} sw={1.6} style={{ color: failed ? 'var(--conf-low)' : active ? 'var(--brand)' : 'var(--ink-55)' }} />
+      {busy && <span aria-hidden="true" style={{ position: 'absolute', inset: 0, boxSizing: 'border-box', borderRadius: '50%', border: '2px solid var(--fill-12)', borderTopColor: 'var(--brand)', animation: 'vs-spin .7s linear infinite', pointerEvents: 'none' }} />}
+      {children}
+    </button>
+  );
+}
+
+export function VoiceCloningMark() {
+  return <span title="A voice is being cloned" aria-label="A voice is being cloned" style={{ position: 'absolute', top: -4, right: -4, width: 17, height: 17, borderRadius: '50%', background: 'var(--vs-surface-raised, #1b1e2e)', boxShadow: '0 0 0 2px var(--vs-surface, #12141f)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner size={11} color="var(--brand)" track="var(--fill-12)" sw={1.6} /></span>;
+}
+
+export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs, srcLang, canTranslate, pickedLang, setPickedLang, side, hearOriginal = false, timed = false, stockVoices = false, stickyPicker = false, pickerBusy = null, consent = true, cloneIfOffered = false, originalSrc, originalOffset = 0, kept = null, hostVoices = false, allClones = false }: {
   kept?: KeptView | null;
+  hostVoices?: boolean;
+  allClones?: boolean;
   originalSrc?: string | null;
   originalOffset?: number;
   consent?: boolean;
   cloneIfOffered?: boolean;
-  voiceSheet?: VoiceSheetHooks;
   forcedVoice?: string | null;
   hearOriginal?: boolean;
   stockVoices?: boolean;
@@ -1073,9 +1059,6 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   setPickedLang: (l: string | null | undefined) => void;
   side?: { title: string; note: string };
 }) {
-  const { onAddVoice, onPickVoice, onSelectSpeaker, noCloneFor, castNoClone, castShort, castBuilding, castWarn, badge, titleNode: voiceTitleNode, onEditVoice, onDeleteVoice, voiceNode, speakerNode, deselect, overviewNode, renameSpeaker } = voiceSheet ?? {};
-  const hooked = !!voiceSheet;
-  const pendingClones = !!voiceSheet?.pendingClones;
   const [recent, pushRecent] = useRecentLangs();
   const [picker, setPicker] = useState(() => !!side && kept?.get('panel') === 'language');
   const [langInline, setLangInline] = useState(false);
@@ -1092,12 +1075,9 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const speakable = (c: string | null | undefined) => !!c && !!langs?.voice.includes(c);
   const vLang = speakable(original ? srcLang : lang) ? (original ? srcLang : lang) : 'en';
   const preview = useVoicePreview(vLang);
-  const cloneOn = voiceSheet?.cloneOn ?? true;
   const [catVer, setCatVer] = useState(0);
-  const cloneSeen = useRef(cloneOn);
-  useEffect(() => { if (cloneSeen.current !== cloneOn) { cloneSeen.current = cloneOn; setCatVer((n) => n + 1); } }, [cloneOn]);
   const catalogue = useVoiceCatalogue(vLang, on || ended || sheet, namedCount(model) * 1000 + catVer, { id: recordingId ?? null, shareCode: cred.shareCode ?? null });
-  const gvList = useMemo(() => (catalogue?.voices ?? []).filter((v) => hooked || !v.cloned || v.speaker != null), [catalogue, hooked]);
+  const gvList = useMemo(() => (catalogue?.voices ?? []).filter((v) => allClones || !v.cloned || v.speaker != null), [catalogue, allClones]);
   const gVoicePick = gvList.length > 1;
   const meta = langMeta(langs, lang);
   const t = strings();
@@ -1105,17 +1085,10 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
 
   const [spkSel, setSpkSel] = useState<number | null>(() => keptSpeaker(kept));
   const [spkOff, setSpkOff] = useState(false);
-  const deselectSeen = useRef(deselect);
-  useEffect(() => {
-    const was = deselectSeen.current;
-    deselectSeen.current = deselect;
-    if (deselectChanged(was, deselect)) { setSpkSel(null); setSpkOff(true); }
-  }, [deselect]);
   const [spkMute] = useState<Set<number>>(() => new Set());
   const spkRoster = useMemo(() => speakerRoster(rows, model, t.vcUnknownSpk), [rows, model, t]);
   const spkCastOn = gVoicePick && spkRoster.filter((p) => p.key >= 0).length > 1;
   const spkSelected = spkOff ? null : spkSel != null && spkRoster.some((p) => p.key === spkSel) ? spkSel : spkRoster[0]?.key ?? null;
-  const cast = useMemo(() => autoCast(spkRoster, gvList, cloneOn), [spkRoster, gvList, cloneOn]);
   const hasClone = gvList.some((v) => v.cloned && v.consent !== 'pending');
   const hostClones = cloneIfOffered && hasClone;
   const stockCast = useMemo(() => (stockVoices && !hostClones ? autoCast(spkRoster, gvList, false) : null), [stockVoices, hostClones, spkRoster, gvList]);
@@ -1202,9 +1175,10 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     if (side) kept?.set('panel', pickerMine ? 'language' : voicesMine ? 'speakers' : null);
   }, [kept, side, pickerMine, voicesMine]);
   useEffect(() => {
+    if (hostVoices) return;
     if (spkSel != null) kept?.set('speaker', String(spkSel));
     else if (spkOff) kept?.set('speaker', null);
-  }, [kept, spkSel, spkOff]);
+  }, [kept, hostVoices, spkSel, spkOff]);
   const toggleChip = () => {
     if (pickerMine) { setPicker(false); return; }
     preview.reset(); setSheet(false); setFromVoices(false); setPicker(true);
@@ -1221,8 +1195,6 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
       <LanguageChip flag={chipMeta.flag} code={chipMeta.code} bordered={false} onClick={toggleChip} flagOnly label={chipMeta.label} />
     </span>
   ) : <LanguageChip flag={chipMeta.flag} code={chipMeta.code} bordered={false} onClick={openPicker} flagOnly label={chipMeta.label} />) : null;
-  const glyph = D.voiceClone;
-  const glyphFg = failed ? 'var(--conf-low)' : side && voicesMine ? 'var(--brand)' : 'var(--ink-55)';
   const waitKind = voiceWait({ on, want, relang, playing: vp.playing, preparing: !!vp.preparing, starting: vp.starting });
   const [lineHeld] = useHeld(waitKind === 'line', 400);
   const voiceWaiting = waitKind === 'asked' || (waitKind === 'line' && lineHeld);
@@ -1255,72 +1227,46 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
       const saved = savedFor(sp);
       if (saved) { if (spkCastOn || ended) theirs.push(saved); continue; }
       const auto = gvList.find((v) => v.cloned && v.auto && v.speaker === sp.key);
-      if (!auto || auto.ready === false || (auto.consent === 'pending' && !pendingClones)) continue;
+      if (!auto || auto.ready === false || auto.consent === 'pending') continue;
       theirs.push({ id: auto.id, name: sp.name, cloned: true, default: false, live: true, auto: true, gender: sp.sex ?? auto.gender ?? null, speaker: sp.key, consent: auto.consent ?? null });
     }
     return theirs;
-  }, [gvList, savedClones, spkCastOn, people, pendingClones, ended]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [gvList, savedClones, spkCastOn, people, ended]); // eslint-disable-line react-hooks/exhaustive-deps
   const selSp = spkCastOn ? people.find((p2) => p2.key === spkSelected) ?? null : null;
   const soleSp = !spkCastOn && gVoicePick && people.length === 1 ? people[0] : null;
   const noteSp = selSp ?? soleSp;
-  const genderOf = (id: string | undefined) => (id ? gvList.find((v) => v.id === id)?.gender ?? null : null);
   const shownList = useMemo(() => {
     if (!selSp) return sheetList;
     return sheetList.filter((v) => (v.live ? v.speaker === selSp.key : v.id === savedCloneKey(selSp)));
   }, [sheetList, selSp]);
   const autoOf = (key: number) => gvList.find((v) => v.cloned && v.auto && v.speaker === key) ?? null;
-  const ctx: VoiceSheetCtx = { people, gvList, autoOf, savedFor };
-  const toClone = badge?.(ctx) ?? 0;
-  const isBuilding = (p2: CastMember) => (!savedFor(p2) && gvList.some((v) => v.cloned && v.speaker === p2.key && v.ready === false)) || !!castBuilding?.(p2, ctx);
+  const isBuilding = (p2: CastMember) => !savedFor(p2) && gvList.some((v) => v.cloned && v.speaker === p2.key && v.ready === false);
   const cloningNow = people.some(isBuilding);
-  const warns = castWarn ? people.map((p2) => castWarn(p2, ctx)).filter((w): w is string => !!w) : [];
-  const voiceBtn = (
-    <button type="button" className="txvoice" aria-label="Voice" aria-pressed={side ? voicesMine : undefined} aria-busy={busy || undefined} title={busy || failed ? voiceTitle : undefined} style={{ cursor: 'pointer', background: busy || (side && voicesMine) ? 'var(--brand-tint)' : 'var(--fill-06)', boxShadow: side && voicesMine ? 'inset 0 0 0 1.5px var(--brand)' : undefined }} onClick={side ? toggleVoices : openVoices}>
-      <Icon d={glyph} size={17} sw={1.6} style={{ color: glyphFg }} />
-      {busy && <span aria-hidden="true" style={{ position: 'absolute', inset: 0, boxSizing: 'border-box', borderRadius: '50%', border: '2px solid var(--fill-12)', borderTopColor: 'var(--brand)', animation: 'vs-spin .7s linear infinite', pointerEvents: 'none' }} />}
-      {warns.length > 0
-        ? <span className="txvoice__warn" title={warns.join(' · ')}>!</span>
-        : cloningNow
-          ? <span title="A voice is being cloned" aria-label="A voice is being cloned" style={{ position: 'absolute', top: -4, right: -4, width: 17, height: 17, borderRadius: '50%', background: 'var(--vs-surface-raised, #1b1e2e)', boxShadow: '0 0 0 2px var(--vs-surface, #12141f)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner size={11} color="var(--brand)" track="var(--fill-12)" sw={1.6} /></span>
-          : !!toClone && <span className="txvoice__n" title={`${toClone} speaker${toClone === 1 ? '' : 's'} can get a cloned voice`}>{toClone}</span>}
-    </button>
-  );
-  const overviewOn = overviewShown({ hook: !!overviewNode, castOn: spkCastOn, selected: spkSelected });
-  const selSpRename = noteSp ? renameSpeaker?.(noteSp, ctx) ?? null : null;
+  const voiceButton: VoiceButtonProps = { active: side ? voicesMine : undefined, busy, failed: !!failed, title: busy || failed ? voiceTitle : undefined, onClick: side ? toggleVoices : openVoices };
+  const voiceBtn = <VoiceButton {...voiceButton}>{cloningNow && <VoiceCloningMark />}</VoiceButton>;
   const voiceSheetEl = (
-    <Sheet open={sheet} onClose={closeVoices} title={t.vcSheet} titleNode={voiceTitleNode} doneLabel={t.done}>
+    <Sheet open={sheet} onClose={closeVoices} title={t.vcSheet} doneLabel={t.done}>
       <VoiceSheetBody
         t={t}
-        onEdit={onEditVoice ? (v) => { preview.reset(); onEditVoice(v, spkSelected); } : undefined}
-        onDelete={onDeleteVoice ? (v) => { preview.reset(); onDeleteVoice(v, spkSelected); } : undefined}
-        rowNode={voiceNode ? (v) => voiceNode(v, spkSelected) : undefined}
-        headWarn={selSp ? castWarn?.(selSp, ctx) ?? null : null}
-        rename={selSpRename && noteSp ? { name: noteSp.name, save: selSpRename } : null}
         cast={spkCastOn && (
           <SpeakerCast
-            t={t}
             roster={spkRoster}
             selected={spkSelected}
-            onSelect={(k) => { preview.reset(); const n = nextSelection(spkSelected, k); setSpkSel(n); setSpkOff(n == null); if (n != null) onSelectSpeaker?.(n); }}
-            noClone={(p2) => !!castNoClone?.(p2, ctx)}
-            short={(p2) => !!castShort?.(p2, ctx)}
-            warn={(p2) => castWarn?.(p2, ctx) ?? null}
+            onSelect={(k) => { preview.reset(); const n = nextSelection(spkSelected, k); setSpkSel(n); setSpkOff(n == null); }}
             building={isBuilding}
-            sexOf={(p2) => p2.sex ?? genderOf(cast.get(p2.key))}
           />
         )}
-        voices={overviewOn ? [] : shownList}
-        onAdd={onAddVoice ? (v) => { preview.reset(); onAddVoice(v); } : undefined}
-        under={overviewOn ? overviewNode?.() ?? null : speakerExtra(speakerNode, noteSp)}
-        noClone={!overviewOn && noteSp && !shownList.length ? (noCloneFor ? noCloneFor(noteSp, autoOf(noteSp.key), ctx) : synthNote(noteSp, hooked ? cloneOn : cloneIfOffered)) : null}
+        voices={shownList}
+        note={noteSp && !shownList.length ? synthNote(noteSp, cloneIfOffered) : null}
         sampleId={preview.sampleId}
         dlId={preview.dlId}
-        onPick={(v) => { if (preview.sampleId === v.id || preview.dlId === v.id) { preview.stop(); return; } if (onPickVoice?.(v) === false) { preview.reset(); return; } preview.arm(v); }}
+        onPick={(v) => { if (preview.sampleId === v.id || preview.dlId === v.id) { preview.stop(); return; } preview.arm(v); }}
       />
     </Sheet>
   );
-  const sheets = side ? null : <>{pickerEl}{voiceSheetEl}</>;
-  const sidePanel = side && (picker || sheet) ? <div className="vs-side">{picker ? pickerEl : voiceSheetEl}</div> : null;
+  const ownSheet = hostVoices ? null : voiceSheetEl;
+  const sheets = side ? null : <>{pickerEl}{ownSheet}</>;
+  const sidePanel = side && (picker || (sheet && !hostVoices)) ? <div className="vs-side">{picker ? pickerEl : ownSheet}</div> : null;
   const playTitle = !speaks
     ? null
     : failed
@@ -1337,8 +1283,9 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   return {
     barChip: { flag: chipMeta.flag, code: chipMeta.code, label: chipMeta.label, onClick: side || stickyPicker ? toggleChip : openPicker, active: !!((side || stickyPicker) && pickerMine), can: canTranslate },
     sheetsOpen: picker || sheet,
-    on: speaks, player, chip, voiceBtn, nearRow: arch.setNear, clipsReady: vp.has, clipFor: (id: number | null | undefined) => id != null && arch.clips.some((c) => c.sentenceId === id), voiceWaiting: busy, sheets, sidePanel, voicesMine, toggleVoices, cloningOn: cloneOn, playTitle, noVoice, noVoiceNote, relang, sampling: preview.sampleId != null, error: preview.error, clearError: () => preview.clearError(), openVoices, openPicker, original, reloadVoices: () => setCatVer((n) => n + 1), voicesVer: catVer, people, gvList, autoOf, savedFor, closeVoices, setSheet,
+    on: speaks, player, chip, voiceBtn, nearRow: arch.setNear, clipsReady: vp.has, clipFor: (id: number | null | undefined) => id != null && arch.clips.some((c) => c.sentenceId === id), voiceWaiting: busy, sheets, sidePanel, voicesMine, toggleVoices, playTitle, noVoice, noVoiceNote, relang, sampling: preview.sampleId != null, error: preview.error, clearError: () => preview.clearError(), openVoices, openPicker, original, reloadVoices: () => setCatVer((n) => n + 1), voicesVer: catVer, people, gvList, autoOf, savedFor, closeVoices, setSheet,
     selectedSpeaker: noteSp, armVoice: preview.arm, resetPreview: preview.reset, armedId: preview.armId,
+    roster: spkRoster, castOn: spkCastOn, sampleId: preview.sampleId, dlId: preview.dlId, stopPreview: preview.stop, voicesOpen: sheet && !(side && picker), voiceButton,
     readLang: typeof pickedLang === 'string' && !whole ? pickedLang : null,
     originalIds: origIds,
     plays: (id: number | null | undefined) => id != null && (origIds.has(id) || arch.clips.some((c) => c.sentenceId === id)),
