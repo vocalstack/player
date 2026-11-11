@@ -276,6 +276,7 @@ export interface TxPlayer {
 const DUCK = 0.2;
 const DUCK_MS = 140;
 const UNDUCK_MS = 320;
+const FRAME_MS = 33;
 
 export function useDuck(players: TxPlayer[], ducked: boolean) {
   const live = useRef(players);
@@ -399,12 +400,14 @@ export function useYtLead(rows: Row[], lenS: number | null, offsetS: number, edg
   useEffect(() => {
     if (state !== 1) return;
     let raf = 0;
+    let last = 0;
     const tick = () => {
       const b = base.current;
       const f = floor.current;
       const at = f ? Math.min(f.t, b.t) : b.t + Math.min(1.2, (performance.now() - b.at) / 1000);
       if (edgeRef.current != null && at >= edgeRef.current) { setWait(true); send('pauseVideo'); setT(at); return; }
-      if (at > tRef.current) setT(at);
+      const now = performance.now();
+      if (at > tRef.current && now - last >= FRAME_MS) { last = now; setT(at); }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -582,13 +585,15 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
   useEffect(() => {
     if (!playing) return;
     let raf = 0;
+    let last = 0;
     const read = (): boolean => {
       const a = audio.current;
       if (!a) return true;
       const at = a.currentTime - offset.current;
       if (windowedRef.current && at >= durRef.current) { a.pause(); setT(durRef.current); return false; }
       if (edgeRef.current != null && at >= edgeRef.current) { setWait(true); a.pause(); setT(at); return false; }
-      setT(at);
+      const now = performance.now();
+      if (now - last >= FRAME_MS) { last = now; setT(at); }
       return true;
     };
     const tick = () => { if (read()) raf = requestAnimationFrame(tick); };

@@ -158,12 +158,16 @@ export function pickDeliveryFormat(o: { vendor: string; caf: string }): 'ogg' | 
   return /^Apple/.test(o.vendor) && o.caf === 'probably' ? 'caf' : 'ogg';
 }
 
+let picked: 'ogg' | 'caf' | null = null;
+
 export function deliveryFormat(): 'ogg' | 'caf' {
+  if (picked) return picked;
   try {
-    return pickDeliveryFormat({ vendor: navigator.vendor ?? '', caf: document.createElement('audio').canPlayType('audio/x-caf; codecs=opus') });
+    picked = pickDeliveryFormat({ vendor: navigator.vendor ?? '', caf: document.createElement('audio').canPlayType('audio/x-caf; codecs=opus') });
   } catch {
-    return 'ogg';
+    picked = 'ogg';
   }
+  return picked;
 }
 
 export interface MediaCred {
