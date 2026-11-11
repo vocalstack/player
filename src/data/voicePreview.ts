@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { deliveryFormat } from '../core/audio';
+import { sampleDelay } from '../core/sampleDelay';
 import { describe, type ErrorLike } from './errors';
 import { usePlayerApi } from './context';
 
 export interface PreviewableVoice { id: string; previewUrl?: string }
-const SAMPLE_RETRY_MS = 1500;
-const SAMPLE_GIVE_UP_MS = 300_000;
+const SAMPLE_GIVE_UP_MS = 120_000;
 
 export function useVoicePreview(lang: string | null) {
   const api = usePlayerApi();
@@ -16,10 +16,12 @@ export function useVoicePreview(lang: string | null) {
   const el = useRef<HTMLAudioElement | null>(null);
   const url = useRef<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ctl = useRef<AbortController | null>(null);
   const run = useRef(0);
 
   const release = useCallback(() => {
     if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    if (ctl.current) { ctl.current.abort(); ctl.current = null; }
     if (el.current) { el.current.pause(); el.current.removeAttribute('src'); el.current.load(); el.current = null; }
     if (url.current) { URL.revokeObjectURL(url.current); url.current = null; }
   }, []);
@@ -49,13 +51,16 @@ export function useVoicePreview(lang: string | null) {
       : `${api.origin}/v1/voices/preview?voice=${encodeURIComponent(v.id)}&lang=${encodeURIComponent(lang)}`;
     if (deliveryFormat() === 'caf') src += `${src.includes('?') ? '&' : '?'}format=caf`;
     const started = Date.now();
+    let attempt = 0;
+    const c = new AbortController();
+    ctl.current = c;
     if (api.shareCode && src.includes('recording=')) src += `&shareCode=${encodeURIComponent(api.shareCode)}`;
     const ask = async () => {
       if (run.current !== mine) return;
       let res: Response;
       try {
         const token = api.owner ? await api.bearer() : undefined;
-        res = await fetch(src, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        res = await fetch(src, { headers: token ? { Authorization: `Bearer ${token}` } : {}, signal: c.signal });
       } catch (e) {
         if (run.current !== mine) return;
         setDlId(null);
@@ -70,7 +75,7 @@ export function useVoicePreview(lang: string | null) {
           return;
         }
         setDlId(v.id);
-        timer.current = setTimeout(() => { void ask(); }, SAMPLE_RETRY_MS);
+        timer.current = setTimeout(() => { void ask(); }, sampleDelay(attempt++));
         return;
       }
       if (!res.ok) {
@@ -83,8 +88,8 @@ export function useVoicePreview(lang: string | null) {
             : { message: `This voice could not be previewed (${res.status}).`, status: res.status });
         return;
       }
-      const blob = await res.blob();
-      if (run.current !== mine) return;
+      const blob = await res.blob().catch(() => null);
+      if (run.current !== mine || !blob) return;
       setDlId(null);
       url.current = URL.createObjectURL(blob);
       const a = new Audio(url.current);
