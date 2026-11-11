@@ -783,9 +783,7 @@ export function VoiceSheetBody({ under = null, headWarn = null, rename = null, o
       {cast}
       {noClone && (
         <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '14px 2px 6px', userSelect: 'none' }}>
-            <span style={{ font: '600 9px var(--vs-font-mono)', letterSpacing: '.13em', color: 'var(--ink-62)' }}>{t.vcSheet}</span>
-          </div>
+          <div aria-hidden="true" style={{ height: 14 }} />
           {noClone.node ? <div style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column', paddingBottom: 6 }}>{noClone.node}</div> : <div role={noClone.action ? 'button' : 'status'} tabIndex={noClone.action ? 0 : undefined} title={noClone.tip} onClick={noClone.action} onKeyDown={noClone.action ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); noClone.action!(); } } : undefined} style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '11px 8px', margin: '0 -6px', borderRadius: 10, cursor: noClone.action ? 'pointer' : 'default' }}>
             <span style={{ flex: 'none', width: 32, height: 32, boxSizing: 'border-box', borderRadius: '50%', border: noClone.busy ? 0 : noClone.action ? '1.5px solid var(--brand)' : '1.5px dashed var(--fill-20)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {noClone.busy
@@ -829,9 +827,7 @@ export function VoiceSheetBody({ under = null, headWarn = null, rename = null, o
         return (
         <Fragment key={v.id}>
           {headOn && head === t.vcSheet && (
-            <div style={{ display: 'flex', alignItems: 'center', padding: '14px 2px 6px', borderTop: i === 0 && !noClone ? '0' : '1px solid var(--hair)', userSelect: 'none' }}>
-              <span style={{ font: '600 9px var(--vs-font-mono)', letterSpacing: '.13em', color: 'var(--ink-62)' }}>{head}</span>
-            </div>
+            <div aria-hidden="true" style={{ height: 14 }} />
           )}
           {headOn && head === t.vcSheet && !swap && (
             <VoiceHead name={v.name} warn={headWarn} rename={rename} />
