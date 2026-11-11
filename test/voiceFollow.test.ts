@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FOLLOW_PRELOAD, followPos, followTarget, mayRunOn, playbackClock, preloadSrcs, readingClock, samePos, upcomingSrcs, type FollowClip, type FollowLine } from '../src/core/voiceFollow.ts';
+import { FOLLOW_PRELOAD, followPos, followTarget, mayRunOn, playbackClock, preloadSrcs, readingClock, samePos, upcomingSrcs, withLengths, type FollowClip, type FollowLine } from '../src/core/voiceFollow.ts';
 import { readCursor } from '../src/core/voiceplayer.ts';
 
 const lines: FollowLine[] = [
@@ -274,4 +274,24 @@ test('a line read in parts is placed by the part playing, from the parts before 
   assert.ok(samePos({ sid: 1, t: 1, dur: 2, words: null }, { sid: 1, t: 1.01, dur: 2, words: null }));
   assert.ok(!samePos({ sid: 1, t: 1, dur: 2, words: null }, { sid: 2, t: 1, dur: 2, words: null }));
   assert.ok(samePos(null, null) && !samePos(null, { sid: 1, t: 0, dur: 1, words: null }));
+});
+
+test('a voice the share of its line says is over, still speaking inside its own line, plays to its end instead of being cut mid-sentence', async () => {
+  const { mayRunOn } = await import('../src/core/voiceFollow.ts');
+  const line: FollowLine = { sid: 0, start: 0.685, end: 8.62, words: [{ start: 0.685, end: 2, text: 'so' }, { start: 2, end: 4, text: 'what' }, { start: 4, end: 5.6, text: 'today' }] };
+  const c = map([[0, [clip('a', 0, 1, 6.98)]]]);
+  assert.equal(followTarget([line, { sid: 1, start: 8.62, end: 12 }], c, 5.65).kind, 'done');
+  assert.equal(mayRunOn([line, { sid: 1, start: 8.62, end: 12 }], 5.65, 0), true);
+  assert.equal(mayRunOn([line, { sid: 1, start: 8.62, end: 12 }], 5.65, 1), false);
+});
+
+test('a clip whose length the list does not give is placed by the length its audio reports once loaded, so a seek to the middle of a line lands in the middle of its clip', () => {
+  const line: FollowLine = { sid: 0, start: 0, end: 8, words: [{ start: 0, end: 2, text: 'one' }, { start: 2, end: 4, text: 'two' }, { start: 4, end: 6, text: 'six' }, { start: 6, end: 8, text: 'ten' }] };
+  const bare: FollowClip[] = [{ src: 'a', part: 0, parts: 1, durationS: 0 }];
+  assert.deepEqual(followTarget([line], map([[0, bare]]), 4), { kind: 'play', sid: 0, src: 'a', offset: 4 });
+  const known = withLengths(bare, new Map([['a', 20]]));
+  assert.equal(known[0].durationS, 20);
+  assert.deepEqual(followTarget([line], map([[0, known]]), 4), { kind: 'play', sid: 0, src: 'a', offset: 10 });
+  assert.equal(withLengths([{ src: 'a', part: 0, parts: 1, durationS: 12 }], new Map([['a', 20]]))[0].durationS, 12);
+  assert.equal(withLengths(bare, new Map([['a', NaN]]))[0].durationS, 0);
 });

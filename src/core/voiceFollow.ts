@@ -70,7 +70,7 @@ export function mayRunOn(lines: readonly FollowLine[], t: number, playingSid: nu
   const k = lineAt(lines, t);
   if (k < 0) return false;
   const line = lines[k];
-  if (t >= line.end) return line.sid === playingSid;
+  if (t >= line.end || line.sid === playingSid) return line.sid === playingSid;
   return k > 0 && lines[k - 1].sid === playingSid && t - line.start < 1.5;
 }
 
@@ -100,6 +100,14 @@ export function preloadSrcs(lines: readonly FollowLine[], clips: ReadonlyMap<num
     ahead++;
   }
   return out;
+}
+
+export function withLengths(clips: readonly FollowClip[], lens: ReadonlyMap<string, number>): FollowClip[] {
+  return clips.map((c) => {
+    if (c.durationS != null && c.durationS > 0) return c;
+    const d = lens.get(c.src);
+    return d != null && Number.isFinite(d) && d > 0 ? { ...c, durationS: d } : c;
+  });
 }
 
 export function followPos(sid: number, parts: readonly FollowClip[], src: string, at: number, len: number, ended: boolean, times?: readonly (readonly [number, number])[]): FollowPos | null {
@@ -219,11 +227,14 @@ export function playsOut(o: { playing: boolean; atEnd: boolean; speaking: boolea
 }
 
 export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; clips: readonly (FollowClip & { sentenceId: number })[]; t: number; playing: boolean; muted: boolean; times?: FollowTimes; original?: ReadonlySet<number>; atEnd?: boolean }): FollowState {
+  const lens = useRef(new Map<string, number>());
+  const [lenN, setLenN] = useState(0);
   const bySid = useMemo(() => {
     const m = new Map<number, FollowClip[]>();
     for (const c of o.clips) m.set(c.sentenceId, [...(m.get(c.sentenceId) ?? []), c]);
+    for (const [sid, cs] of m) m.set(sid, withLengths(cs, lens.current));
     return m;
-  }, [o.clips]);
+  }, [o.clips, lenN]); // eslint-disable-line react-hooks/exhaustive-deps
   const cache = useRef(new Map<string, HTMLAudioElement>());
   const cur = useRef<{ src: string; sid: number; el: HTMLAudioElement; t: number; at: number; last: number } | null>(null);
   const [state, setState] = useState<FollowState>({ missing: null, sid: null, original: false, starting: null, failed: false });
@@ -252,6 +263,7 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
       if (made.dataset) made.dataset.vsVoice = '1';
       made.onerror = bump;
       made.onloadeddata = () => { if (retry.startingAt(src) != null) bump(); };
+      made.onloadedmetadata = () => { const d = made.duration; if (Number.isFinite(d) && d > 0 && lens.current.get(src) !== d) { lens.current.set(src, d); setLenN((n) => n + 1); } };
       made.src = pre.urlFor(src);
       cache.current.set(src, made);
       a = made;
@@ -295,8 +307,8 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
     for (const [src, a] of cache.current) if (!keep.has(src) && (!c || c.el !== a)) { a.pause(); cache.current.delete(src); }
     if (!o.playing) { if (c && playsOut({ playing: o.playing, atEnd: !!o.atEnd, speaking: !c.el.paused && !c.el.ended })) return; c?.el.pause(); return; }
     if (want.kind !== 'play') {
-      const stillSpeaking = c && !c.el.paused && !c.el.ended;
-      if (stillSpeaking && mayRunOn(o.lines, o.t, c.sid)) return;
+      const stillSpeaking = c && !c.el.paused && !c.el.ended && Math.abs(o.t - c.last) <= FOLLOW_JUMP_S;
+      if (stillSpeaking && mayRunOn(o.lines, o.t, c.sid)) { c.last = o.t; return; }
       if (c) c.el.pause();
       cur.current = null;
       return;
