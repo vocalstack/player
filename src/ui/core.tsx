@@ -1396,11 +1396,14 @@ const TxRow = memo(function TxRow({ arrives, model, next, r, i, on, held, t, cli
   const look = speakerLook(model, r.speaker);
   const ln = look.lane;
   const tr = lang && r.translations[lang] && r.language !== lang ? r.translations[lang] : null;
+  const rowLang = r.language || model.segments.values().next().value?.language || null;
+  const pending = !!lang && !tr && !unclear && !!rowLang && !sameLang(rowLang, lang) && !!r.text.trim();
+  const alt = !!tr || pending;
   const words = useMemo(() => lineWords(next ? [r, next] : [r], 0, lang), [r, next, lang]);
   const spokenWord = held && !wordSync && clipPos ? readCursor(words.map((w) => ({ t: w.text, sp: ' ' })), clipPos) : null;
   if (unclearAs === 'hidden') return <div data-tx-row={i} data-sentence={r.sentenceId} style={{ height: 0, overflow: 'hidden' }} />;
   return (
-    <div data-tx-row={i} data-sentence={r.sentenceId} className={`txline${warm ? ' txline--warm' : ''}${fixing ? ' txline--fixing' : ''}`} aria-current={fixing || undefined} style={!has.tap || (unclear && !tapUnclear) ? { opacity: dim, cursor: 'default' } : { opacity: dim }} onClick={unclear && !tapUnclear ? undefined : tapRow} onMouseEnter={desk && onFixOpen ? () => act.hover(r.id) : undefined} onMouseLeave={desk && onFixOpen ? () => act.hover(null) : undefined}>
+    <div data-tx-row={i} data-sentence={r.sentenceId} className={`txline${warm || pending ? ' txline--warm' : ''}${fixing ? ' txline--fixing' : ''}`} aria-current={fixing || undefined} style={!has.tap || (unclear && !tapUnclear) ? { opacity: dim, cursor: 'default' } : { opacity: dim }} onClick={unclear && !tapUnclear ? undefined : tapRow} onMouseEnter={desk && onFixOpen ? () => act.hover(r.id) : undefined} onMouseLeave={desk && onFixOpen ? () => act.hover(null) : undefined}>
       <div className="txline__meta">
         <span className="txline__at">{clock(r.start)}</span>
         {showLabels && r.speaker >= 0 && !unclear && (
@@ -1433,18 +1436,18 @@ const TxRow = memo(function TxRow({ arrives, model, next, r, i, on, held, t, cli
             ? t >= w.start && (t < w.end || j === words.length - 1 || t < words[j + 1].start)
             : j === spokenWord);
           const ahead = tracks && !at && (wordSync ? w.start > t : spokenWord != null && j > spokenWord);
-          const fx = !tr && !listener && (!!fixed?.has(key) || !!w.script);
-          const dash = !tr && !listener && marks && !!c && !fx;
+          const fx = !alt && !listener && (!!fixed?.has(key) || !!w.script);
+          const dash = !alt && !listener && marks && !!c && !fx;
           const half = dash ? (c === 'low' ? 'var(--conf-low-half)' : 'var(--conf-mid-half)') : null;
           const fg = fx ? 'var(--brand)' : ahead ? 'var(--ink-40)' : half ?? 'var(--ink-96)';
           return (
             <span key={key + j}>
               <span
                 className="txw"
-                title={!has.tap ? undefined : onWord && !tr ? (fixMode ? 'Correct this word' : on ? (playing && canSeekWord ? 'Play from this word' : 'Play from this line') : 'Play from this line') : on ? '' : 'Play from this line'}
-                onClick={onWord && !tr ? (e) => { e.stopPropagation(); if (fixMode) { onWord(r, w); return; } if (playing && on) { act.seekWord(w); return; } act.playRow(i); } : undefined}
-                style={{ color: fg, opacity: ahead ? 0.45 : 1, fontWeight: 300, cursor: !has.tap ? 'default' : onWord && !tr ? (fixMode || !on || !playing || canSeekWord ? 'pointer' : 'default') : on ? 'default' : 'pointer', textShadow: at ? '0 0 2px currentColor, 0 0 4px currentColor' : 'none', textDecorationLine: dash || fx ? 'underline' : 'none', textDecorationStyle: fx ? 'solid' : 'dotted', textDecorationColor: fx ? 'var(--brand)' : half ?? 'currentColor', textDecorationThickness: dash || fx ? '1.5px' : undefined, textUnderlineOffset: dash || fx ? '3px' : undefined }}
-              >{hitParts(w.text, hitTerms)}</span>
+                title={!has.tap ? undefined : onWord && !alt ? (fixMode ? 'Correct this word' : on ? (playing && canSeekWord ? 'Play from this word' : 'Play from this line') : 'Play from this line') : on ? '' : 'Play from this line'}
+                onClick={onWord && !alt ? (e) => { e.stopPropagation(); if (fixMode) { onWord(r, w); return; } if (playing && on) { act.seekWord(w); return; } act.playRow(i); } : undefined}
+                style={{ color: fg, opacity: ahead ? 0.45 : 1, fontWeight: 300, cursor: !has.tap ? 'default' : onWord && !alt ? (fixMode || !on || !playing || canSeekWord ? 'pointer' : 'default') : on ? 'default' : 'pointer', textShadow: at ? '0 0 2px currentColor, 0 0 4px currentColor' : 'none', textDecorationLine: dash || fx ? 'underline' : 'none', textDecorationStyle: fx ? 'solid' : 'dotted', textDecorationColor: fx ? 'var(--brand)' : half ?? 'currentColor', textDecorationThickness: dash || fx ? '1.5px' : undefined, textUnderlineOffset: dash || fx ? '3px' : undefined }}
+              >{pending ? w.text : hitParts(w.text, hitTerms)}</span>
               <span style={{ whiteSpace: 'pre-wrap' }}> </span>
             </span>
           );
