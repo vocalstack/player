@@ -249,6 +249,7 @@ export function useVoiceFollow(o: { on: boolean; lines: readonly FollowLine[]; c
     if (!a) {
       const made = new Audio();
       made.preload = 'auto';
+      if (made.dataset) made.dataset.vsVoice = '1';
       made.onerror = bump;
       made.onloadeddata = () => { if (retry.startingAt(src) != null) bump(); };
       made.src = pre.urlFor(src);
