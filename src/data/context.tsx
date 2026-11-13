@@ -135,17 +135,9 @@ function sourceOf(tx: Transcription): TranscriptionJob | null {
   return liveJob(tx, src?.kind === 'stream' ? src.url : null);
 }
 
-export async function readTranscription(api: PlayerApi, id: string): Promise<Transcription> {
-  if (api.owner) return api.client.transcriptions.get(id);
-  const res = await apiFetch(api, `/v1/transcriptions/${encodeURIComponent(id)}`, { query: { listenerToken: api.readAs.listenerToken, shareCode: api.readAs.shareCode } });
-  const body = await res.json().catch(() => null);
-  if (!res.ok) throw Object.assign(new Error(body?.error?.message ?? body?.message ?? `HTTP ${res.status}`), { code: body?.error?.code ?? body?.code ?? (res.status === 404 ? 'not_found' : undefined), status: res.status });
-  return body as Transcription;
-}
-
 export async function loadSource(api: PlayerApi, id: string): Promise<PlayerSource> {
   if (api.listen) {
-    const tx = await readTranscription(api, api.listen.transcriptionId);
+    const tx = await api.client.transcriptions.get(api.listen.transcriptionId, api.readAs);
     return { key: id, code: null, transcriptionId: tx.id, name: tx.name ?? tx.title ?? '', transcription: tx, job: tx.job ?? (tx.source ? { source: tx.source } as unknown as TranscriptionJob : null), allowDownload: true, allowExport: true, allowTranslate: true, sharedBy: null };
   }
   if (api.owner) {

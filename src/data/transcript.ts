@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LanguageLists, Subscription } from '@vocalstack/js-sdk';
 import { applyFrame, empty, fromSnapshot, hasLanguage, type Model } from '../core/transcript';
 import { describe, type ErrorLike } from './errors';
-import { readTranscription, usePlayerApi, type PlayerApi } from './context';
+import { usePlayerApi, type PlayerApi } from './context';
 
 export { describe, type ErrorLike };
 
@@ -102,7 +102,7 @@ export function useTranscript(transcriptionId: string | null, opts: { lang?: str
           const d = describe(e);
           if (d.code === 'not_found' || d.status === 404) { setNotFound(true); setError(d); return; }
           try {
-            await readTranscription(api, transcriptionId);
+            await client.transcriptions.get(transcriptionId, api.readAs);
           } catch (pe) {
             const pd = describe(pe);
             if (pd.code === 'not_found' || pd.status === 404) { setNotFound(true); setError(pd); return; }
