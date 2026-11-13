@@ -1,7 +1,7 @@
 export const DEFAULT_APP = 'https://app.vocalstack.com';
 const PATH = '/connect/transcribe';
 
-export interface Started { transcriptionId: string; recordingId: string; token: string; expiresAt: string | null; shareCode?: string | null }
+export interface Started { transcriptionId: string; token: string; expiresAt: string | null; shareCode?: string | null }
 
 export type PopupStatus = 'signing-in' | 'consent' | 'looking' | 'confirm' | 'checking' | 'starting';
 
@@ -42,7 +42,7 @@ export function openPopup(appUrl: string | undefined, ask: { url?: string; trans
       if (d.type === 'vocalstack:hello') { pop.postMessage({ source: 'vocalstack', type: 'vocalstack:hello-ack', nonce: n }, app.origin); return; }
       if (d.type === 'vocalstack:status') { onStatus?.(d.status); return; }
       if (d.type === 'vocalstack:started' || d.type === 'vocalstack:token' || d.type === 'vocalstack:found') {
-        finish(() => resolve({ transcriptionId: String(d.transcriptionId), recordingId: String(d.recordingId), token: String(d.token), expiresAt: d.expiresAt ?? null, shareCode: typeof d.shareCode === 'string' && d.shareCode ? d.shareCode : null }));
+        finish(() => resolve({ transcriptionId: String(d.transcriptionId), token: String(d.token), expiresAt: d.expiresAt ?? null, shareCode: typeof d.shareCode === 'string' && d.shareCode ? d.shareCode : null }));
         return;
       }
       if (d.type === 'vocalstack:connected') { finish(() => resolve('connected')); return; }

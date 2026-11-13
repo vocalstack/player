@@ -54,7 +54,7 @@ export function trackFor(rows: VoiceTrackRow[], kind: 'cloned' | 'synthetic', vo
   return rows.find((r) => r.chosenFor?.includes(kind)) ?? rowForVoice(rows, voiceId) ?? (kind === 'synthetic' ? rows.find((r) => r.voices === 'synthetic') ?? null : null);
 }
 
-export function archiveClips(row: VoiceTrackRow | null | undefined, recordingId: string, apiOrigin: string, cred: MediaCred = {}, sentenceIds?: number[]): VoiceClip[] {
+export function archiveClips(row: VoiceTrackRow | null | undefined, transcriptionId: string, apiOrigin: string, cred: MediaCred = {}, sentenceIds?: number[]): VoiceClip[] {
   if (!row) return [];
   const ids = sentenceIds?.length ? sentenceIds : row.clips;
   if (!ids?.length) return [];
@@ -67,7 +67,7 @@ export function archiveClips(row: VoiceTrackRow | null | undefined, recordingId:
     return Array.from({ length: parts }, (_, part) => ({
       sentenceId,
       lang: row.lang,
-      src: `${apiOrigin}/v1/recordings/${recordingId}/voice/${sentenceId}?lang=${encodeURIComponent(row.lang)}${vk}&format=${deliveryFormat()}${part > 0 ? `&part=${part}` : ''}${rev ? `&v=${encodeURIComponent(rev)}` : ''}${tk}`,
+      src: `${apiOrigin}/v1/transcriptions/${transcriptionId}/voice/${sentenceId}?lang=${encodeURIComponent(row.lang)}${vk}&format=${deliveryFormat()}${part > 0 ? `&part=${part}` : ''}${rev ? `&v=${encodeURIComponent(rev)}` : ''}${tk}`,
       durationS: parts === 1 ? row.clipDur?.[String(sentenceId)] ?? 0 : 0,
       voice: row.voice ?? null,
       cloned: false,

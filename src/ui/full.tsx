@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { IconButton, Sheet } from '../ds/Controls';
 import type { Strings } from '../data/i18n';
 import { D, Icon, Logo, Mark, PauseGlyph, PlayGlyph, SITE } from '../ds/Icons';
@@ -174,7 +175,45 @@ function useMedia(q: string): boolean {
 
 export type PlayerPos = { live: boolean; atEdge: boolean; edgeFrac: number | null; readyFrac?: number | null; pct: number; atLabel: string; labelAt: (frac: number) => string; endLabel: string; onSeek: (frac: number) => void };
 export type VoicesBtn = { on: boolean; title: string; onClick: () => void; busy?: boolean };
-export type PlayerTransport = { prevOn: boolean; nextOn: boolean; onPrev: () => void; onNext: () => void; playing: boolean; playable: boolean; playTitle: string; onPlay?: () => void; busy?: boolean };
+export type PlayWaitInfo = { lang: string | null; open: boolean; onDismiss: () => void };
+export type PlayerTransport = { prevOn: boolean; nextOn: boolean; onPrev: () => void; onNext: () => void; playing: boolean; playable: boolean; playTitle: string; onPlay?: () => void; busy?: boolean; wait?: PlayWaitInfo | null };
+
+const POP_W = 240;
+
+function PlayWait({ w }: { w: PlayWaitInfo }) {
+  const ring = useRef<HTMLSpanElement>(null);
+  const [at, setAt] = useState<{ host: HTMLElement; left: number; bottom: number; arrow: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!w.open) { setAt(null); return; }
+    const place = () => {
+      const el = ring.current;
+      const host = el?.closest<HTMLElement>('.gfull__frame, .gmini') ?? null;
+      if (!el || !host || el.offsetParent === null) { setAt(null); return; }
+      const r = el.getBoundingClientRect();
+      const h = host.getBoundingClientRect();
+      const mid = r.left + r.width / 2 - h.left;
+      const left = Math.max(8, Math.min(h.width - POP_W - 8, mid - POP_W / 2));
+      setAt({ host, left, bottom: h.bottom - r.top + 8, arrow: mid - left });
+    };
+    place();
+    window.addEventListener('resize', place);
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(place);
+    if (ro && ring.current) ro.observe(ring.current.closest('.gfull__frame, .gmini') ?? ring.current);
+    return () => { window.removeEventListener('resize', place); ro?.disconnect(); };
+  }, [w.open]);
+  return (
+    <>
+      <span ref={ring} className="gfull__playring" aria-hidden="true" />
+      {at && createPortal(
+        <div className="gfull__playpop" role="status" aria-live="polite" style={{ left: at.left, bottom: at.bottom, width: POP_W, ['--arrow' as string]: `${at.arrow}px` }} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+          <div className="gfull__playpoptext"><b>{w.lang ? `${w.lang} speech is loading` : 'The voice is loading'}</b>It starts playing as soon as it is ready.</div>
+          <button type="button" className="gfull__toastx" aria-label="Dismiss" onClick={w.onDismiss}><Icon d={D.close} size={12} sw={2} /></button>
+        </div>,
+        at.host,
+      )}
+    </>
+  );
+}
 
 function SeekRow({ pos, interactive, axis = 'x' }: { pos: PlayerPos; interactive: boolean; axis?: 'x' | 'y' }) {
   const [drag, setDrag] = useState<number | null>(null);
@@ -238,7 +277,7 @@ function GlassTransport({ t, mini }: { t: PlayerTransport; mini?: boolean }) {
       <button type="button" className="gfull__step" aria-label="Previous line" title="Previous line" style={{ opacity: t.prevOn ? 1 : 0.3 }} onClick={t.onPrev}><Icon d={D.chevronLeft} size={mini ? 13 : 16} sw={mini ? 1.8 : 1.9} /></button>
       <button type="button" className="gfull__play" aria-label={t.busy ? 'Preparing audio' : t.playing ? 'Pause' : 'Play'} title={t.playTitle} disabled={!t.playable}
         style={{ background: !t.playable ? 'rgba(5,6,21,.42)' : t.playing ? 'rgba(238,240,248,.92)' : 'var(--brand)', color: !t.playable ? 'rgba(234,236,250,.5)' : t.playing ? '#131326' : 'var(--brand-ink)', cursor: t.playable ? 'pointer' : 'default' }}
-        onClick={t.onPlay}>{t.busy ? <span className="gfull__spin" aria-hidden="true" /> : t.playing ? <PauseGlyph size={mini ? 14 : 18} /> : <PlayGlyph size={mini ? 15 : 19} />}</button>
+        onClick={t.onPlay}>{t.busy ? <span className="gfull__spin" aria-hidden="true" /> : t.playing ? <PauseGlyph size={mini ? 14 : 18} /> : <PlayGlyph size={mini ? 15 : 19} />}{t.wait && <PlayWait w={t.wait} />}</button>
       <button type="button" className="gfull__step" aria-label="Next line" title="Next line" style={{ opacity: t.nextOn ? 1 : 0.3 }} onClick={t.onNext}><Icon d={D.chevronRight} size={mini ? 13 : 16} sw={mini ? 1.8 : 1.9} /></button>
     </div>
   );
@@ -391,10 +430,10 @@ export function FullVideo({ topLeft, modal, compact = false, noFull = false, pag
   const mini = !big;
   useEffect(() => {
     setCalm(false);
-    if (!transport.playing || sheetOpen) return;
+    if (!transport.playing || sheetOpen || transport.wait?.open) return;
     const h = setTimeout(() => setCalm(true), 3000);
     return () => clearTimeout(h);
-  }, [transport.playing, sheetOpen, touchN]);
+  }, [transport.playing, sheetOpen, touchN, transport.wait?.open]);
   const calmRef = useRef(calm); calmRef.current = calm;
   const movedAt = useRef(0);
   const onMove = (e: React.PointerEvent) => {

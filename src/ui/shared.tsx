@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { liveEmbedUrl } from '../core/youtube';
-import type { Correction, LanguageLists, ExportFormat, Voice } from '@vocalstack/js-sdk';
+import type { Correction, LanguageLists, ExportFormat } from '@vocalstack/js-sdk';
 import { Card, Eyebrow, IconButton, Sheet, Switch, Toggle, Tooltip } from '../ds/Controls';
 import { D, EqBars, Icon, PauseGlyph, PlayGlyph, Spinner } from '../ds/Icons';
 import { clock } from '../core/format';
@@ -377,7 +377,7 @@ export function worstConf(r: Row): '' | 'mid' | 'low' {
 const SETTLE_MS = 400;
 
 export function useViewportTranslation(
-  recordingId: string | null,
+  transcriptionId: string | null,
   lang: string | null,
   rows: Row[],
   merge: (lang: string, made: Record<string, string>) => void,
@@ -388,10 +388,10 @@ export function useViewportTranslation(
   const asked = useRef<Set<string>>(new Set());
   const busy = useRef(false);
   const byId = useMemo(() => new Map(rows.filter((r) => r.sentenceId != null).map((r) => [r.sentenceId!, r])), [rows]);
-  useEffect(() => { asked.current = new Set(); }, [recordingId, lang]);
+  useEffect(() => { asked.current = new Set(); }, [transcriptionId, lang]);
   const onVisible = useCallback((ids: number[]) => setVisible(ids), []);
   useEffect(() => {
-    if (!recordingId || !lang || !visible.length || busy.current) return;
+    if (!transcriptionId || !lang || !visible.length || busy.current) return;
     void tick;
     const want = visible.filter((id) => {
       const r = byId.get(id);
@@ -404,11 +404,11 @@ export function useViewportTranslation(
     if (!want.length) return;
     busy.current = true;
     for (const id of want) asked.current.add(`${lang}:${id}`);
-    api.client.recordings.translation(recordingId, lang, want, api.readAs)
+    api.client.transcriptions.translation(transcriptionId, lang, want, api.readAs)
       .then((r) => { if (r.translations && Object.keys(r.translations).length) merge(lang, r.translations); })
       .catch((e: unknown) => { const st = (e as { status?: number })?.status; if (st && st >= 400 && st < 500) return; for (const id of want) asked.current.delete(`${lang}:${id}`); })
       .finally(() => { busy.current = false; setTick((n) => n + 1); });
-  }, [recordingId, lang, visible, tick, byId, merge]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [transcriptionId, lang, visible, tick, byId, merge]); // eslint-disable-line react-hooks/exhaustive-deps
   return onVisible;
 }
 
@@ -765,20 +765,20 @@ export function useVoiceCatalogue(
   lang: string | null,
   active: boolean,
   version: number = 0,
-  rec?: { id: string | null; token?: string | null; shareCode?: string | null },
+  tx?: { id: string | null; token?: string | null; shareCode?: string | null },
 ) {
-  const recId = rec?.id ?? null;
-  const recToken = rec?.token ?? null;
-  const recShare = rec?.shareCode ?? null;
+  const txId = tx?.id ?? null;
+  const txToken = tx?.token ?? null;
+  const txShare = tx?.shareCode ?? null;
   const api = usePlayerApi();
   const { data } = useAsync(async () => {
     if (!lang || !active) return null;
     try {
-      return (await api.client.voices.available(lang, { recording: recId ?? undefined, shareCode: recId ? recShare ?? undefined : undefined, asOwner: api.owner })) as unknown as { voices: AvailableVoice[] };
+      return (await api.client.voices.available(lang, { transcription: txId ?? undefined, shareCode: txId ? txShare ?? undefined : undefined, asOwner: api.owner })) as unknown as { voices: AvailableVoice[] };
     } catch {
       return null;
     }
-  }, [lang, active, version, recId, recToken, recShare]);
+  }, [lang, active, version, txId, txToken, txShare]);
   return data;
 }
 
@@ -787,18 +787,18 @@ export function namedCount(model: Model): number {
 }
 
 
-type VoiceList = { recordingId: string; lang: string; rows: VoiceTrackRow[] };
+type VoiceList = { transcriptionId: string; lang: string; rows: VoiceTrackRow[] };
 const VOICE_LISTS = new Map<string, VoiceList>();
 function rememberVoiceList(v: VoiceList) {
-  const k = `${v.recordingId}|${v.lang}`;
+  const k = `${v.transcriptionId}|${v.lang}`;
   VOICE_LISTS.delete(k);
   VOICE_LISTS.set(k, v);
   while (VOICE_LISTS.size > 24) VOICE_LISTS.delete(VOICE_LISTS.keys().next().value!);
 }
 
-export function useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice, sentenceIds, consent = true }: {
+export function useArchiveVoice({ transcriptionId, lang, ended, cred, pickedVoice, sentenceIds, consent = true }: {
   consent?: boolean;
-  recordingId: string | null;
+  transcriptionId: string | null;
   lang: string | null;
   ended: boolean;
   cred: MediaCred;
@@ -807,16 +807,16 @@ export function useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice, s
 }) {
   const api = usePlayerApi();
   const { data: fetched, reload } = useAsync(async () => {
-    if (!recordingId || !lang) return null;
-    const got = (await api.client.recordings.voice(recordingId, lang, api.readAs).catch(() => [])) as unknown as VoiceTrackRow[];
-    const v = { recordingId, lang, rows: got.filter((x) => x.lang === lang) };
+    if (!transcriptionId || !lang) return null;
+    const got = (await api.client.transcriptions.voice(transcriptionId, lang, api.readAs).catch(() => [])) as unknown as VoiceTrackRow[];
+    const v = { transcriptionId, lang, rows: got.filter((x) => x.lang === lang) };
     rememberVoiceList(v);
     return v;
-  }, [recordingId, lang, api, ended]);
-  const listed = fetched && fetched.lang === lang && fetched.recordingId === recordingId ? fetched : recordingId && lang ? VOICE_LISTS.get(`${recordingId}|${lang}`) ?? null : null;
+  }, [transcriptionId, lang, api, ended]);
+  const listed = fetched && fetched.lang === lang && fetched.transcriptionId === transcriptionId ? fetched : transcriptionId && lang ? VOICE_LISTS.get(`${transcriptionId}|${lang}`) ?? null : null;
   const rows = useMemo(
-    () => (listed && listed.lang === lang && listed.recordingId === recordingId ? listed.rows : []),
-    [listed, lang, recordingId],
+    () => (listed && listed.lang === lang && listed.transcriptionId === transcriptionId ? listed.rows : []),
+    [listed, lang, transcriptionId],
   );
   const synthetic = !!parseCast(pickedVoice);
   const track = useMemo(() => trackFor(rows, synthetic ? 'synthetic' : 'cloned', pickedVoice), [rows, pickedVoice, synthetic]);
@@ -824,19 +824,19 @@ export function useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice, s
   const [asking, setAsking] = useState<string | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
   const asked = useRef(new Set<string>());
-  const renderKey = `${recordingId ?? ''}|${lang ?? ''}|${renderVoiceId ?? ''}`;
+  const renderKey = `${transcriptionId ?? ''}|${lang ?? ''}|${renderVoiceId ?? ''}`;
   const renderRef = useRef(renderVoiceId);
   renderRef.current = renderVoiceId;
   const requestRender = useCallback(async (voiceId: string | null, cast?: Map<number, string> | null) => {
-    if (!recordingId || !lang || !ended) return;
+    if (!transcriptionId || !lang || !ended) return;
     const stock = !!cast?.size || !!parseCast(voiceId);
-    const k = `${recordingId}|${lang}|${renderRef.current ?? ''}`;
+    const k = `${transcriptionId}|${lang}|${renderRef.current ?? ''}`;
     if (asked.current.has(k)) return;
     asked.current.add(k);
     setAsking(k);
     setRenderError(null);
     const body: { langs: string[]; voices?: 'synthetic'; consent?: boolean } = stock ? { langs: [lang], voices: 'synthetic' } : { langs: [lang], consent };
-    const r = await apiFetch(api, `/v1/recordings/${recordingId}/voice`, { method: 'POST', body }).catch(() => null);
+    const r = await apiFetch(api, `/v1/transcriptions/${transcriptionId}/voice`, { method: 'POST', body }).catch(() => null);
     setAsking((a) => (a === k ? null : a));
     if (!r?.ok) {
       asked.current.delete(k);
@@ -845,12 +845,12 @@ export function useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice, s
       return;
     }
     reload();
-  }, [recordingId, lang, ended, api, reload, consent]);
+  }, [transcriptionId, lang, ended, api, reload, consent]);
   const forget = useCallback(() => {
-    const prefix = `${recordingId ?? ''}|${lang ?? ''}|`;
+    const prefix = `${transcriptionId ?? ''}|${lang ?? ''}|`;
     for (const k of [...asked.current]) if (k.startsWith(prefix)) asked.current.delete(k);
     setRenderError(null);
-  }, [recordingId, lang]);
+  }, [transcriptionId, lang]);
   const rendering = (!!track && (track.state === 'queued' || track.state === 'running')) || asking === renderKey;
   const failed = track?.state === 'failed' ? track.error || 'the render failed' : renderError;
   const sentenceKey = sentenceIds?.join(',') ?? '';
@@ -860,18 +860,18 @@ export function useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice, s
   const missing = useMemo(() => (ended && sentenceKey ? missingClips(sentenceKey.split(',').map(Number), made, original) : []), [ended, sentenceKey, made, original]);
   const kicked = useRef<{ key: string; near: number; at: number } | null>(null);
   useEffect(() => {
-    if (!ended || !recordingId || !lang || !missing.length) return;
+    if (!ended || !transcriptionId || !lang || !missing.length) return;
     const at = near ?? missing[0];
     const target = missing.find((id) => id >= at) ?? missing[0];
-    const key = `${recordingId}|${lang}|${renderVoiceId ?? ''}`;
+    const key = `${transcriptionId}|${lang}|${renderVoiceId ?? ''}`;
     const prev = kicked.current;
     if (prev && prev.key === key && Math.abs(prev.near - target) < 12 && Date.now() - prev.at < 60_000) return;
     kicked.current = { key, near: target, at: Date.now() };
     const body: { langs: string[]; near: number; voices?: 'synthetic'; consent?: boolean } = synthetic ? { langs: [lang], near: target, voices: 'synthetic' } : { langs: [lang], near: target, consent };
-    void apiFetch(api, `/v1/recordings/${recordingId}/voice`, { method: 'POST', body })
+    void apiFetch(api, `/v1/transcriptions/${transcriptionId}/voice`, { method: 'POST', body })
       .then((r) => { if (!r.ok) kicked.current = null; })
       .catch(() => { kicked.current = null; });
-  }, [ended, recordingId, lang, renderVoiceId, near, missing, api, consent, synthetic]);
+  }, [ended, transcriptionId, lang, renderVoiceId, near, missing, api, consent, synthetic]);
   const missingNow = missing.length > 0;
   const lastCount = useRef({ n: -1, at: 0 });
   useEffect(() => {
@@ -885,13 +885,13 @@ export function useArchiveVoice({ recordingId, lang, ended, cred, pickedVoice, s
     return () => clearInterval(t);
   }, [missingNow, reload, made]);
   const clips = useMemo(() => {
-    if (!recordingId) return [];
+    if (!transcriptionId) return [];
     const ids = sentenceKey ? sentenceKey.split(',').map(Number).filter((id) => !ended || made.has(id)) : undefined;
     const row = track ?? (ids?.length && lang
       ? { lang, voiceKey: pickedVoice ?? '', state: 'clips', clips: [], voice: null } as VoiceTrackRow
       : null);
-    return archiveClips(row, recordingId, api.origin, cred, ids);
-  }, [track, recordingId, api, cred, sentenceKey, lang, pickedVoice, ended, made]);
+    return archiveClips(row, transcriptionId, api.origin, cred, ids);
+  }, [track, transcriptionId, api, cred, sentenceKey, lang, pickedVoice, ended, made]);
   const coming = useMemo(() => new Set(missing), [missing]);
   return { listed, rows, track, renderVoiceId, rendering, failed, clips, requestRender, forget, reload, setNear, missing: missing.length, coming, original: original ?? null };
 }
@@ -1088,15 +1088,15 @@ const SUMMARY_POLL_MS = 4000;
 const SUMMARY_REASK_MS = 60_000;
 const SUMMARY_SLOW_MS = 180_000;
 
-export function useSummaryIn(base: SummaryState, recordingId: string | null, lang: string | null): SummaryState {
+export function useSummaryIn(base: SummaryState, transcriptionId: string | null, lang: string | null): SummaryState {
   const [got, setGot] = useState<{ key: string; s: SummaryState } | null>(null);
   const ready = base.state === 'ready';
-  const key = `${recordingId ?? ''}|${lang ?? ''}|${ready ? `${base.title}\n${base.summary}` : ''}`;
+  const key = `${transcriptionId ?? ''}|${lang ?? ''}|${ready ? `${base.title}\n${base.summary}` : ''}`;
   const api = usePlayerApi();
   useEffect(() => {
-    if (!recordingId || !lang || !ready) return;
+    if (!transcriptionId || !lang || !ready) return;
     let alive = true;
-    api.client.recordings.summary(recordingId, { lang, ...api.readAs })
+    api.client.transcriptions.summary(transcriptionId, { lang, ...api.readAs })
       .then((r) => r as unknown as { state: string; title?: string; summary?: string })
       .then((r) => {
         if (!alive) return;
@@ -1150,9 +1150,9 @@ export function SummaryPanel({ s }: { s: SummaryState }) {
           <div style={{ fontSize: 13, fontWeight: 300, lineHeight: 1.55, color: 'var(--ink-80)', textWrap: 'pretty', whiteSpace: 'pre-line' } as React.CSSProperties}>{body}</div>
         </>
       ) : s.state === 'unavailable' ? (
-        note('No summary for this recording.')
+        note('No summary for this transcription.')
       ) : s.state === 'not_requested' ? (
-        s.request ? note('This recording was made without a summary.', { label: 'Summarize', onClick: s.request }) : note('Recordings under a minute and files of a batch are not summarised.')
+        s.request ? note('This transcription was made without a summary.', { label: 'Summarize', onClick: s.request }) : note('Recordings under a minute and files of a batch are not summarised.')
       ) : (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 300, color: 'var(--ink-45)' }}>
           <Spinner size={14} color="var(--brand)" track="var(--fill-12)" />{s.slow ? 'Still writing the summary…' : 'Writing the summary…'}

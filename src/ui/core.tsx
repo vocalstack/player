@@ -5,7 +5,7 @@ import { D, Icon, PlayGlyph, Spinner } from '../ds/Icons';
 import { pickerLanguages, useRecentLangs } from '../data/prefs';
 import { useVoicePreview } from '../data/voicePreview';
 import { useLanguageList } from '../ds/LanguagePicker';
-import { deliveryAudioUrl, explainAudioError, mediaErrorText, mediaKindOf, reportMediaError, type MediaCred } from '../core/audio';
+import { applySound, deliveryAudioUrl, explainAudioError, mediaErrorText, mediaKindOf, reportMediaError, type MediaCred } from '../core/audio';
 import { clock } from '../core/format';
 import { describe, useAsync, type ErrorLike } from '../data/transcript';
 import { usePlayerApi } from '../data/context';
@@ -515,6 +515,8 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(muted); mutedRef.current = muted;
   const silenced = useRef(false);
+  const volume = useRef(1);
+  const sound = (a: HTMLMediaElement) => applySound(a, { muted: mutedRef.current, silenced: silenced.current, volume: volume.current });
   const [error, setError] = useState<ErrorLike | null>(null);
   const [ready, setReady] = useState(false);
   const offset = useRef(offsetS); offset.current = offsetS;
@@ -524,7 +526,7 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
   useEffect(() => { retries.current = 0; }, [urlKey]);
   const [ctl] = useState(() => new ClockMedia<HTMLMediaElement>({
     make: (u) => newMediaElement(u),
-    prepare: (a) => { a.muted = mutedRef.current || silenced.current; },
+    prepare: (a) => sound(a),
     offset: () => offset.current,
     playing: setPlaying,
     buffering: setBuffering,
@@ -633,14 +635,14 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
   const lastNudge = useRef(0);
   const hold = () => { if (playing) { ctl.pause(); held.current = true; } };
   const release = () => { if (held.current) { held.current = false; void ctl.play().catch(playFailed); } };
-  const toggleMute = () => { const m = !mutedRef.current; mutedRef.current = m; if (audio.current) audio.current.muted = m || silenced.current; setMuted(m); };
+  const toggleMute = () => { const m = !mutedRef.current; mutedRef.current = m; if (audio.current) sound(audio.current); setMuted(m); };
   const autoplay = async (): Promise<boolean | null> => {
     const a = audio.current;
     if (!a) return null;
     if (a.currentTime < offset.current) a.currentTime = offset.current;
-    const mute = (m: boolean) => { mutedRef.current = m; a.muted = m || silenced.current; setMuted(m); };
+    const mute = (m: boolean) => { mutedRef.current = m; sound(a); setMuted(m); };
     try { mute(false); await a.play(); return true; } catch (e) {
-      if ((e as { name?: string } | null)?.name !== 'NotAllowedError') { mute(true); return null; }
+      if ((e as { name?: string } | null)?.name !== 'NotAllowedError') return null;
     }
     try { mute(true); await a.play(); return false; } catch { return null; }
   };
@@ -661,8 +663,8 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
     error, clearError: () => setError(null), has: available, edgeWait, preparing: buffering,
     wordSync: true,
     pause: () => { setWait(false); ctl.pause(); },
-    setVolume: (v: number) => { if (audio.current) audio.current.volume = v; },
-    silence: (on: boolean) => { silenced.current = on; if (audio.current) audio.current.muted = mutedRef.current || on; },
+    setVolume: (v: number) => { volume.current = v; if (audio.current) sound(audio.current); },
+    silence: (on: boolean) => { silenced.current = on; if (audio.current) sound(audio.current); },
   };
 }
 
@@ -1023,7 +1025,7 @@ export function VoiceCloningMark() {
   return <span title="A voice is being cloned" aria-label="A voice is being cloned" style={{ position: 'absolute', top: -4, right: -4, width: 17, height: 17, borderRadius: '50%', background: 'var(--vs-surface-raised, #1b1e2e)', boxShadow: '0 0 0 2px var(--vs-surface, #12141f)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner size={11} color="var(--brand)" track="var(--fill-12)" sw={1.6} /></span>;
 }
 
-export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs, srcLang, canTranslate, pickedLang, setPickedLang, side, hearOriginal = false, timed = false, stockVoices = false, stickyPicker = false, pickerBusy = null, consent = true, cloneIfOffered = false, originalSrc, originalOffset = 0, kept = null, hostVoices = false, allClones = false }: {
+export function useTxVoice({ transcriptionId, model, rows, lenS, ended, cred, langs, srcLang, canTranslate, pickedLang, setPickedLang, side, hearOriginal = false, timed = false, stockVoices = false, stickyPicker = false, pickerBusy = null, consent = true, cloneIfOffered = false, originalSrc, originalOffset = 0, kept = null, hostVoices = false, allClones = false }: {
   kept?: KeptView | null;
   hostVoices?: boolean;
   allClones?: boolean;
@@ -1037,7 +1039,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   stickyPicker?: boolean;
   pickerBusy?: string | null;
   timed?: boolean;
-  recordingId: string | null;
+  transcriptionId: string | null;
   model: Model;
   rows: Row[];
   lenS: number | null;
@@ -1067,7 +1069,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const vLang = speakable(original ? srcLang : lang) ? (original ? srcLang : lang) : 'en';
   const preview = useVoicePreview(vLang);
   const [catVer, setCatVer] = useState(0);
-  const catalogue = useVoiceCatalogue(vLang, on || ended || sheet, namedCount(model) * 1000 + catVer, { id: recordingId ?? null, shareCode: cred.shareCode ?? null });
+  const catalogue = useVoiceCatalogue(vLang, on || ended || sheet, namedCount(model) * 1000 + catVer, { id: transcriptionId ?? null, shareCode: cred.shareCode ?? null });
   const gvList = useMemo(() => (catalogue?.voices ?? []).filter((v) => allClones || !v.cloned || v.speaker != null), [catalogue, allClones]);
   const gVoicePick = gvList.length > 1;
   const meta = langMeta(langs, lang);
@@ -1088,10 +1090,10 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const speakHere = canSpeak && !hearOriginal;
   const sameHere = useMemo(() => originalLines(rows, lang, srcLang), [rows, lang, srcLang]);
   const sentenceIds = useMemo(() => voicedLines(rows, sameHere), [rows, sameHere]);
-  const arch = useArchiveVoice({ consent: consent || hostClones, recordingId, lang: original || whole ? null : lang, ended, cred, pickedVoice: castKeyStr, sentenceIds: ended && speakHere ? sentenceIds : undefined });
+  const arch = useArchiveVoice({ consent: consent || hostClones, transcriptionId, lang: original || whole ? null : lang, ended, cred, pickedVoice: castKeyStr, sentenceIds: ended && speakHere ? sentenceIds : undefined });
   const origKey = [...sameHere, ...(arch.original ?? [])].sort((a, b) => a - b).join(',');
   const origIds = useMemo(() => new Set(origKey ? origKey.split(',').map(Number) : []), [origKey]);
-  const origSrc = originalSrc !== undefined ? originalSrc : recordingId && ended ? deliveryAudioUrl(playerApi.origin, recordingId, cred) : null;
+  const origSrc = originalSrc !== undefined ? originalSrc : transcriptionId && ended ? deliveryAudioUrl(playerApi.origin, transcriptionId, cred) : null;
   const origAudio = useMemo(() => ({ ids: origIds, src: origSrc, offset: originalOffset }), [origIds, origSrc, originalOffset]);
   const gvPicked = gvList.find((v) => v.id === arch.track?.voice) ?? gvList.find((v) => v.default) ?? gvList[0] ?? null;
 
@@ -1101,7 +1103,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     return () => clearInterval(id);
   }, [arch.rendering, arch.reload]);
 
-  const clipKey = `${recordingId ?? ''}|${lang ?? ''}|${castKeyStr ?? arch.track?.voiceKey ?? 'default'}`;
+  const clipKey = `${transcriptionId ?? ''}|${lang ?? ''}|${castKeyStr ?? arch.track?.voiceKey ?? 'default'}`;
   const vq = useTxVoicePlayer(arch.clips, rows, lenS, clipKey, spkMute, arch.track?.wordTimes, timed, arch.coming, origAudio);
   const clockUrl = speakHere && readingClock({ timed, ended, audio: origSrc }) === 'audio' ? origSrc : null;
   const clock = useTxPlayer(clockUrl, !!clockUrl, rows, lenS, originalOffset);
@@ -1134,7 +1136,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
   const noVoice = false;
   const speaks = on && speakHere;
   const relang = on && !original && speakHere
-    && !(arch.listed && arch.listed.lang === lang && arch.listed.recordingId === recordingId);
+    && !(arch.listed && arch.listed.lang === lang && arch.listed.transcriptionId === transcriptionId);
   const player: TxPlayer = {
     ...vp,
     has: vp.has || (speaks && ended),
@@ -1195,7 +1197,7 @@ export function useTxVoice({ recordingId, model, rows, lenS, ended, cred, langs,
     : vp.preparing
     ? `Speaking this line in ${gvPicked?.name ?? 'this voice'}…`
     : rendering
-      ? `Preparing this recording in ${gvPicked?.name ?? 'this voice'} — it will play as soon as it is ready`
+      ? `Preparing this transcription in ${gvPicked?.name ?? 'this voice'} — it will play as soon as it is ready`
       : failed
         ? `This voice could not be prepared: ${failed}`
         : !canSpeak

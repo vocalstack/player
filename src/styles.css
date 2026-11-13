@@ -753,6 +753,12 @@
 .vsp .gfull__holds{font:500 11px var(--vs-font-mono);letter-spacing:.12em;text-transform:uppercase;color:rgba(238,240,248,.7)}
 .vsp .gfull__holdn{font-size:13px;color:rgba(238,240,248,.55)}
 .vsp .gfull__play .gfull__spin{width:18px;height:18px}
+.vsp .gfull__play{position:relative}
+.vsp .gfull__playring{position:absolute;inset:-4px;box-sizing:border-box;border-radius:50%;border:2.5px solid rgba(238,240,248,.25);border-top-color:var(--brand);animation:vs-spin .8s linear infinite;pointer-events:none}
+.vsp .gfull__playpop{position:absolute;z-index:3;box-sizing:border-box;display:flex;align-items:flex-start;gap:8px;padding:10px 8px 10px 12px;border-radius:10px;background:rgba(5,6,21,.92);color:#eef0f8;font-size:12.5px;line-height:1.4;box-shadow:0 6px 24px rgba(5,6,21,.45);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);pointer-events:auto;cursor:default}
+.vsp .gfull__playpop::after{content:'';position:absolute;top:100%;left:var(--arrow);margin-left:-6px;border:6px solid transparent;border-top-color:rgba(5,6,21,.92)}
+.vsp .gfull__playpoptext{flex:1;min-width:0;color:rgba(238,240,248,.82)}
+.vsp .gfull__playpoptext b{display:block;font-weight:600;color:#fff}
 .vsp .gfull__prog{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:12px;padding:0 16px 30px}
 .vsp .gfull__frame--land .gfull__prog{padding:0 56px 16px}
 .vsp .gfull--desk .gfull__prog{padding:0 24px 18px}

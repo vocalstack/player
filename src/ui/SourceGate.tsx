@@ -8,6 +8,7 @@ import { useDesk } from './useDesk';
 import { hasCloneConsent, useIdleControls, type IdlePrefs } from './IdleSettings';
 import { shareLink } from './shared';
 import { shareCodeOf } from '../core/share';
+import { dashboardTxOf } from '../core/dashboard';
 import { ProviderGrid } from './Providers';
 
 export interface IdleState { prefs: IdlePrefs; set: (p: Partial<IdlePrefs>) => void; shareUrl?: string }
@@ -40,6 +41,8 @@ export interface Connect {
   connected: boolean;
   connect: () => void;
   start: (url: string, ask: boolean, opts?: TxChoice) => void;
+  open: (transcriptionId: string) => void;
+  txOf: (link: string) => string | null;
   clear: () => void;
 }
 
@@ -65,8 +68,10 @@ export function useConnect(appUrl: string | undefined, onReady: (s: Started) => 
   }, [appUrl, busy, onReady]);
   const connect = useCallback(() => run({ connect: true }), [run]);
   const start = useCallback((url: string, ask: boolean, opts?: TxChoice) => run({ url, ask, ...(opts ? { tx: opts } : null) }), [run]);
+  const open = useCallback((transcription: string) => run({ transcription }), [run]);
+  const txOf = useCallback((link: string) => dashboardTxOf(link, appUrl), [appUrl]);
   const clear = useCallback(() => setErr(null), []);
-  return { busy, status, err, connected, connect, start, clear };
+  return { busy, status, err, connected, connect, start, open, txOf, clear };
 }
 
 function isMedia(src: string): boolean {
@@ -123,12 +128,14 @@ function ConnectButton({ connect, onClick, label }: { connect: Connect; onClick:
 
 export function SourceGate({ idle, src, ask, connect, page, poster = null, onClear }: { idle: IdleState; src: string; ask: boolean; connect: Connect; page: boolean; poster?: string | null; onClear?: () => void }) {
   const p = idle.prefs;
-  const go = () => connect.start(src, ask, txChoiceOf(p));
+  const tx = connect.txOf(src);
+  const go = () => (tx ? connect.open(tx) : connect.start(src, ask, txChoiceOf(p)));
+  const what = tx ? 'your VocalStack transcription' : hostOf(src);
   return (
-    <IdlePlayer idle={idle} poster={poster} src={src} title={hostOf(src)} page={page} onAct={go} pre>
+    <IdlePlayer idle={idle} poster={poster} src={tx ? null : src} title={tx ? 'VocalStack' : hostOf(src)} page={page} onAct={go} pre>
       {(ctl) => <>
       <ConnectButton connect={connect} onClick={go} label={connect.connected ? 'Play with VocalStack' : 'Connect to VocalStack'} />
-      {!connect.busy && <div className="vsp-idle__note">{connect.connected ? `Plays ${hostOf(src)} with subtitles and spoken translations.` : `Connect to play ${hostOf(src)} with subtitles and spoken translations.`}</div>}
+      {!connect.busy && <div className="vsp-idle__note">{connect.connected ? `Plays ${what} with subtitles and spoken translations.` : `Connect to play ${what} with subtitles and spoken translations.`}</div>}
       {onClear && !connect.busy && <button type="button" className="vsp-idle__other" onClick={onClear}>Choose another video</button>}
       </>}
     </IdlePlayer>
@@ -142,7 +149,7 @@ export function StartCard({ idle, connect, page, poster = null, onPick, onShare 
   const inputRef = useRef<HTMLInputElement>(null);
   const lastAuto = useRef<string | null>(null);
   const clean = url.trim();
-  const isLink = (v: string) => LINK.test(v) || !!shareCodeOf(v);
+  const isLink = (v: string) => LINK.test(v) || !!shareCodeOf(v) || !!connect.txOf(v);
   const ok = isLink(clean);
   const busy = connect.busy || opening;
   const launch = async (raw: string) => {

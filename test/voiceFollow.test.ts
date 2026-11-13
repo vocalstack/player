@@ -119,8 +119,8 @@ test('an audio-only mixed recording plays on the recording clock: exactly its le
 });
 
 test('a reading on a screen with no video (the Dashboard) keeps the recording clock; only live listening and a recording with no audio read back to back', () => {
-  assert.equal(readingClock({ timed: false, ended: true, audio: 'https://api/v1/recordings/r/audio?kind=delivery' }), 'audio', 'an ended recording with its audio: clips at their starts on the recording timeline');
-  assert.equal(readingClock({ timed: false, ended: false, audio: 'https://api/v1/recordings/r/audio?kind=delivery' }), 'clips', 'live listening reads as the lines arrive');
+  assert.equal(readingClock({ timed: false, ended: true, audio: 'https://api/v1/transcriptions/r/audio?kind=delivery' }), 'audio', 'an ended recording with its audio: clips at their starts on the recording timeline');
+  assert.equal(readingClock({ timed: false, ended: false, audio: 'https://api/v1/transcriptions/r/audio?kind=delivery' }), 'clips', 'live listening reads as the lines arrive');
   assert.equal(readingClock({ timed: false, ended: true, audio: null }), 'clips', 'no audio at all: back to back');
   assert.equal(readingClock({ timed: true, ended: true, audio: 'x' }), 'video', 'a video (or the host page) owns the clock');
 });

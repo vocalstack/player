@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { VocalStack, type Recording, type TranscriptionJob, type ReadAs } from '@vocalstack/js-sdk';
+import { VocalStack, type Transcription, type TranscriptionJob, type ReadAs } from '@vocalstack/js-sdk';
 import type { MediaCred } from '../core/audio';
 import { describe, type ErrorLike } from './errors';
 
@@ -21,7 +21,7 @@ export interface PlayerSource {
   code: string | null;
   transcriptionId: string | null;
   name: string;
-  recording: Recording;
+  transcription: Transcription;
   job: TranscriptionJob | null;
   allowDownload: boolean;
   allowExport: boolean;
@@ -57,7 +57,7 @@ export function isTranscriptionId(id: string): boolean {
 
 export type TokenSource = string | (() => string | undefined | null | Promise<string | undefined | null>);
 
-export interface Listen { transcriptionId: string; recordingId: string; token: string }
+export interface Listen { transcriptionId: string; token: string }
 
 export interface ApiOptions { id?: string | null; token?: TokenSource | null; baseUrl?: string | null; listen?: Listen | null; listenerToken?: string | null; client?: VocalStack | null }
 
@@ -102,8 +102,8 @@ export function withMedia(api: PlayerApi, media: string | null): PlayerApi {
 
 const LIVE_STATES = ['pending', 'live', 'paused'];
 
-export function isLiveRecording(r: Pick<Recording, 'kind' | 'state'> | null | undefined): boolean {
-  return !!r && r.kind === 'live' && LIVE_STATES.includes(r.state);
+export function isLiveTranscription(t: Pick<Transcription, 'live' | 'state'> | null | undefined): boolean {
+  return !!t && !!t.live && LIVE_STATES.includes(t.state);
 }
 
 export function streamOffsetS(ingest: { mediaAt?: string | null; streamStartedAt?: string | null } | null | undefined): number {
@@ -116,39 +116,51 @@ export function isRtmp(url: string | null | undefined): boolean {
   return !!url && /^rtmps?:\/\//i.test(url.trim());
 }
 
-export function liveJob(recording: Recording, url: string | null | undefined): TranscriptionJob | null {
-  const r = recording as Recording & { ingest?: { url?: string | null; mediaAt?: string | null; streamStartedAt?: string | null } | null };
-  const link = url ?? r.ingest?.url ?? null;
+export function liveJob(tx: Transcription, url: string | null | undefined): TranscriptionJob | null {
+  const link = url ?? tx.ingest?.url ?? null;
   if (!link) return null;
-  const done = r.state === 'finalized';
-  const hasVideo = isRtmp(link) && !!(r as Recording & { media?: { kind: string; state: string }[] }).media?.some((m) => m.kind === 'video' && m.state === 'sealed');
-  return { recordingId: r.id, state: done ? 'done' : 'transcribing', hasAudio: done, hasVideo, source: { kind: 'url', url: link }, crop: { startS: streamOffsetS(r.ingest) } } as unknown as TranscriptionJob;
+  const done = tx.state === 'finalized';
+  const hasVideo = isRtmp(link) && !!tx.media?.some((m) => m.kind === 'video' && m.state === 'sealed');
+  return { transcriptionId: tx.id, state: done ? 'done' : 'transcribing', hasAudio: done, hasVideo, source: { kind: 'url', url: link }, crop: { startS: streamOffsetS(tx.ingest) } } as unknown as TranscriptionJob;
 }
 
-export async function loadSource(api: PlayerApi, id: string, recordingId?: string | null): Promise<PlayerSource> {
+function notStarted(tx: Transcription): void {
+  if (tx.state === 'idle') throw Object.assign(new Error('This transcription has not started yet.'), { code: 'not_found', status: 404 });
+}
+
+function sourceOf(tx: Transcription): TranscriptionJob | null {
+  if (tx.job) return tx.job;
+  if (!tx.live) return null;
+  const src = tx.source as { kind?: string; url?: string | null } | undefined;
+  return liveJob(tx, src?.kind === 'stream' ? src.url : null);
+}
+
+export async function readTranscription(api: PlayerApi, id: string): Promise<Transcription> {
+  if (api.owner) return api.client.transcriptions.get(id);
+  const res = await apiFetch(api, `/v1/transcriptions/${encodeURIComponent(id)}`, { query: { listenerToken: api.readAs.listenerToken, shareCode: api.readAs.shareCode } });
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw Object.assign(new Error(body?.error?.message ?? body?.message ?? `HTTP ${res.status}`), { code: body?.error?.code ?? body?.code ?? (res.status === 404 ? 'not_found' : undefined), status: res.status });
+  return body as Transcription;
+}
+
+export async function loadSource(api: PlayerApi, id: string): Promise<PlayerSource> {
   if (api.listen) {
-    const recording = await api.client.recordings.get(api.listen.recordingId, api.readAs);
-    const r: any = recording;
-    return { key: id, code: null, transcriptionId: api.listen.transcriptionId, name: r.name ?? r.title ?? '', recording, job: r.job ?? (r.source ? { source: r.source } : null), allowDownload: true, allowExport: true, allowTranslate: true, sharedBy: null };
+    const tx = await readTranscription(api, api.listen.transcriptionId);
+    return { key: id, code: null, transcriptionId: tx.id, name: tx.name ?? tx.title ?? '', transcription: tx, job: tx.job ?? (tx.source ? { source: tx.source } as unknown as TranscriptionJob : null), allowDownload: true, allowExport: true, allowTranslate: true, sharedBy: null };
   }
   if (api.owner) {
     const tx = await api.client.transcriptions.get(id);
-    const own = (tx as any).job ?? null;
-    const rid: string | null = recordingId ?? own?.recordingId ?? null;
-    if (!rid) throw Object.assign(new Error('This transcription has no recording yet.'), { code: 'not_found', status: 404 });
-    const recording = await api.client.recordings.get(rid);
-    const src = (tx as any).source as { kind?: string; url?: string | null } | undefined;
-    const job = own && own.recordingId === rid ? own : recording.kind === 'live' ? liveJob(recording, src?.kind === 'stream' ? src.url : null) : own;
-    return { key: id, code: null, transcriptionId: tx.id, name: tx.name ?? '', recording, job, allowDownload: true, allowExport: true, allowTranslate: true, sharedBy: null };
+    notStarted(tx);
+    return { key: id, code: null, transcriptionId: tx.id, name: tx.name ?? '', transcription: tx, job: sourceOf(tx), allowDownload: true, allowExport: true, allowTranslate: true, sharedBy: null };
   }
   const s = await api.client.shareLinks.open(id);
   return {
-    key: id, code: s.code ?? id, transcriptionId: s.transcriptionId ?? null, name: s.name ?? '', recording: s.recording, job: s.job ?? (s.recording?.kind === 'live' ? liveJob(s.recording, null) : null),
+    key: id, code: s.code ?? id, transcriptionId: s.transcriptionId ?? s.transcription?.id ?? null, name: s.name ?? '', transcription: s.transcription, job: s.job ?? (s.transcription?.live ? liveJob(s.transcription, null) : null),
     allowDownload: !!s.allowDownload, allowExport: !!s.allowExport, allowTranslate: !!s.allowTranslate, sharedBy: s.sharedBy ?? null,
   };
 }
 
-export function useSource(api: PlayerApi, id: string, recordingId?: string | null): { source: PlayerSource | null; gone: boolean; error: ErrorLike | null; reload: () => void } {
+export function useSource(api: PlayerApi, id: string): { source: PlayerSource | null; gone: boolean; error: ErrorLike | null; reload: () => void } {
   const [source, setSource] = useState<PlayerSource | null>(null);
   const [gone, setGone] = useState(false);
   const [error, setError] = useState<ErrorLike | null>(null);
@@ -156,21 +168,21 @@ export function useSource(api: PlayerApi, id: string, recordingId?: string | nul
   useEffect(() => {
     if (!id) { setSource(null); setGone(false); setError(null); return; }
     let alive = true;
-    loadSource(api, id, recordingId)
+    loadSource(api, id)
       .then((s) => { if (alive) { setSource(s); setGone(false); setError(null); } })
       .catch((e) => { if (!alive) return; const d = describe(e); if (d.code === 'not_found' || d.status === 404) setGone(true); else setError(d); });
     return () => { alive = false; };
-  }, [api, id, n, recordingId]);
+  }, [api, id, n]);
   return { source, gone, error, reload: () => setN((x) => x + 1) };
 }
 
-export function useMediaToken(api: PlayerApi, recordingId: string | null): string | null {
+export function useMediaToken(api: PlayerApi, transcriptionId: string | null): string | null {
   const [tok, setTok] = useState<string | null>(null);
   useEffect(() => {
-    if (!api.owner || !recordingId) { setTok(null); return; }
+    if (!api.owner || !transcriptionId) { setTok(null); return; }
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const get = () => api.client.recordings.mediaToken(recordingId).then((t) => {
+    const get = () => api.client.transcriptions.mediaToken(transcriptionId).then((t) => {
       if (!alive) return;
       setTok(t.token);
       const left = Date.parse(t.expiresAt) - Date.now();
@@ -178,7 +190,7 @@ export function useMediaToken(api: PlayerApi, recordingId: string | null): strin
     }).catch(() => { if (alive) timer = setTimeout(get, 30_000); });
     void get();
     return () => { alive = false; clearTimeout(timer); };
-  }, [api, recordingId]);
+  }, [api, transcriptionId]);
   return tok;
 }
 

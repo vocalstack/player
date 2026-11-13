@@ -37,13 +37,13 @@ function rig(offset = 0) {
   return { ctl, made, ats, plays };
 }
 
-const audio = (tok: string, kind = 'delivery') => `https://api.vocalstack.com/v1/recordings/01a1ba52/audio?kind=${kind}&format=ogg&access_token=${tok}`;
+const audio = (tok: string, kind = 'delivery') => `https://api.vocalstack.com/v1/transcriptions/01a1ba52/audio?kind=${kind}&format=ogg&access_token=${tok}`;
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 test('the media key drops only the credentials, so a refreshed sign-in token names the same audio', () => {
   assert.equal(mediaKey(audio('A')), mediaKey(audio('B')));
   assert.notEqual(mediaKey(audio('A')), mediaKey(audio('A', 'source')));
-  assert.equal(mediaKey('https://x/v1/recordings/r/audio?kind=voice&lang=fr&media=m1&listenerToken=l1'), 'https://x/v1/recordings/r/audio?kind=voice&lang=fr');
+  assert.equal(mediaKey('https://x/v1/transcriptions/r/audio?kind=voice&lang=fr&media=m1&listenerToken=l1'), 'https://x/v1/transcriptions/r/audio?kind=voice&lang=fr');
   assert.equal(mediaKey(null), null);
   assert.equal(mediaKey('https://example.com/a.mp3'), 'https://example.com/a.mp3');
 });

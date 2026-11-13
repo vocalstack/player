@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LanguageLists, Subscription } from '@vocalstack/js-sdk';
 import { applyFrame, empty, fromSnapshot, hasLanguage, type Model } from '../core/transcript';
 import { describe, type ErrorLike } from './errors';
-import { usePlayerApi, type PlayerApi } from './context';
+import { readTranscription, usePlayerApi, type PlayerApi } from './context';
 
 export { describe, type ErrorLike };
 
@@ -34,7 +34,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const PENDING_REFETCH_MS = 2500;
 const PENDING_REFETCHES = 72;
 
-export function useTranscript(recordingId: string | null, opts: { lang?: string | null; voice?: string | null; onState?: (s: string, reason?: string) => void; onFrame?: (f: any) => void }) {
+export function useTranscript(transcriptionId: string | null, opts: { lang?: string | null; voice?: string | null; onState?: (s: string, reason?: string) => void; onFrame?: (f: any) => void }) {
   const api: PlayerApi = usePlayerApi();
   const apiRef = useRef(api);
   apiRef.current = api;
@@ -54,7 +54,7 @@ export function useTranscript(recordingId: string | null, opts: { lang?: string 
   optsRef.current = opts;
 
   useEffect(() => {
-    if (!recordingId) return;
+    if (!transcriptionId) return;
     let alive = true;
     let attempt = 0;
     modelRef.current = empty();
@@ -73,7 +73,7 @@ export function useTranscript(recordingId: string | null, opts: { lang?: string 
         let sub: Subscription | null = null;
         try {
           const asked = langRef.current;
-          sub = await client.recordings.subscribe(recordingId, { lang: asked ?? undefined, ...api.readAs, asOwner: api.owner, voice: opts.voice ?? undefined });
+          sub = await client.transcriptions.subscribe(transcriptionId, { lang: asked ?? undefined, ...api.readAs, asOwner: api.owner, voice: opts.voice ?? undefined });
           if (!alive) { sub.close(); return; }
           attempt = 0;
           subRef.current = sub;
@@ -82,7 +82,7 @@ export function useTranscript(recordingId: string | null, opts: { lang?: string 
           setError(null);
           modelRef.current = fromSnapshot(sub.snapshot!, modelRef.current);
           bump();
-          setLoadedFor(recordingId);
+          setLoadedFor(transcriptionId);
           announceState();
           for await (const ev of sub) {
             if (!alive) break;
@@ -102,7 +102,7 @@ export function useTranscript(recordingId: string | null, opts: { lang?: string 
           const d = describe(e);
           if (d.code === 'not_found' || d.status === 404) { setNotFound(true); setError(d); return; }
           try {
-            await client.recordings.get(recordingId, api.readAs);
+            await readTranscription(api, transcriptionId);
           } catch (pe) {
             const pd = describe(pe);
             if (pd.code === 'not_found' || pd.status === 404) { setNotFound(true); setError(pd); return; }
@@ -127,7 +127,7 @@ export function useTranscript(recordingId: string | null, opts: { lang?: string 
       setConnected(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recordingId, api, opts.voice]);
+  }, [transcriptionId, api, opts.voice]);
 
   const [translating, setTranslating] = useState(false);
   const [translateFailed, setTranslateFailed] = useState<string | null>(null);
@@ -136,7 +136,7 @@ export function useTranscript(recordingId: string | null, opts: { lang?: string 
   const setLanguage = useCallback((lang: string | null) => {
     langRef.current = lang;
     subRef.current?.setLanguage(lang);
-    if (!recordingId) return;
+    if (!transcriptionId) return;
     const turn = ++langTurn.current;
     if (lang == null || hasLanguage(modelRef.current, lang)) {
       setTranslateFailed(null);
@@ -147,7 +147,7 @@ export function useTranscript(recordingId: string | null, opts: { lang?: string 
     const client = apiRef.current.client;
     setTranslating(true);
     setTranslateFailed(null);
-    const fetchOnce = (again: number) => client.recordings.transcript(recordingId, { lang: lang ?? undefined, ...apiRef.current.readAs, asListener: !apiRef.current.owner })
+    const fetchOnce = (again: number) => client.transcriptions.transcript(transcriptionId, { lang: lang ?? undefined, ...apiRef.current.readAs, asListener: !apiRef.current.owner })
       .then((snap) => {
         if (turn !== langTurn.current) return;
         modelRef.current = fromSnapshot(snap, modelRef.current);
@@ -158,7 +158,7 @@ export function useTranscript(recordingId: string | null, opts: { lang?: string 
     fetchOnce(PENDING_REFETCHES)
       .catch(() => { if (turn === langTurn.current && lang) setTranslateFailed(lang); })
       .finally(() => { if (turn === langTurn.current) setTranslating(false); });
-  }, [bump, recordingId]);
+  }, [bump, transcriptionId]);
 
   const mergeTranslations = useCallback((lang: string, made: Record<string, string>) => {
     const m = modelRef.current;
@@ -174,6 +174,6 @@ export function useTranscript(recordingId: string | null, opts: { lang?: string 
   const clearError = useCallback(() => setError(null), []);
 
 
-  const loading = !!recordingId && loadedFor !== recordingId && !error;
+  const loading = !!transcriptionId && loadedFor !== transcriptionId && !error;
   return { model, loading, connected, error, notFound, clearError, setLanguage, mergeTranslations, translating, translateFailed, shownLang };
 }

@@ -76,8 +76,8 @@ export async function saveWhenReady(url: string) {
   saveUrl(url);
 }
 
-export async function exportTranscript(api: PlayerApi, recordingId: string, key: ExportFormat, opts: { lang?: string | null } = {}) {
-  const res = await api.client.recordings.export(recordingId, key, { lang: opts.lang ?? undefined, ...api.readAs });
+export async function exportTranscript(api: PlayerApi, transcriptionId: string, key: ExportFormat, opts: { lang?: string | null } = {}) {
+  const res = await api.client.transcriptions.export(transcriptionId, key, { lang: opts.lang ?? undefined, ...api.readAs });
   if (!res.ok) throw await answerError(res);
   const blob = await res.blob();
   const cd = res.headers.get('content-disposition') ?? '';
@@ -92,16 +92,16 @@ export async function exportTranscript(api: PlayerApi, recordingId: string, key:
 }
 
 export async function downloadVoiceTrack(api: PlayerApi, opts: {
-  recordingId: string;
+  transcriptionId: string;
   lang: string;
   voiceKey: string;
   cred: MediaCred;
   request: () => Promise<unknown>;
   timeoutMs?: number;
 }) {
-  const { recordingId, lang, voiceKey, cred } = opts;
+  const { transcriptionId, lang, voiceKey, cred } = opts;
   const list = async (): Promise<VoiceTrackRow[]> => {
-    const got = (await api.client.recordings.voice(recordingId, lang, api.readAs)) as unknown as VoiceTrackRow[];
+    const got = (await api.client.transcriptions.voice(transcriptionId, lang, api.readAs)) as unknown as VoiceTrackRow[];
     return got.filter((x) => x.lang === lang);
   };
   const mine = (rows: VoiceTrackRow[]) => rowForVoice(rows, voiceKey);
@@ -114,5 +114,5 @@ export async function downloadVoiceTrack(api: PlayerApi, opts: {
     await new Promise((r) => setTimeout(r, 4000));
     row = mine(await list());
   }
-  saveUrl(voiceTrackDownloadUrl(api.origin, recordingId, lang, row.voiceKey, cred));
+  saveUrl(voiceTrackDownloadUrl(api.origin, transcriptionId, lang, row.voiceKey, cred));
 }

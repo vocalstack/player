@@ -54,7 +54,7 @@ export function useVoicePreview(lang: string | null) {
     let attempt = 0;
     const c = new AbortController();
     ctl.current = c;
-    if (api.shareCode && src.includes('recording=')) src += `&shareCode=${encodeURIComponent(api.shareCode)}`;
+    if (api.shareCode && src.includes('transcription=')) src += `&shareCode=${encodeURIComponent(api.shareCode)}`;
     const ask = async () => {
       if (run.current !== mine) return;
       let res: Response;

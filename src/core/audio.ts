@@ -158,6 +158,12 @@ export function pickDeliveryFormat(o: { vendor: string; caf: string }): 'ogg' | 
   return /^Apple/.test(o.vendor) && o.caf === 'probably' ? 'caf' : 'ogg';
 }
 
+export function applySound(a: { muted: boolean; volume: number }, o: { muted: boolean; silenced: boolean; volume: number }): void {
+  if (!o.silenced) { a.volume = o.volume; a.muted = o.muted; return; }
+  a.volume = 0;
+  a.muted = o.muted || a.volume !== 0;
+}
+
 let picked: 'ogg' | 'caf' | null = null;
 
 export function deliveryFormat(): 'ogg' | 'caf' {
@@ -184,9 +190,9 @@ export function credParams(cred: MediaCred = {}): string {
   return q.toString();
 }
 
-export function audioClipUrl(apiOrigin: string, recordingId: string, startS: number, endS: number, cred: MediaCred = {}, clean = false): string {
+export function audioClipUrl(apiOrigin: string, transcriptionId: string, startS: number, endS: number, cred: MediaCred = {}, clean = false): string {
   const cp = credParams(cred);
-  return `${apiOrigin}/v1/recordings/${recordingId}/audio/clip?startS=${startS.toFixed(2)}&endS=${endS.toFixed(2)}${clean ? '&clean=true' : ''}${cp ? `&${cp}` : ''}`;
+  return `${apiOrigin}/v1/transcriptions/${transcriptionId}/audio/clip?startS=${startS.toFixed(2)}&endS=${endS.toFixed(2)}${clean ? '&clean=true' : ''}${cp ? `&${cp}` : ''}`;
 }
 
 export async function explainAudioError(url: string): Promise<{ message: string; permanent: boolean } | null> {
@@ -212,50 +218,50 @@ export async function audioSealed(url: string): Promise<boolean> {
   }
 }
 
-export function deliveryAudioUrl(apiOrigin: string, recordingId: string, cred: MediaCred = {}): string {
+export function deliveryAudioUrl(apiOrigin: string, transcriptionId: string, cred: MediaCred = {}): string {
   const q = new URLSearchParams({ kind: 'delivery', format: deliveryFormat() });
   if (cred.media) q.set('media', cred.media);
   else if (cred.accessToken) q.set('access_token', cred.accessToken);
   if (cred.listenerToken) q.set('listenerToken', cred.listenerToken);
   if (cred.shareCode) q.set('shareCode', cred.shareCode);
-  return `${apiOrigin}/v1/recordings/${recordingId}/audio?${q}`;
+  return `${apiOrigin}/v1/transcriptions/${transcriptionId}/audio?${q}`;
 }
 
-export function backgroundAudioUrl(apiOrigin: string, recordingId: string, cred: MediaCred = {}, kind: 'background' | 'speech' = 'background'): string {
+export function backgroundAudioUrl(apiOrigin: string, transcriptionId: string, cred: MediaCred = {}, kind: 'background' | 'speech' = 'background'): string {
   const q = new URLSearchParams({ kind, format: deliveryFormat() });
   if (cred.media) q.set('media', cred.media);
   else if (cred.accessToken) q.set('access_token', cred.accessToken);
   if (cred.listenerToken) q.set('listenerToken', cred.listenerToken);
   if (cred.shareCode) q.set('shareCode', cred.shareCode);
-  return `${apiOrigin}/v1/recordings/${recordingId}/audio?${q}`;
+  return `${apiOrigin}/v1/transcriptions/${transcriptionId}/audio?${q}`;
 }
 
-export function audioDownloadUrl(apiOrigin: string, recordingId: string, kind: 'source' | 'delivery' | 'video', cred: MediaCred = {}): string {
+export function audioDownloadUrl(apiOrigin: string, transcriptionId: string, kind: 'source' | 'delivery' | 'video', cred: MediaCred = {}): string {
   const q = new URLSearchParams({ kind });
   if (kind === 'delivery') q.set('format', 'mp3');
   if (cred.media) q.set('media', cred.media);
   else if (cred.accessToken) q.set('access_token', cred.accessToken);
   if (cred.listenerToken) q.set('listenerToken', cred.listenerToken);
   if (cred.shareCode) q.set('shareCode', cred.shareCode);
-  return `${apiOrigin}/v1/recordings/${recordingId}/audio?${q}`;
+  return `${apiOrigin}/v1/transcriptions/${transcriptionId}/audio?${q}`;
 }
 
-export function voiceTrackUrl(apiOrigin: string, recordingId: string, lang: string, voiceKey: string, cred: MediaCred = {}): string {
-  return voiceTrackUrlAs(apiOrigin, recordingId, lang, voiceKey, deliveryFormat(), cred);
+export function voiceTrackUrl(apiOrigin: string, transcriptionId: string, lang: string, voiceKey: string, cred: MediaCred = {}): string {
+  return voiceTrackUrlAs(apiOrigin, transcriptionId, lang, voiceKey, deliveryFormat(), cred);
 }
 
-export function voiceTrackDownloadUrl(apiOrigin: string, recordingId: string, lang: string, voiceKey: string, cred: MediaCred = {}): string {
-  return voiceTrackUrlAs(apiOrigin, recordingId, lang, voiceKey, 'mp3', cred);
+export function voiceTrackDownloadUrl(apiOrigin: string, transcriptionId: string, lang: string, voiceKey: string, cred: MediaCred = {}): string {
+  return voiceTrackUrlAs(apiOrigin, transcriptionId, lang, voiceKey, 'mp3', cred);
 }
 
-function voiceTrackUrlAs(apiOrigin: string, recordingId: string, lang: string, voiceKey: string, format: 'ogg' | 'caf' | 'mp3', cred: MediaCred): string {
+function voiceTrackUrlAs(apiOrigin: string, transcriptionId: string, lang: string, voiceKey: string, format: 'ogg' | 'caf' | 'mp3', cred: MediaCred): string {
   const q = new URLSearchParams({ kind: 'voice', lang, format });
   if (voiceKey) q.set('voice', voiceKey);
   if (cred.media) q.set('media', cred.media);
   else if (cred.accessToken) q.set('access_token', cred.accessToken);
   if (cred.listenerToken) q.set('listenerToken', cred.listenerToken);
   if (cred.shareCode) q.set('shareCode', cred.shareCode);
-  return `${apiOrigin}/v1/recordings/${recordingId}/audio?${q}`;
+  return `${apiOrigin}/v1/transcriptions/${transcriptionId}/audio?${q}`;
 }
 
 export function mediaErrorText(e: MediaError | null, report = true): string {
