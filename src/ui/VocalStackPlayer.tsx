@@ -508,7 +508,7 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const pubPanel = (k: PubTab) => (
     <>
       {k === 'summary' && sumOn && <SummaryPanel s={sharedSummary} />}
-      {k === 'export' && <ExportPanel audio={canDownload ? { name, meta: (dlLang && voice.canSpeak) || hasAudio ? `MP3${lenS ? ` · ${clock(lenS)}` : ''}` : 'ORIGINAL AUDIO', onClick: download } : null} formats={canExport} onExport={doExport} />}
+      {k === 'export' && <ExportPanel audio={canDownload ? { name, meta: (dlLang && voice.canSpeak) || hasAudio ? `MP3${lenS ? ` · ${clock(lenS)}` : ''}` : 'ORIGINAL AUDIO', onClick: download } : null} formats={canExport} onExport={(k) => doExport(k as typeof TX_FORMATS[number]["key"])} />}
     </>
   );
   const scrub = (deskStep: boolean) => (

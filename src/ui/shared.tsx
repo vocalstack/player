@@ -9,6 +9,7 @@ import { confClass, fixedSlots, lane, speakerInitial, speakerNumber, speakerLabe
 import { audioClipUrl, type MediaCred } from '../core/audio';
 import { archiveClips, missingClips, readCursor, readTokens, trackFor, type ReadPos, type VoiceTrackRow } from '../core/voiceplayer';
 import { TX_FORMATS } from '../data/tx';
+import { ExportStudio, choiceFor, kindFor, readExportPrefs, tabOf, type ExportChoice, type ExportKind, type ExportSpeakersOpt, type ExportTab, type ExportTextKind } from './ExportStudio';
 import { describe, useAsync, type ErrorLike } from '../data/transcript';
 import { apiFetch, usePlayerApi } from '../data/context';
 import type { Strings } from '../data/i18n';
@@ -993,31 +994,45 @@ const AUDIO_D = 'M3.75 10.5v3M7.5 7.5v9M11.25 4.5v15M15 8.25v7.5M18.75 6v12M22.5
 
 type Download = { name: string; meta: string; icon?: ReactNode; onClick: () => void | Promise<unknown> };
 
-export function ExportPanel({ audio, video, formats, onExport }: { audio?: Download | null; video?: Download | null; formats?: boolean; onExport: (k: ExportFormat) => void | Promise<unknown> }) {
+export function ExportPanel({ audio, video, formats, onExport, onText, durationS, positionS, hasSummary, speakerLabels }: {
+  audio?: Download | null;
+  video?: Download | null;
+  formats?: boolean;
+  onExport: (k: ExportKind, c?: ExportChoice) => void | Promise<unknown>;
+  onText?: (k: ExportTextKind, c: ExportChoice) => Promise<string>;
+  durationS?: number | null;
+  positionS?: () => number | null;
+  hasSummary?: boolean;
+  speakerLabels?: ExportSpeakersOpt;
+}) {
   const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [studio, setStudio] = useState<ExportTab | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; window.clearTimeout(timer.current); }; }, []);
   const flash = (k: string) => { window.clearTimeout(timer.current); setDone(k); timer.current = window.setTimeout(() => setDone(null), 1600); };
-  const exportAs = (k: ExportFormat) => {
+  const run = (k: string, work: () => unknown) => {
     if (busy) return;
     setBusy(k);
     Promise.resolve()
-      .then(() => onExport(k))
+      .then(work)
       .then(() => { if (alive.current) flash(k); })
       .catch(() => { })
       .finally(() => { if (alive.current) setBusy(null); });
   };
-  const save = (k: 'audio' | 'video', dl: Download) => {
-    if (busy) return;
-    setBusy(k);
-    Promise.resolve()
-      .then(() => dl.onClick())
-      .then(() => { if (alive.current) flash(k); })
-      .catch(() => { })
-      .finally(() => { if (alive.current) setBusy(null); });
-  };
+  const exportAs = (k: ExportFormat) => run(k, () => {
+    if (!onText) return onExport(k);
+    const prefs = readExportPrefs();
+    const tab = tabOf(k as ExportKind);
+    return onExport(kindFor(tab, prefs), choiceFor(tab, prefs));
+  });
+  const copyText = () => run('copy', async () => {
+    const prefs = readExportPrefs();
+    const text = await onText!(prefs.text, choiceFor('text', prefs));
+    await navigator.clipboard.writeText(text);
+  });
+  const save = (k: 'audio' | 'video', dl: Download) => run(k, () => dl.onClick());
   const row = (k: 'audio' | 'video', dl: Download, icon: string, label: string) => (
     <>
       <Eyebrow style={{ letterSpacing: '.12em', color: 'var(--ink-35)' }}>{label}</Eyebrow>
@@ -1039,10 +1054,17 @@ export function ExportPanel({ audio, video, formats, onExport }: { audio?: Downl
       {video && row('video', video, D.video, 'DOWNLOAD VIDEO')}
       {formats !== false && (
         <>
-          <Eyebrow style={{ letterSpacing: '.12em', color: 'var(--ink-35)' }}>EXPORT AS</Eyebrow>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Eyebrow style={{ letterSpacing: '.12em', color: 'var(--ink-35)' }}>EXPORT AS</Eyebrow>
+            {onText && (
+              <button type="button" className="fmtgrid__more" onClick={() => setStudio(tabOf(readExportPrefs().text))} aria-label="Export options: speakers, timestamps, part of the recording">
+                <Icon d={D.cog} size={14} sw={1.6} />Options
+              </button>
+            )}
+          </div>
           <div className="fmtgrid">
             {TX_FORMATS.map((f) => (
-              <button key={f.key} type="button" className="fmtgrid__cell" title={busy === f.key ? `Building the ${f.name}…` : f.note} disabled={busy != null} aria-busy={busy === f.key || undefined} onClick={() => exportAs(f.key)} style={busy && busy !== f.key ? { opacity: 0.45 } : undefined}>
+              <button key={f.key} type="button" className="fmtgrid__cell" aria-label={busy === f.key ? `Building the ${f.name}…` : `${f.name}: ${f.note}`} disabled={busy != null} aria-busy={busy === f.key || undefined} onClick={() => exportAs(f.key)} style={busy && busy !== f.key ? { opacity: 0.45 } : undefined}>
                 {busy === f.key
                   ? <Spinner size={16} color="var(--brand)" track="var(--fill-12)" />
                   : <Icon d={done === f.key ? D.check : f.icon} size={16} sw={1.6} style={{ color: done === f.key ? 'var(--brand)' : 'var(--ink-62)' }} />}
@@ -1050,6 +1072,20 @@ export function ExportPanel({ audio, video, formats, onExport }: { audio?: Downl
               </button>
             ))}
           </div>
+          {onText && (
+            <div className="dlrow" style={{ cursor: 'default', ...(busy && busy !== 'copy' ? { opacity: 0.45 } : {}) }}>
+              <Icon d={D.textLines} size={17} sw={1.5} style={{ flex: 'none', color: 'var(--ink-70)' }} />
+              <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, color: 'var(--ink-96)' }}>Transcript as text</span>
+              <button type="button" className="dlrow__act" disabled={busy != null} aria-busy={busy === 'copy' || undefined} onClick={copyText}>
+                {busy === 'copy' ? <Spinner size={13} color="var(--brand)" track="var(--fill-12)" /> : <Icon d={done === 'copy' ? D.check : D.copy} size={13} sw={1.7} />}
+                {done === 'copy' ? 'Copied' : 'Copy'}
+              </button>
+              <button type="button" className="dlrow__act" onClick={() => setStudio('text')}>Open</button>
+            </div>
+          )}
+          {onText && (
+            <ExportStudio open={studio != null} initial={studio ?? 'pdf'} onClose={() => setStudio(null)} onExport={onExport} onText={onText} durationS={durationS} positionS={positionS} hasSummary={hasSummary} speakerLabels={speakerLabels} />
+          )}
         </>
       )}
     </div>

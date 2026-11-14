@@ -16,3 +16,4 @@ export { SITES, siteOf, siteById, hostOfUrl, type Site, type SiteId } from './co
 export { SiteIcon } from './ui/SiteIcon';
 export { hasEmbed, linkVideoFile, sourceVideoUrl } from './core/embeds';
 export { SpeakerBadge, SpeakerBadgeMore, speakerInitials, type SpeakerBadgeProps } from './ui/SpeakerBadge';
+export { ExportStudio, readExportPrefs, type ExportKind, type ExportChoice, type ExportTextKind, type ExportTab, type ExportSpeakersOpt, type ExportTimestampsOpt } from './ui/ExportStudio';
