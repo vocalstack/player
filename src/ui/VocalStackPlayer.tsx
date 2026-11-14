@@ -25,7 +25,7 @@ import { playbackClock, useVoiceFollow } from '../core/voiceFollow';
 import { versionLine } from '../core/playerVersion';
 import { holdsClock, softWaitOf } from '../core/voiceWait';
 import { useMediaKeys } from '../core/mediaKeys';
-import { clock, durationLabel } from '../core/format';
+import { clock, dayLabel, durationLabel, lengthLabel } from '../core/format';
 import { describe, useLanguages, useTranscript, type ErrorLike } from '../data/transcript';
 import { strings } from '../data/i18n';
 import { rows as toRows, showLabels, speakerLabel, speakerLook } from '../core/transcript';
@@ -835,7 +835,10 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
   const gonePanel = gone && <div className="hint" style={{ padding: '30px 20px', textAlign: 'center', fontSize: 13 }}>This link is no longer shared. Ask the person who sent it for a new one.</div>;
   const lines = <TxLines tapUnclear={listening} tap={listening} model={model} rows={rows} player={listening ? shown : { ...shown, playRow: player.seekRow }} tail={tail} tailFg={tailFg} loading={txLoading} running={running} desk={desk} feedRef={feedRef} listener showLabels={labelsOn} find={findQ} findOpen={!desk && find} lang={feedLang} warm={warm} onVisible={onVisible} wordHl={wordsOn} />;
   const toast = <Toast error={error ?? subError ?? (voiceFailed && full ? null : player.error) ?? voice.error} onClose={() => { setError(null); clearError(); player.clearError(); voice.clearError(); }} />;
-  const subline = [lenS ? clock(lenS) : null, langCode ? langCode.toUpperCase() : null, by || 'Read-only copy'].filter(Boolean).join(' · ');
+  const langInfo = langCode ? langs?.languages.find((l) => l.code === langCode) : null;
+  const langLine = langCode ? `${langInfo?.flag ? `${langInfo.flag} ` : ''}${langInfo?.name ?? langCode.toUpperCase()}` : null;
+  const madeIso = txn?.startedAt ?? txn?.createdAt ?? null;
+  const subline = [langLine, lenS ? lengthLabel(lenS) : null, madeIso ? dayLabel(madeIso) : null, by || 'Read-only copy'].filter(Boolean).join(' · ');
   const pubTransport = (deskScrub: boolean) => (
     <div className="ctrans">
       {voice.noVoice ? voice.noVoiceNote : (

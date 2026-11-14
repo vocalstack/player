@@ -14,6 +14,20 @@ export function durationLabel(s?: number | null): string {
   return `${h} h ${String(r).padStart(2, '0')} min`;
 }
 
+export function lengthLabel(s: number): string {
+  const t = Math.max(0, Math.round(s));
+  if (t < 60) return `${t} s`;
+  if (t < 600) return t % 60 ? `${Math.floor(t / 60)} min ${t % 60} s` : `${t / 60} min`;
+  return durationLabel(t);
+}
+
+export function dayLabel(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const thisYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', ...(thisYear ? {} : { year: 'numeric' }) });
+}
+
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
