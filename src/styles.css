@@ -1506,3 +1506,10 @@
 .vsp .txskel__text .txskel__bar{height:.62em;margin:.41em 0}
 .vsp .txfeed--desk .txskel__text .txskel__bar{margin:.44em 0}
 @media (prefers-reduced-motion:reduce){.vsp .txskel__bar{animation:none;background:var(--fill-08)}}
+.vsp .txline,.vsp .feed .line{border-top-color:transparent}
+.vsp .txdesk--full .txfeed--desk .txline::before,.vsp .feed--fixable .line::before{background:transparent}
+.vsp .txline__meta,.vsp .line__meta{gap:8px;margin-bottom:6px}
+.vsp .txline__at,.vsp .line__at{min-width:5ch;font:500 11px var(--vs-font-mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:var(--ink-42)}
+.vsp .txline__meta .spkbadge,.vsp .line__meta .spkbadge{height:22px;gap:6px;padding:0 9px 0 3px;font-size:12.5px;font-weight:500;color:var(--ink-80)}
+.vsp .txline__meta .spkbadge__dot,.vsp .line__meta .spkbadge__dot{width:16px;height:16px;font-size:8.5px}
+.vsp .txline__meta .spkbadge--unknown,.vsp .line__meta .spkbadge--unknown{color:var(--ink-45)}
