@@ -15,3 +15,4 @@ export { snapPosition, placePosition, type PlayPos } from './core/playPosition';
 export { SITES, siteOf, siteById, hostOfUrl, type Site, type SiteId } from './core/sites';
 export { SiteIcon } from './ui/SiteIcon';
 export { hasEmbed, linkVideoFile, sourceVideoUrl } from './core/embeds';
+export { SpeakerBadge, SpeakerBadgeMore, speakerInitials, type SpeakerBadgeProps } from './ui/SpeakerBadge';

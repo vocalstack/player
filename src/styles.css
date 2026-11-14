@@ -507,6 +507,14 @@
 .vsp .lanechip--unknown{background:var(--fill-08);color:var(--ink-45);border:1px dotted var(--ink-32)}
 .vsp .line__who--unknown{color:var(--ink-45)}
 .vsp .line__who{font-size:12px;font-weight:600;letter-spacing:.01em}
+.vsp .spkbadge{--spk:var(--ink-45);--spk-soft:var(--fill-06);flex:none;display:inline-flex;align-items:center;gap:6px;max-width:100%;min-width:0;height:24px;padding:0 10px 0 3px;border-radius:999px;background:var(--spk-soft);font-size:12.5px;font-weight:600;line-height:1;letter-spacing:0;color:var(--spk);box-sizing:border-box;white-space:nowrap}
+.vsp .spkbadge__dot{flex:none;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--spk);color:var(--vs-page);font-size:9px;font-weight:700;letter-spacing:-.2px}
+.vsp .spkbadge__name{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.vsp .spkbadge--sm{height:22px;padding-right:9px;font-size:12px;font-weight:500;color:var(--ink-80)}
+.vsp .spkbadge--sm .spkbadge__dot{width:16px;height:16px;font-size:8.5px}
+.vsp .spkbadge--unknown{background:var(--fill-06);color:var(--ink-45)}
+.vsp .spkbadge--unknown .spkbadge__dot{background:transparent;color:var(--ink-45);border:1px dotted var(--ink-32);box-sizing:border-box}
+.vsp .spkbadge--more{padding:0 8px;background:var(--fill-06);color:var(--ink-55)}
 .vsp .badge{display:inline-flex;align-items:center;gap:3px;height:16px;padding:0 5px;border-radius:3px;font:600 8.5px var(--vs-font-mono);letter-spacing:.1em;line-height:1;white-space:nowrap}
 .vsp .badge--catchup{color:var(--conf-mid);background:var(--conf-mid-soft)}
 .vsp .badge--catchup.bad{color:var(--conf-low);background:var(--conf-low-soft)}

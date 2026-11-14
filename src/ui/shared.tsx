@@ -12,6 +12,7 @@ import { TX_FORMATS } from '../data/tx';
 import { describe, useAsync, type ErrorLike } from '../data/transcript';
 import { apiFetch, usePlayerApi } from '../data/context';
 import type { Strings } from '../data/i18n';
+import { SpeakerBadge } from './SpeakerBadge';
 
 export function feedInset(el: HTMLElement): { top: number; bottom: number } {
   const cs = getComputedStyle(el);
@@ -177,12 +178,7 @@ export function SpeakerTag({ model, speaker, showLabels, pending, diarized }: { 
     if (!showLabels) return null;
     if (!pending) {
       if (!diarized) return null;
-      return (
-        <>
-          <span className="lanechip lanechip--unknown">?</span>
-          <span className="line__who line__who--unknown">Unknown Speaker</span>
-        </>
-      );
+      return <SpeakerBadge unknown initials="?" name="Unknown Speaker" />;
     }
     return (
       <span className="whopending" aria-hidden="true">
@@ -195,15 +191,9 @@ export function SpeakerTag({ model, speaker, showLabels, pending, diarized }: { 
   const look = speakerLook(model, speaker);
   const l = look.lane;
   return (
-    <>
-      <span className={`lanechip bg-lane-${l}`} style={look.soft ? { background: look.soft, color: look.fg } : undefined}>
-        {speakerInitial(model, speaker)}
-      </span>
-      <span className={`line__who lane-${l}`} style={look.fg ? { color: look.fg } : undefined}>
-        {speakerLabel(model, speaker)}
-      </span>
+    <SpeakerBadge name={speakerLabel(model, speaker)} initials={speakerInitial(model, speaker)} fg={look.fg} soft={look.soft} lane={l}>
       {look.hasSavedSpeaker && <VoiceIdGlyph color={look.fg ?? `var(--lane-${l})`} />}
-    </>
+    </SpeakerBadge>
   );
 }
 

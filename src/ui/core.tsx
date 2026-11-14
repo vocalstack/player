@@ -22,6 +22,7 @@ import { useHeld } from './wait';
 import { nextSelection } from '../core/voiceSheet';
 import { lineSpeechEnd, spreadWords } from '../core/readalong';
 import { type AvailableVoice, type CastMember, FixBadges, FixPen, rowFixes, FeedBar, NO_VOICE_TIP, feedInset, SpeakerCast, VoiceIdGlyph, VoiceSheetBody, autoCast, castKey, langMeta, namedCount, rowKey, savedCloneKey, speakerRoster, useArchiveVoice, useFeedBar, useVoiceCatalogue, useDragScroll } from './shared';
+import { SpeakerBadge } from './SpeakerBadge';
 
 export function lineWords(rows: Row[], i: number, lang?: string | null): Word[] {
   const r = rows[i];
@@ -1401,9 +1402,9 @@ const TxRow = memo(function TxRow({ arrives, model, next, r, i, on, held, t, cli
         <span className="txline__at">{clock(r.start)}</span>
         {showLabels && r.speaker >= 0 && !unclear && (
           <>
-            <div className={`lanechip bg-lane-${ln}`} style={look.soft ? { background: look.soft, color: look.fg } : undefined}>{speakerInitial(model, r.speaker)}</div>
-            <span className={`txline__who lane-${ln}`} style={look.fg ? { color: look.fg } : undefined}>{who}</span>
-            {look.hasSavedSpeaker && <VoiceIdGlyph color={look.fg ?? `var(--lane-${ln})`} />}
+            <SpeakerBadge name={who} initials={speakerInitial(model, r.speaker)} fg={look.fg} soft={look.soft} lane={ln}>
+              {look.hasSavedSpeaker && <VoiceIdGlyph color={look.fg ?? `var(--lane-${ln})`} />}
+            </SpeakerBadge>
             {arrives && <span className="badge badge--newspk" style={{ color: look.fg ?? `var(--lane-${ln})`, background: look.soft ?? `color-mix(in srgb, var(--lane-${ln}) 16%, transparent)` }} title="This speaker has just made their first appearance">{desk ? 'NEW SPEAKER' : 'NEW'}</span>}
           </>
         )}
