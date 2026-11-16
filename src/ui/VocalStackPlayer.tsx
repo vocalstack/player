@@ -313,6 +313,13 @@ function PlayerBody(props: VocalStackPlayerProps & { startMuted?: boolean; handl
     reread.current = Date.now();
     props.reread();
   }, [settled, liveMoving, live?.state, live?.processedS, code]);
+  const unstored = shared?.job?.source?.kind === 'url' && shared.job.source.bytes == null && !shared.job.hasAudio;
+  const storeReads = useRef(0);
+  useEffect(() => {
+    if (!unstored || rowStatusOf(live?.state) !== 'transcribing' || storeReads.current >= 12) return;
+    const h = window.setTimeout(() => { storeReads.current += 1; props.reread(); }, storeReads.current === 0 ? 0 : 5000);
+    return () => window.clearTimeout(h);
+  }, [unstored, live?.state, shared]); // eslint-disable-line react-hooks/exhaustive-deps
   const liveTx = !!txn?.live;
   const txLive = liveTx && isLiveTranscription(txn) && !['ended', 'processing', 'finalized'].includes(model.state);
   const wasLive = useRef(txLive);
