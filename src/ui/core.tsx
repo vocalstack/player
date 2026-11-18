@@ -1399,15 +1399,15 @@ const TxRow = memo(function TxRow({ arrives, model, next, r, i, on, held, t, cli
   return (
     <div data-tx-row={i} data-sentence={r.sentenceId} className={`txline${warm || pending ? ' txline--warm' : ''}${fixing ? ' txline--fixing' : ''}`} aria-current={fixing || undefined} style={!has.tap || (unclear && !tapUnclear) ? { opacity: dim, cursor: 'default' } : { opacity: dim }} onClick={unclear && !tapUnclear ? undefined : tapRow} onMouseEnter={desk && onFixOpen ? () => act.hover(r.id) : undefined} onMouseLeave={desk && onFixOpen ? () => act.hover(null) : undefined}>
       <div className="txline__meta">
-        <span className="txline__at">{clock(r.start)}</span>
-        {showLabels && r.speaker >= 0 && !unclear && (
+        {showLabels && r.speaker >= 0 && !unclear ? (
           <>
             <SpeakerBadge name={who} initials={speakerInitial(model, r.speaker)} fg={look.fg} soft={look.soft} lane={ln}>
               {look.hasSavedSpeaker && <VoiceIdGlyph color={look.fg ?? `var(--lane-${ln})`} />}
             </SpeakerBadge>
+            <span className="txline__at">{clock(r.start)}</span>
             {arrives && <span className="badge badge--newspk" style={{ color: look.fg ?? `var(--lane-${ln})`, background: look.soft ?? `color-mix(in srgb, var(--lane-${ln}) 16%, transparent)` }} title="This speaker has just made their first appearance">{desk ? 'NEW SPEAKER' : 'NEW'}</span>}
           </>
-        )}
+        ) : <span className="txline__at">{clock(r.start)}</span>}
         {on && <span title="Playing" style={{ flex: 'none', display: 'inline-flex', alignItems: 'center' }}><Icon d={D.headphones} size={desk ? 15 : 14} sw={1.6} stroke={unclearAs === 'none' && showLabels && r.speaker >= 0 ? look.fg ?? `var(--lane-${ln})` : 'var(--ink-45)'} /></span>}
         {unclearAs === 'open' && (
           <span role="button" className="badge badge--unclear" title="Hide these unclear lines again" onClick={(e) => { e.stopPropagation(); act.unclear(i); }}><span className="noisebars" aria-hidden="true">{[50, 100, 65].map((h, k) => <span key={k} style={{ height: `${h}%` }} />)}</span>{desk ? 'AUDIO UNCLEAR' : 'UNCLEAR'}</span>
@@ -1459,9 +1459,9 @@ function TxSkeleton() {
       {SKELETON_LINES.map((bars, i) => (
         <div key={i} className="txline txskel" aria-hidden="true" style={{ '--i': i } as React.CSSProperties}>
           <div className="txline__meta">
-            <span className="txskel__bar txskel__at" />
             <span className="txskel__bar txskel__chip" />
             <span className="txskel__bar txskel__who" style={{ width: [58, 46, 66][i % 3] }} />
+            <span className="txskel__bar txskel__at" />
           </div>
           <div className="txline__text txskel__text">
             {bars.map((w, j) => <span key={j} className="txskel__bar" style={{ width: `${w}%` }} />)}
