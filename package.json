@@ -37,7 +37,7 @@
     "react-dom": ">=18"
   },
   "dependencies": {
-    "@vocalstack/js-sdk": "^2.0.0-alpha.15",
+    "@vocalstack/js-sdk": "^2.0.0",
     "hls.js": "^1.5.20"
   },
   "devDependencies": {
