@@ -1,1 +1,1 @@
-export const PLAYER_VERSION = '1.4.4';
+export const PLAYER_VERSION = '1.4.5';
