@@ -195,18 +195,39 @@ export function audioClipUrl(apiOrigin: string, transcriptionId: string, startS:
   return `${apiOrigin}/v1/transcriptions/${transcriptionId}/audio/clip?startS=${startS.toFixed(2)}&endS=${endS.toFixed(2)}${clean ? '&clean=true' : ''}${cp ? `&${cp}` : ''}`;
 }
 
-export async function explainAudioError(url: string): Promise<{ message: string; permanent: boolean } | null> {
+export interface AudioProbe { reachable: boolean; why: { message: string; permanent: boolean } | null }
+
+export async function probeAudio(url: string): Promise<AudioProbe> {
   try {
     const res = await fetch(url, { redirect: 'manual', headers: { accept: 'application/json' } });
-    if (res.type === 'opaqueredirect' || res.ok || (res.status >= 300 && res.status < 400)) return null;
+    if (res.type === 'opaqueredirect' || res.ok || (res.status >= 300 && res.status < 400)) return { reachable: true, why: null };
     let body: any = null;
     try { body = await res.json(); } catch { }
     const message: unknown = body?.message;
-    if (typeof message !== 'string' || !message) return null;
-    return { message: message[0].toUpperCase() + message.slice(1) + (message.endsWith('.') ? '' : '.'), permanent: res.status === 404 || res.status === 403 };
+    if (typeof message !== 'string' || !message) return { reachable: false, why: null };
+    return { reachable: false, why: { message: message[0].toUpperCase() + message.slice(1) + (message.endsWith('.') ? '' : '.'), permanent: res.status === 404 || res.status === 403 } };
   } catch {
-    return null;
+    return { reachable: false, why: null };
   }
+}
+
+export async function explainAudioError(url: string): Promise<{ message: string; permanent: boolean } | null> {
+  return (await probeAudio(url)).why;
+}
+
+export const MEDIA_RETRY_WINDOW_MS = 10 * 60_000;
+
+export function recentRetries(times: number[], now: number, windowMs = MEDIA_RETRY_WINDOW_MS): number {
+  return times.filter((t) => now - t < windowMs).length;
+}
+
+export type MediaRetry = 'reload' | 'later' | 'fail';
+
+export function afterMediaError(p: { probe: AudioProbe; code: number; recent: number; max: number }): MediaRetry {
+  if (p.recent >= p.max) return 'fail';
+  if (p.probe.reachable) return p.code === 2 ? 'reload' : 'fail';
+  if (p.probe.why && !p.probe.why.permanent) return 'later';
+  return 'fail';
 }
 
 export async function audioSealed(url: string): Promise<boolean> {

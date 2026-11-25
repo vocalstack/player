@@ -163,3 +163,37 @@ test('a play asked before there is audio starts once it arrives; a second ask ca
   made[1].loaded();
   assert.equal(made[1].paused, true);
 });
+
+test('a read error after a seek, with the token refreshed meanwhile, reloads from the fresh address at the seek point and plays on', async () => {
+  const { ctl, made } = rig();
+  ctl.use(audio('A'));
+  made[0].loaded();
+  await ctl.play();
+  ctl.use(audio('B'));
+  assert.equal(made.length, 1, 'the token change alone keeps the element');
+  ctl.seek(42);
+  made[0].onerror?.();
+  assert.equal(ctl.loadedFrom, audio('A'));
+  assert.equal(ctl.latest, audio('B'));
+  ctl.reload();
+  assert.equal(made.length, 2);
+  assert.equal(made[1].src, audio('B'), 'the reload asks again with the fresh token');
+  made[1].loaded();
+  assert.equal(made[1].currentTime, 42);
+  assert.equal(made[1].paused, false);
+});
+
+test('a seek made while a failed element waits for its reload is where the reload resumes', async () => {
+  const { ctl, made } = rig();
+  ctl.use(audio('A'));
+  made[0].loaded();
+  made[0].currentTime = 30;
+  await ctl.play();
+  made[0].onerror?.();
+  ctl.seek(95);
+  assert.equal(made[0].currentTime, 30, 'the dead element is not moved');
+  ctl.reload();
+  made[1].loaded();
+  assert.equal(made[1].currentTime, 95);
+  assert.equal(made[1].paused, false);
+});

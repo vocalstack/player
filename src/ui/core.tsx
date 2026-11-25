@@ -5,7 +5,7 @@ import { D, Icon, PlayGlyph, Spinner } from '../ds/Icons';
 import { pickerLanguages, useRecentLangs } from '../data/prefs';
 import { useVoicePreview } from '../data/voicePreview';
 import { useLanguageList } from '../ds/LanguagePicker';
-import { applySound, deliveryAudioUrl, explainAudioError, mediaErrorText, mediaKindOf, reportMediaError, type MediaCred } from '../core/audio';
+import { MEDIA_RETRY_WINDOW_MS, afterMediaError, applySound, deliveryAudioUrl, mediaErrorText, mediaKindOf, probeAudio, recentRetries, reportMediaError, type MediaCred } from '../core/audio';
 import { clock } from '../core/format';
 import { describe, useAsync, type ErrorLike } from '../data/transcript';
 import { usePlayerApi } from '../data/context';
@@ -522,9 +522,10 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
   const [ready, setReady] = useState(false);
   const offset = useRef(offsetS); offset.current = offsetS;
   const [elN, setElN] = useState(0);
-  const retries = useRef(0);
+  const retries = useRef<number[]>([]);
   const urlKey = mediaKey(url);
-  useEffect(() => { retries.current = 0; }, [urlKey]);
+  const later = useRef<number | undefined>(undefined);
+  useEffect(() => { retries.current = []; window.clearTimeout(later.current); }, [urlKey]);
   const [ctl] = useState(() => new ClockMedia<HTMLMediaElement>({
     make: (u) => newMediaElement(u),
     prepare: (a) => sound(a),
@@ -538,23 +539,27 @@ export function useTxPlayer(url: string | null, available: boolean, rows: Row[],
     failed: (a, u) => {
       const err = a.error;
       const fallback = mediaErrorText(err, false);
-      if (ctl.latest !== u && retries.current < MEDIA_RETRIES) { retries.current += 1; ctl.reload(); return; }
-      void explainAudioError(u).then((why) => {
-        if (!why) reportMediaError(err, mediaKindOf(u));
+      const retried = () => { const now = Date.now(); retries.current = [...retries.current.filter((t) => now - t < MEDIA_RETRY_WINDOW_MS), now]; return retries.current.length; };
+      if (ctl.latest !== u && recentRetries(retries.current, Date.now()) < MEDIA_RETRIES) { retried(); ctl.reload(); return; }
+      void probeAudio(ctl.latest ?? u).then((probe) => {
         if (ctl.el !== a) return;
-        if (why && !why.permanent && retries.current < MEDIA_RETRIES) {
-          retries.current += 1;
+        const next = afterMediaError({ probe, code: err?.code ?? 0, recent: recentRetries(retries.current, Date.now()), max: MEDIA_RETRIES });
+        if (next === 'reload') { retried(); ctl.reload(); return; }
+        if (next === 'later') {
+          const n = retried();
           ctl.forget();
-          window.setTimeout(() => ctl.reload(), MEDIA_RETRY_MS * retries.current);
+          window.clearTimeout(later.current);
+          later.current = window.setTimeout(() => ctl.reload(), MEDIA_RETRY_MS * n);
           return;
         }
-        setError({ message: why?.message ?? fallback });
-        if (!why?.permanent) ctl.forget();
+        if (!probe.why) reportMediaError(err, mediaKindOf(u));
+        setError({ message: probe.why?.message ?? fallback });
+        if (!probe.why?.permanent) ctl.forget();
       });
     },
   }));
   useEffect(() => { ctl.use(url); }, [url]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => ctl.close(), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { window.clearTimeout(later.current); ctl.close(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const lastEnd = rows.length ? rows[rows.length - 1].words[rows[rows.length - 1].words.length - 1]?.end ?? rows[rows.length - 1].start + 4 : 0;
   const windowed = offsetS > 0 || (lenS != null && ready && audio.current != null && Number.isFinite(audio.current.duration) && audio.current.duration > lenS + 1);
   const dur = (!windowed && ready && audio.current && Number.isFinite(audio.current.duration) && audio.current.duration) || lenS || lastEnd || 1;

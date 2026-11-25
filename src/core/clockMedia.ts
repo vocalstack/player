@@ -161,6 +161,7 @@ export class ClockMedia<E extends ClockEl = ClockEl> {
 
   seek(s: number): void {
     this.t = s;
+    if (this.lost && !this.want) { this.lost = { ...this.lost, t: s }; return; }
     const a = this.el;
     if (a && !this.want && a.readyState >= 1) { a.currentTime = s + this.ev.offset(); return; }
     if (this.want) this.want = { ...this.want, t: s };
