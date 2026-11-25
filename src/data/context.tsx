@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type R
 import { VocalStack, type Transcription, type TranscriptionJob, type ReadAs } from '@vocalstack/js-sdk';
 import type { MediaCred } from '../core/audio';
 import { describe, type ErrorLike } from './errors';
+import { liveJob, sourceOf } from './live';
 
 export const DEFAULT_API = 'https://api.vocalstack.com';
 
@@ -100,39 +101,10 @@ export function withMedia(api: PlayerApi, media: string | null): PlayerApi {
   return media ? { ...api, cred: { ...api.cred, media } } : api;
 }
 
-const LIVE_STATES = ['pending', 'live', 'paused'];
-
-export function isLiveTranscription(t: Pick<Transcription, 'live' | 'state'> | null | undefined): boolean {
-  return !!t && !!t.live && LIVE_STATES.includes(t.state);
-}
-
-export function streamOffsetS(ingest: { mediaAt?: string | null; streamStartedAt?: string | null } | null | undefined): number {
-  if (!ingest?.mediaAt || !ingest.streamStartedAt) return 0;
-  const s = (Date.parse(ingest.mediaAt) - Date.parse(ingest.streamStartedAt)) / 1000;
-  return Number.isFinite(s) && s > 0 ? s : 0;
-}
-
-export function isRtmp(url: string | null | undefined): boolean {
-  return !!url && /^rtmps?:\/\//i.test(url.trim());
-}
-
-export function liveJob(tx: Transcription, url: string | null | undefined): TranscriptionJob | null {
-  const link = url ?? tx.ingest?.url ?? null;
-  if (!link) return null;
-  const done = tx.state === 'finalized';
-  const hasVideo = isRtmp(link) && !!tx.media?.some((m) => m.kind === 'video' && m.state === 'sealed');
-  return { transcriptionId: tx.id, state: done ? 'done' : 'transcribing', hasAudio: done, hasVideo, source: { kind: 'url', url: link }, crop: { startS: streamOffsetS(tx.ingest) } } as unknown as TranscriptionJob;
-}
+export { isLiveTranscription, streamOffsetS, isRtmp, liveJob, deliveryKept } from './live';
 
 function notStarted(tx: Transcription): void {
   if (tx.state === 'idle') throw Object.assign(new Error('This transcription has not started yet.'), { code: 'not_found', status: 404 });
-}
-
-function sourceOf(tx: Transcription): TranscriptionJob | null {
-  if (tx.job) return tx.job;
-  if (!tx.live) return null;
-  const src = tx.source as { kind?: string; url?: string | null } | undefined;
-  return liveJob(tx, src?.kind === 'stream' ? src.url : null);
 }
 
 export async function loadSource(api: PlayerApi, id: string): Promise<PlayerSource> {
@@ -147,7 +119,7 @@ export async function loadSource(api: PlayerApi, id: string): Promise<PlayerSour
   }
   const s = await api.client.shareLinks.open(id);
   return {
-    key: id, code: s.code ?? id, transcriptionId: s.transcriptionId ?? s.transcription?.id ?? null, name: s.name ?? '', transcription: s.transcription, job: s.job ?? (s.transcription?.live ? liveJob(s.transcription, null) : null),
+    key: id, code: s.code ?? id, transcriptionId: s.transcriptionId ?? s.transcription?.id ?? null, name: s.name ?? '', transcription: s.transcription, job: s.job ?? (s.transcription?.live ? liveJob(s.transcription) : null),
     allowDownload: !!s.allowDownload, allowExport: !!s.allowExport, allowTranslate: !!s.allowTranslate, sharedBy: s.sharedBy ?? null,
   };
 }
